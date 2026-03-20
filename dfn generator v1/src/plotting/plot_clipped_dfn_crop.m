@@ -23,6 +23,7 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
     color = [0.7 0.7 0.7];
     countVisible = 0;
     total_area = 0.0;
+    area_per_set = zeros(numel(master.set_files), 1);
 
     for k = 1:numel(master.set_files)
 
@@ -49,7 +50,9 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
                 % Compute polygon area and accumulate
                 poly_c = [poly; poly(1,:)];
                 cross_sum = sum(cross(poly_c(1:end-1,:), poly_c(2:end,:)), 1);
-                total_area = total_area + 0.5 * norm(cross_sum);
+                a = 0.5 * norm(cross_sum);
+                total_area = total_area + a;
+                area_per_set(k) = area_per_set(k) + a;
             end
         end
     end
@@ -64,8 +67,16 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
     p32_crop = total_area / cropVol;
 
     fprintf('Cropbox Volume = %.2f m^3\n', cropVol);
-    fprintf('Total Fracture Area in Cropbox = %.4f m^2\n', total_area);
-    fprintf('Realized P32 in Cropbox = %.4f m^2/m^3\n', p32_crop);
+    
+    fprintf('\n--- P32 Summary in Cropbox ---\n');
+    for k = 1:numel(master.set_files)
+        p32_k = area_per_set(k) / cropVol;
+        fprintf('Set %d: Input P32 = %.4f | Realized P32 in Cropbox = %.4f\n', ...
+            k, master.P32_input(k), p32_k);
+    end
+    fprintf('------------------------------\n');
+    fprintf('TOTAL Input P32 = %.4f\n', sum(master.P32_input));
+    fprintf('TOTAL Realized P32 in Cropbox = %.4f\n\n', p32_crop);
 
     % (Tunnel plotting functions have been removed)
 
