@@ -1,5 +1,9 @@
 clc; clear; close all;
 
+% 현재 파일 위치를 기준으로 상위 폴더(src) 및 하위 폴더들을 MATLAB 경로에 추가
+currentDir = fileparts(mfilename('fullpath'));
+addpath(genpath(fullfile(currentDir, '..')));
+
 %% =========================================================
 %  GENERAL 3D ROCK MASS DFN GENERATOR
 %  - not FPI-specific
