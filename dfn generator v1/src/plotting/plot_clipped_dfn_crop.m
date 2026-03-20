@@ -22,6 +22,7 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
 
     color = [0.7 0.7 0.7];
     countVisible = 0;
+    total_area = 0.0;
 
     for k = 1:numel(master.set_files)
 
@@ -44,11 +45,27 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
                     'LineWidth', 0.5);
 
                 countVisible = countVisible + 1;
+                
+                % Compute polygon area and accumulate
+                poly_c = [poly; poly(1,:)];
+                cross_sum = sum(cross(poly_c(1:end-1,:), poly_c(2:end,:)), 1);
+                total_area = total_area + 0.5 * norm(cross_sum);
             end
         end
     end
 
     fprintf('Visible clipped fractures in crop box = %d\n', countVisible);
+
+    % Compute P32
+    cx = cropBox_centered.xmax - cropBox_centered.xmin;
+    cy = cropBox_centered.ymax - cropBox_centered.ymin;
+    cz = cropBox_centered.zmax - cropBox_centered.zmin;
+    cropVol = cx * cy * cz;
+    p32_crop = total_area / cropVol;
+
+    fprintf('Cropbox Volume = %.2f m^3\n', cropVol);
+    fprintf('Total Fracture Area in Cropbox = %.4f m^2\n', total_area);
+    fprintf('Realized P32 in Cropbox = %.4f m^2/m^3\n', p32_crop);
 
     % (Tunnel plotting functions have been removed)
 
