@@ -33,7 +33,7 @@ rng('shuffle');
 %% -----------------------------
 sets = [];
 
-rmin_explicit = 0.40;
+rmin_explicit = 0.4;
 rmax_model = 250.0;
 
 % ----- Set 1

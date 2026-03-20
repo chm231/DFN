@@ -36,7 +36,6 @@ function plot_2d_slice_cropbox(masterFile, cropBox, sliceAxis, sliceVal)
     plot(rect_x, rect_y, 'k-', 'LineWidth', 2);
     
     total_trace_len = 0;
-    colors = lines(numel(master.set_files));
     
     for k = 1:numel(master.set_files)
         S = load(master.set_files{k});
@@ -73,11 +72,10 @@ function plot_2d_slice_cropbox(masterFile, cropBox, sliceAxis, sliceVal)
         end
         
         % Plot lines sequentially
-        c = colors(mod(k-1, size(colors,1))+1, :);
         for idx = 1:nValid
             seg = segs_ch{idx};
             if ~isempty(seg)
-                plot(seg(:,idx1), seg(:,idx2), '-', 'Color', c, 'LineWidth', 1.5);
+                plot(seg(:,idx1), seg(:,idx2), '-', 'Color', 'k', 'LineWidth', 1.0);
                 total_trace_len = total_trace_len + norm(seg(1,:) - seg(2,:));
             end
         end
