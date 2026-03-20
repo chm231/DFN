@@ -27,6 +27,9 @@ masterFile = fullfile(outDir, 'dfn_master_index.mat');
 %  MODEL DOMAIN (rock mass box)
 %  User-defined representative rock mass volume
 %% -----------------------------
+box.x0 = single(0);
+box.y0 = single(0);
+box.z0 = single(0);
 box.dx = single(100);
 box.dy = single(100);
 box.dz = single(100);
@@ -258,15 +261,15 @@ if opts.makeQuickPlot && ~isempty(plotPack.center)
     title('General 3D DFN preview');
 
     % draw box
-    plot3([0 double(box.dx) double(box.dx) 0 0], ...
-          [0 0 double(box.dy) double(box.dy) 0], ...
-          [0 0 0 0 0], 'k-');
-    plot3([0 double(box.dx) double(box.dx) 0 0], ...
-          [0 0 double(box.dy) double(box.dy) 0], ...
-          [double(box.dz) double(box.dz) double(box.dz) double(box.dz) double(box.dz)], 'k-');
-    for x = [0 double(box.dx)]
-        for y = [0 double(box.dy)]
-            plot3([x x], [y y], [0 double(box.dz)], 'k-');
+    plot3([box.x0 box.x0+double(box.dx) box.x0+double(box.dx) box.x0 box.x0], ...
+          [box.y0 box.y0 box.y0+double(box.dy) box.y0+double(box.dy) box.y0], ...
+          [box.z0 box.z0 box.z0 box.z0 box.z0], 'k-');
+    plot3([box.x0 box.x0+double(box.dx) box.x0+double(box.dx) box.x0 box.x0], ...
+          [box.y0 box.y0 box.y0+double(box.dy) box.y0+double(box.dy) box.y0], ...
+          [box.z0 box.z0 box.z0 box.z0 box.z0] + double(box.dz), 'k-');
+    for x = [box.x0 box.x0+double(box.dx)]
+        for y = [box.y0 box.y0+double(box.dy)]
+            plot3([x x], [y y], [box.z0 box.z0+double(box.dz)], 'k-');
         end
     end
 

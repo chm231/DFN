@@ -9,10 +9,14 @@ function centers = sample_centers_from_surface_points_vectorized(box, radius, st
     cls = class(radius);
     N = numel(radius);
 
+    if isfield(box, 'x0'), x0 = box.x0; else, x0 = 0; end
+    if isfield(box, 'y0'), y0 = box.y0; else, y0 = 0; end
+    if isfield(box, 'z0'), z0 = box.z0; else, z0 = 0; end
+
     Pr = zeros(N,3, cls);
-    Pr(:,1) = box.dx .* rand(N,1, cls);
-    Pr(:,2) = box.dy .* rand(N,1, cls);
-    Pr(:,3) = box.dz .* rand(N,1, cls);
+    Pr(:,1) = x0 + box.dx .* rand(N,1, cls);
+    Pr(:,2) = y0 + box.dy .* rand(N,1, cls);
+    Pr(:,3) = z0 + box.dz .* rand(N,1, cls);
 
     omega = 2*pi .* rand(N,1, cls);
     U = rand(N,1, cls);

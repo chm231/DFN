@@ -12,6 +12,10 @@ function insideMask = disc_fully_inside_box(centers, strike_u, dip_u, radius, bo
     ct = cos(th(:));
     st = sin(th(:));
 
+    if isfield(box, 'x0'), x0 = box.x0; else, x0 = 0; end
+    if isfield(box, 'y0'), y0 = box.y0; else, y0 = 0; end
+    if isfield(box, 'z0'), z0 = box.z0; else, z0 = 0; end
+
     for i = 1:N
         c = centers(i,:);
         r = radius(i);
@@ -20,8 +24,8 @@ function insideMask = disc_fully_inside_box(centers, strike_u, dip_u, radius, bo
 
         pts = c + r*ct.*s + r*st.*d;
 
-        insideMask(i) = all(pts(:,1) >= 0 & pts(:,1) <= double(box.dx) & ...
-                            pts(:,2) >= 0 & pts(:,2) <= double(box.dy) & ...
-                            pts(:,3) >= 0 & pts(:,3) <= double(box.dz));
+        insideMask(i) = all(pts(:,1) >= x0 & pts(:,1) <= x0 + double(box.dx) & ...
+                            pts(:,2) >= y0 & pts(:,2) <= y0 + double(box.dy) & ...
+                            pts(:,3) >= z0 & pts(:,3) <= z0 + double(box.dz));
     end
 end
