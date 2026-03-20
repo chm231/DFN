@@ -3,7 +3,7 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
     M = load(masterFile);
     master = M.master;
 
-    centerShift = [12.5 12.5 12.5];
+    centerShift = [0 0 0]; % Domain is already centered at origin
 
     cropBox_centered.xmin = cropBox.xmin - centerShift(1);
     cropBox_centered.xmax = cropBox.xmax - centerShift(1);
@@ -16,7 +16,7 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
     hold on; axis equal; grid on;
 
     xlabel('x [m]'); ylabel('y [m]'); zlabel('z [m]');
-    title('Clipped DFN inside central 10x10x10 m crop with horseshoe tunnel');
+    title('Clipped DFN inside crop box');
 
     draw_crop_box(cropBox_centered);
 
@@ -50,17 +50,7 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
 
     fprintf('Visible clipped fractures in crop box = %d\n', countVisible);
 
-    % -----------------------------------------
-    % Horseshoe tunnel
-    % -----------------------------------------
-    tunnel.centerY = 0.0;
-    tunnel.floorZ  = -3.0;
-    tunnel.radius  = 2.0;
-    tunnel.wallH   = 2.0;
-    tunnel.xmin    = -5.0;
-    tunnel.xmax    =  5.0;
-
-    plot_horseshoe_tunnel_centered(tunnel);
+    % (Tunnel plotting functions have been removed)
 
     view([-35 20]);
     camlight headlight;
