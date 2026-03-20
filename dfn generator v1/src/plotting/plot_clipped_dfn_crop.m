@@ -32,14 +32,30 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
         centers = double(S.centers) - centerShift;
         normals = double(S.normals);
         radius  = double(S.radius);
-
-        for i = 1:size(centers,1)
-
-            poly = clip_disc_with_cropbox( ...
+        
+        % 1. AABB Vectorized Pre-filtering (Culling)
+        valid_mask = ...
+            (centers(:,1) - radius <= cropBox_centered.xmax) & (centers(:,1) + radius >= cropBox_centered.xmin) & ...
+            (centers(:,2) - radius <= cropBox_centered.ymax) & (centers(:,2) + radius >= cropBox_centered.ymin) & ...
+            (centers(:,3) - radius <= cropBox_centered.zmax) & (centers(:,3) + radius >= cropBox_centered.zmin);
+            
+        valid_idx = find(valid_mask);
+        nValid = length(valid_idx);
+        
+        % Pre-allocate cell array for parfor results
+        polys_ch = cell(nValid, 1);
+        
+        % 2. Parallel computing for the heavy geometric clipping
+        parfor idx = 1:nValid
+            i = valid_idx(idx);
+            polys_ch{idx} = clip_disc_with_cropbox( ...
                 centers(i,:), normals(i,:), radius(i), cropBox_centered);
-
+        end
+        
+        % 3. Sequential plotting and area computation
+        for idx = 1:nValid
+            poly = polys_ch{idx};
             if ~isempty(poly)
-
                 patch(poly(:,1), poly(:,2), poly(:,3), color, ...
                     'FaceAlpha', 0.7, ...
                     'EdgeColor', [0.3 0.3 0.3], ...

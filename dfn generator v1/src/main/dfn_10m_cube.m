@@ -5,11 +5,11 @@ currentDir = fileparts(mfilename('fullpath'));
 addpath(genpath(fullfile(currentDir, '..')));
 
 %% =========================================================
-% DFN GENERATED IN 100x100x100 m DOMAIN
+% DFN GENERATED IN 300x300x300 m DOMAIN
 % THEN VISUALIZED IN CENTRAL 20x20x20 m CROPPED CUBE
 %% =========================================================
 
-outDir = 'dfn_output_cube100m';
+outDir = 'dfn_output_cube300m';
 if ~exist(outDir, 'dir')
     mkdir(outDir);
 end
@@ -19,14 +19,14 @@ masterFile = fullfile(outDir, 'dfn_master_index.mat');
 %% -----------------------------
 %  DFN Domain (generation domain)
 %% -----------------------------
-box.dx = single(100);
-box.dy = single(100);
-box.dz = single(100);
+box.dx = single(500);
+box.dy = single(500);
+box.dz = single(500);
 box.x0 = -box.dx / 2;
 box.y0 = -box.dy / 2;
 box.z0 = -box.dz / 2;
 
-rng(1);
+rng('shuffle');
 
 %% -----------------------------
 %  DFN SETS
@@ -171,7 +171,7 @@ for s = 1:numel(sets)
     metadata.N = Ntarget;
     metadata.sizeDist = seti.sizeDist;
     metadata.box = box;
-    metadata.note = 'Discs are generated in 100 m box; clipping is applied later in crop box.';
+    metadata.note = 'Discs are generated in 300 m box; clipping is applied later in crop box.';
 
     mFile.metadata = metadata;
 
@@ -195,9 +195,9 @@ fprintf('\nDone. Total fractures = %d\n', master.total_N);
 %% -----------------------------
 %  Define central crop box centered at origin
 %% -----------------------------
-cx = 20;
-cy = 20;
-cz = 20;
+cx = 30;
+cy = 30;
+cz = 30;
 cropBox.xmin = -cx / 2;
 cropBox.xmax =  cx / 2;
 cropBox.ymin = -cy / 2;
@@ -209,3 +209,9 @@ cropBox.zmax =  cz / 2;
 %  Plot clipped DFN in crop box
 %% -----------------------------
 plot_clipped_dfn_crop(masterFile, cropBox);
+
+%% -----------------------------
+%  Plot 2D Trace Slice (YZ, XZ, XY)
+%% -----------------------------
+% Example: Take a slice exactly at the center of the Y-axis (y = 0.0)
+plot_2d_slice_cropbox(masterFile, cropBox, 'y', 0.0);
