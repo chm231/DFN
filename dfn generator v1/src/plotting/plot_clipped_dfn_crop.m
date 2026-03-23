@@ -57,7 +57,7 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
             poly = polys_ch{idx};
             if ~isempty(poly)
                 patch(poly(:,1), poly(:,2), poly(:,3), color, ...
-                    'FaceAlpha', 0.7, ...
+                    'FaceAlpha', 0.5, ...
                     'EdgeColor', [0.3 0.3 0.3], ...
                     'LineWidth', 0.5);
 
@@ -87,8 +87,43 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
     fprintf('\n--- P32 Summary in Cropbox ---\n');
     for k = 1:numel(master.set_files)
         p32_k = area_per_set(k) / cropVol;
-        fprintf('Set %d: Input P32 = %.4f | Realized P32 in Cropbox = %.4f\n', ...
-            k, master.P32_input(k), p32_k);
+        % Load metadata to get input P32
+        S_meta = load(master.set_files{k}, 'metadata');
+        input_P32 = master.P32_input(k);
+        realized_p32 = p32_k; % This is the realized P32 for the current set k
+        
+        sizeDist = S_meta.metadata.sizeDist;
+        if isfield(sizeDist, 'type') && strcmp(sizeDist.type, 'powerlaw') && isfield(sizeDist, 'r0')
+            kr = sizeDist.kr;
+            rmax = sizeDist.rmax;
+            r0 = sizeDist.r0;       % Baseline empirical min radius (0.28m etc)
+            rmin = sizeDist.rmin;   % Render cutoff radius (1.0m)
+            
+            pow = 2 - kr; % Integral of r^2 * r^{-(kr+1)} = r^{1-kr}
+            if abs(pow) < 1e-12
+                int_r0 = log(rmax) - log(r0);
+                int_rmin = log(rmax) - log(rmin);
+            else
+                int_r0 = (rmax^pow - r0^pow) / pow;
+                int_rmin = (rmax^pow - rmin^pow) / pow;
+            end
+            % Theoretical true P32 for the r >= rmin interval
+            true_geo_P32 = input_P32 * (int_rmin / int_r0);
+        else
+            true_geo_P32 = input_P32;
+            r0 = sizeDist.rmin;
+            rmin = sizeDist.rmin;
+        end
+        
+        err_gen = abs(realized_p32 - input_P32) / input_P32 * 100;
+        
+        fprintf('--- Set %d ---\n', k);
+        fprintf('  [1] Empirical Baseline P32 (r >= %.2fm) = %8.4f\n', r0, input_P32);
+        fprintf('  [2] Real Geological P32    (r >= %.2fm) = %8.4f <-- True scaled target for Cropbox\n', rmin, true_geo_P32);
+        fprintf('  [3] Forced Generator P32   (r >= %.2fm) = %8.4f <-- Unscaled input forced on algo\n', rmin, input_P32);
+        fprintf('  [4] Actual Cropbox P32     (Generated)    = %8.4f\n', realized_p32);
+        fprintf('  >> Error vs Forced Target = %5.2f %%\n', err_gen);
+        fprintf('  >> Over-Spawn Ratio       = %5.2f x (Generated / True Geological)\n\n', realized_p32 / true_geo_P32);
     end
     fprintf('------------------------------\n');
     fprintf('TOTAL Input P32 = %.4f\n', sum(master.P32_input));

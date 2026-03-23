@@ -33,56 +33,56 @@ rng('shuffle');
 %% -----------------------------
 sets = [];
 
-rmin_explicit = 0.4;
+rmin_explicit = 1.0;
 rmax_model = 250.0;
 
 % ----- Set 1
 sets(1).name = 'Set_1';
-sets(1).trend = 87.2;
-sets(1).plunge = 1.7;
-sets(1).kappa = 21.66;
 sets(1).P32 = 0.602;
 sets(1).sizeDist.type = 'powerlaw';
 sets(1).sizeDist.kr = 2.88;
 sets(1).sizeDist.r0 = 0.28;
 sets(1).sizeDist.rmin = max(rmin_explicit, 0.28);
 sets(1).sizeDist.rmax = rmax_model;
+sets(1).trend = 87.2;
+sets(1).plunge = 1.7;
+sets(1).kappa = 21.66;
 
 % ----- Set 2
 sets(2).name = 'Set_2';
-sets(2).trend = 135.2;
-sets(2).plunge = 2.7;
-sets(2).kappa = 21.54;
 sets(2).P32 = 2.069;
 sets(2).sizeDist.type = 'powerlaw';
 sets(2).sizeDist.kr = 3.02;
 sets(2).sizeDist.r0 = 0.25;
 sets(2).sizeDist.rmin = max(rmin_explicit, 0.25);
 sets(2).sizeDist.rmax = rmax_model;
+sets(2).trend = 135.2;
+sets(2).plunge = 2.7;
+sets(2).kappa = 21.54;
 
 % ----- Set 3
 sets(3).name = 'Set_3';
-sets(3).trend = 40.6;
-sets(3).plunge = 2.2;
-sets(3).kappa = 23.90;
 sets(3).P32 = 0.448;
 sets(3).sizeDist.type = 'powerlaw';
 sets(3).sizeDist.kr = 2.81;
 sets(3).sizeDist.r0 = 0.14;
-sets(3).sizeDist.rmin = rmin_explicit;
+sets(3).sizeDist.rmin = max(rmin_explicit, 0.14);
 sets(3).sizeDist.rmax = rmax_model;
+sets(3).trend = 40.6;
+sets(3).plunge = 2.2;
+sets(3).kappa = 23.90;
 
 % ----- Set 4
 sets(4).name = 'Set_4';
-sets(4).trend = 190.4;
-sets(4).plunge = 0.7;
-sets(4).kappa = 30.63;
 sets(4).P32 = 0.226;
 sets(4).sizeDist.type = 'powerlaw';
 sets(4).sizeDist.kr = 2.95;
 sets(4).sizeDist.r0 = 0.15;
-sets(4).sizeDist.rmin = rmin_explicit;
+sets(4).sizeDist.rmin = max(rmin_explicit, 0.15);
 sets(4).sizeDist.rmax = rmax_model;
+sets(4).trend = 190.4;
+sets(4).plunge = 0.7;
+sets(4).kappa = 30.63;
 
 % ----- Set 5
 sets(5).name = 'Set_5';
@@ -118,7 +118,30 @@ master.box = box;
 %% =========================================================
 for s = 1:numel(sets)
     seti = sets(s);
-    Ntarget = compute_num_fractures_from_P32(seti.P32, seti.sizeDist, V);
+    
+    % --- Apply P32 Scaling Filter to prevent Over-Spawn ---
+    if strcmp(seti.sizeDist.type, 'powerlaw') && isfield(seti.sizeDist, 'r0')
+        kr = seti.sizeDist.kr;
+        rmax = seti.sizeDist.rmax;
+        r0 = seti.sizeDist.r0;
+        rmin = seti.sizeDist.rmin; % The cutoff generating limit
+        
+        pow = 2 - kr; % Integration of r^2 * r^{-(kr+1)} = r^{1-kr}
+        if abs(pow) < 1e-12
+            int_r0 = log(rmax) - log(r0);
+            int_rmin = log(rmax) - log(rmin);
+        else
+            int_r0 = (rmax^pow - r0^pow) / pow;
+            int_rmin = (rmax^pow - rmin^pow) / pow;
+        end
+        % Scale the target P32 down to the proportion valid for r >= rmin
+        target_P32 = seti.P32 * (int_rmin / int_r0);
+    else
+        target_P32 = seti.P32;
+    end
+    % ------------------------------------------------------
+
+    Ntarget = compute_num_fractures_from_P32(target_P32, seti.sizeDist, V);
 
     if opts.verbose
         fprintf('\n[%s] target N = %d\n', seti.name, Ntarget);
@@ -195,9 +218,9 @@ fprintf('\nDone. Total fractures = %d\n', master.total_N);
 %% -----------------------------
 %  Define central crop box centered at origin
 %% -----------------------------
-cx = 30;
-cy = 30;
-cz = 30;
+cx = 50;
+cy = 50;
+cz = 50;
 cropBox.xmin = -cx / 2;
 cropBox.xmax =  cx / 2;
 cropBox.ymin = -cy / 2;

@@ -33,7 +33,7 @@ function plot_2d_slice_cropbox(masterFile, cropBox, sliceAxis, sliceVal)
     bw = [cropBox.xmin, cropBox.xmax, cropBox.ymin, cropBox.ymax, cropBox.zmin, cropBox.zmax];
     rect_x = [bw(idx1*2-1) bw(idx1*2) bw(idx1*2) bw(idx1*2-1) bw(idx1*2-1)];
     rect_y = [bw(idx2*2-1) bw(idx2*2-1) bw(idx2*2) bw(idx2*2) bw(idx2*2-1)];
-    plot(rect_x, rect_y, 'k-', 'LineWidth', 2);
+    plot(rect_x, rect_y, 'k-', 'LineWidth', 0.2);
     
     total_trace_len = 0;
     
@@ -75,7 +75,7 @@ function plot_2d_slice_cropbox(masterFile, cropBox, sliceAxis, sliceVal)
         for idx = 1:nValid
             seg = segs_ch{idx};
             if ~isempty(seg)
-                plot(seg(:,idx1), seg(:,idx2), '-', 'Color', 'k', 'LineWidth', 1.0);
+                plot(seg(:,idx1), seg(:,idx2), '-', 'Color', 'k', 'LineWidth', 0.01);
                 total_trace_len = total_trace_len + norm(seg(1,:) - seg(2,:));
             end
         end
