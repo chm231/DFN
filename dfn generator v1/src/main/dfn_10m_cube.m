@@ -29,6 +29,11 @@ box.z0 = -box.dz / 2;
 rng('shuffle');
 
 %% -----------------------------
+%  CHOOSE STRATIGRAPHIC SITE
+%% -----------------------------
+site_name = 'Forsmark'; % <--- Change this to 'Forsmark' or 'Laxemar'
+
+%% -----------------------------
 %  DFN SETS
 %% -----------------------------
 sets = [];
@@ -36,65 +41,136 @@ sets = [];
 rmin_explicit = 1.0;
 rmax_model = 250.0;
 
-% ----- Set 1
-sets(1).name = 'Set_1';
-sets(1).P32 = 0.602;
-sets(1).sizeDist.type = 'powerlaw';
-sets(1).sizeDist.kr = 2.88;
-sets(1).sizeDist.r0 = 0.28;
-sets(1).sizeDist.rmin = max(rmin_explicit, 0.28);
-sets(1).sizeDist.rmax = rmax_model;
-sets(1).trend = 87.2;
-sets(1).plunge = 1.7;
-sets(1).kappa = 21.66;
+switch lower(site_name)
+    case 'forsmark'
+        % ========================================================
+        % Tabe 2-2. Forsmark DFN, version 1.2.
+        % ========================================================
+        % ----- Set 1
+        sets(1).name = 'Set_1';
+        sets(1).P32 = 0.602;
+        sets(1).sizeDist.type = 'powerlaw';
+        sets(1).sizeDist.kr = 2.88;
+        sets(1).sizeDist.r0 = 0.28;
+        sets(1).sizeDist.rmin = max(rmin_explicit, 0.28);
+        sets(1).sizeDist.rmax = rmax_model;
+        sets(1).trend = 87.2;
+        sets(1).plunge = 1.7;
+        sets(1).kappa = 21.66;
 
-% ----- Set 2
-sets(2).name = 'Set_2';
-sets(2).P32 = 2.069;
-sets(2).sizeDist.type = 'powerlaw';
-sets(2).sizeDist.kr = 3.02;
-sets(2).sizeDist.r0 = 0.25;
-sets(2).sizeDist.rmin = max(rmin_explicit, 0.25);
-sets(2).sizeDist.rmax = rmax_model;
-sets(2).trend = 135.2;
-sets(2).plunge = 2.7;
-sets(2).kappa = 21.54;
+        % ----- Set 2
+        sets(2).name = 'Set_2';
+        sets(2).P32 = 2.069;
+        sets(2).sizeDist.type = 'powerlaw';
+        sets(2).sizeDist.kr = 3.02;
+        sets(2).sizeDist.r0 = 0.25;
+        sets(2).sizeDist.rmin = max(rmin_explicit, 0.25);
+        sets(2).sizeDist.rmax = rmax_model;
+        sets(2).trend = 135.2;
+        sets(2).plunge = 2.7;
+        sets(2).kappa = 21.54;
 
-% ----- Set 3
-sets(3).name = 'Set_3';
-sets(3).P32 = 0.448;
-sets(3).sizeDist.type = 'powerlaw';
-sets(3).sizeDist.kr = 2.81;
-sets(3).sizeDist.r0 = 0.14;
-sets(3).sizeDist.rmin = max(rmin_explicit, 0.14);
-sets(3).sizeDist.rmax = rmax_model;
-sets(3).trend = 40.6;
-sets(3).plunge = 2.2;
-sets(3).kappa = 23.90;
+        % ----- Set 3
+        sets(3).name = 'Set_3';
+        sets(3).P32 = 0.448;
+        sets(3).sizeDist.type = 'powerlaw';
+        sets(3).sizeDist.kr = 2.81;
+        sets(3).sizeDist.r0 = 0.14;
+        sets(3).sizeDist.rmin = max(rmin_explicit, 0.14);
+        sets(3).sizeDist.rmax = rmax_model;
+        sets(3).trend = 40.6;
+        sets(3).plunge = 2.2;
+        sets(3).kappa = 23.90;
 
-% ----- Set 4
-sets(4).name = 'Set_4';
-sets(4).P32 = 0.226;
-sets(4).sizeDist.type = 'powerlaw';
-sets(4).sizeDist.kr = 2.95;
-sets(4).sizeDist.r0 = 0.15;
-sets(4).sizeDist.rmin = max(rmin_explicit, 0.15);
-sets(4).sizeDist.rmax = rmax_model;
-sets(4).trend = 190.4;
-sets(4).plunge = 0.7;
-sets(4).kappa = 30.63;
+        % ----- Set 4
+        sets(4).name = 'Set_4';
+        sets(4).P32 = 0.226;
+        sets(4).sizeDist.type = 'powerlaw';
+        sets(4).sizeDist.kr = 2.95;
+        sets(4).sizeDist.r0 = 0.15;
+        sets(4).sizeDist.rmin = max(rmin_explicit, 0.15);
+        sets(4).sizeDist.rmax = rmax_model;
+        sets(4).trend = 190.4;
+        sets(4).plunge = 0.7;
+        sets(4).kappa = 30.63;
 
-% ----- Set 5
-sets(5).name = 'Set_5';
-sets(5).trend = 342.9;
-sets(5).plunge = 80.3;
-sets(5).kappa = 8.18;
-sets(5).P32 = 0.605;
-sets(5).sizeDist.type = 'powerlaw';
-sets(5).sizeDist.kr = 2.92;
-sets(5).sizeDist.r0 = 0.25;
-sets(5).sizeDist.rmin = max(rmin_explicit, 0.25);
-sets(5).sizeDist.rmax = rmax_model;
+        % ----- Set 5
+        sets(5).name = 'Set_5';
+        sets(5).P32 = 0.605;
+        sets(5).sizeDist.type = 'powerlaw';
+        sets(5).sizeDist.kr = 2.92;
+        sets(5).sizeDist.r0 = 0.25;
+        sets(5).sizeDist.rmin = max(rmin_explicit, 0.25);
+        sets(5).sizeDist.rmax = rmax_model;
+        sets(5).trend = 342.9;
+        sets(5).plunge = 80.3;
+        sets(5).kappa = 8.18;
+
+    case 'laxemar'
+        % ========================================================
+        % Table 2-1. Laxemar DFN, version 1.2.
+        % ========================================================
+        % ----- Set 1
+        sets(1).name = 'Set_1';
+        sets(1).P32 = 1.310;
+        sets(1).sizeDist.type = 'powerlaw';
+        sets(1).sizeDist.kr = 2.85;
+        sets(1).sizeDist.r0 = 0.328;
+        sets(1).sizeDist.rmin = max(rmin_explicit, 0.328);
+        sets(1).sizeDist.rmax = rmax_model;
+        sets(1).trend = 338.1;
+        sets(1).plunge = 4.5;
+        sets(1).kappa = 13.06;
+
+        % ----- Set 2
+        sets(2).name = 'Set_2';
+        sets(2).P32 = 1.026;
+        sets(2).sizeDist.type = 'powerlaw';
+        sets(2).sizeDist.kr = 3.04;
+        sets(2).sizeDist.r0 = 0.977;
+        sets(2).sizeDist.rmin = max(rmin_explicit, 0.977);
+        sets(2).sizeDist.rmax = rmax_model;
+        sets(2).trend = 100.4;
+        sets(2).plunge = 0.2;
+        sets(2).kappa = 19.62;
+
+        % ----- Set 3
+        sets(3).name = 'Set_3';
+        sets(3).P32 = 0.975;
+        sets(3).sizeDist.type = 'powerlaw';
+        sets(3).sizeDist.kr = 3.01;
+        sets(3).sizeDist.r0 = 0.858;
+        sets(3).sizeDist.rmin = max(rmin_explicit, 0.858);
+        sets(3).sizeDist.rmax = rmax_model;
+        sets(3).trend = 212.9;
+        sets(3).plunge = 0.9;
+        sets(3).kappa = 10.46;
+
+        % ----- Set 4 (Exponential per footnote 1)
+        sets(4).name = 'Set_4';
+        sets(4).P32 = 2.320;
+        sets(4).sizeDist.type = 'exponential';
+        % The distribution is exponential with parameter lambda = 1/(mean). 
+        % Thus r_0 in exponential maps directly to the mean.
+        sets(4).sizeDist.r0 = 4.0; % mean = 4 (lambda = 1/4)
+        sets(4).sizeDist.rmin = rmin_explicit;
+        sets(4).sizeDist.rmax = rmax_model;
+        sets(4).trend = 3.3;
+        sets(4).plunge = 62.1;
+        sets(4).kappa = 10.13;
+
+        % ----- Set 5
+        sets(5).name = 'Set_5';
+        sets(5).P32 = 1.400;
+        sets(5).sizeDist.type = 'powerlaw';
+        sets(5).sizeDist.kr = 3.60;
+        sets(5).sizeDist.r0 = 0.400;
+        sets(5).sizeDist.rmin = max(rmin_explicit, 0.400);
+        sets(5).sizeDist.rmax = rmax_model;
+        sets(5).trend = 243.0;
+        sets(5).plunge = 24.4;
+        sets(5).kappa = 23.52;
+end
 
 %% -----------------------------
 %  OPTIONS
