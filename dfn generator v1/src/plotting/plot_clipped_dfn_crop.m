@@ -1,4 +1,4 @@
-function plot_clipped_dfn_crop(masterFile, cropBox)
+function fig = plot_clipped_dfn_crop(masterFile, cropBox, tunnel_poly_YZ)
 
     M = load(masterFile);
     master = M.master;
@@ -12,11 +12,23 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
     cropBox_centered.zmin = cropBox.zmin - centerShift(3);
     cropBox_centered.zmax = cropBox.zmax - centerShift(3);
 
-    figure('Color','w','Position',[100 100 1200 900]);
+    filter_by_tunnel = false;
+    if nargin >= 3 && ~isempty(tunnel_poly_YZ)
+        filter_by_tunnel = true;
+        warning('off', 'MATLAB:polyshape:repairedBySimplify');
+        ps_tunnel = polyshape(tunnel_poly_YZ(:,1), tunnel_poly_YZ(:,2));
+        warning('on', 'MATLAB:polyshape:repairedBySimplify');
+    end
+
+    fig = figure('Name', 'Clipped 3D DFN', 'Color','w','Position',[100 100 1200 900]);
     hold on; axis equal; grid on;
 
     xlabel('x [m]'); ylabel('y [m]'); zlabel('z [m]');
-    title('Clipped DFN inside crop box');
+    if filter_by_tunnel
+        title('Clipped DFN inside crop box (Tunnel Intersecting Only)');
+    else
+        title('Clipped DFN inside crop box');
+    end
 
     draw_crop_box(cropBox_centered);
 
@@ -56,6 +68,27 @@ function plot_clipped_dfn_crop(masterFile, cropBox)
         for idx = 1:nValid
             poly = polys_ch{idx};
             if ~isempty(poly)
+                % --- TUNNEL INTERSECTION CHECK ---
+                if filter_by_tunnel
+                    intersects = false;
+                    try
+                        warning('off', 'MATLAB:polyshape:repairedBySimplify');
+                        ps_frac = polyshape(poly(:,2), poly(:,3));
+                        warning('on', 'MATLAB:polyshape:repairedBySimplify');
+                        
+                        intersects = overlaps(ps_frac, ps_tunnel);
+                        if ps_frac.NumRegions == 0 % Degenerate shape (e.g., line projection)
+                            intersects = any(inpolygon(poly(:,2), poly(:,3), tunnel_poly_YZ(:,1), tunnel_poly_YZ(:,2)));
+                        end
+                    catch
+                        intersects = any(inpolygon(poly(:,2), poly(:,3), tunnel_poly_YZ(:,1), tunnel_poly_YZ(:,2)));
+                    end
+                    
+                    if ~intersects
+                        continue; % Skip plotting and area calculation for this fracture
+                    end
+                end
+                
                 patch(poly(:,1), poly(:,2), poly(:,3), color, ...
                     'FaceAlpha', 0.5, ...
                     'EdgeColor', [0.3 0.3 0.3], ...

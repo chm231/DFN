@@ -9,7 +9,7 @@ addpath(genpath(fullfile(currentDir, '..')));
 % THEN VISUALIZED IN CENTRAL 20x20x20 m CROPPED CUBE
 %% =========================================================
 
-outDir = 'dfn_output_cube300m';
+outDir = 'dfn_output_cube250m';
 if ~exist(outDir, 'dir')
     mkdir(outDir);
 end
@@ -19,9 +19,9 @@ masterFile = fullfile(outDir, 'dfn_master_index.mat');
 %% -----------------------------
 %  DFN Domain (generation domain)
 %% -----------------------------
-box.dx = single(500);
-box.dy = single(500);
-box.dz = single(500);
+box.dx = single(250);
+box.dy = single(250);
+box.dz = single(250);
 box.x0 = -box.dx / 2;
 box.y0 = -box.dy / 2;
 box.z0 = -box.dz / 2;
@@ -176,7 +176,10 @@ end
 %  OPTIONS
 %% -----------------------------
 opts.centerMode = 'area_uniform';
+opts.plot_all_dfn = false;              % 전체 도메인 시각화 On/Off
+opts.plot_tunnel_intersect_dfn = true;  % 터널 교차부위 표출 On/Off
 opts.verbose = true;
+opts.run_validation_suite = false; % <--- [검증 스크립트 ON/OFF 토글]
 
 V = double(box.dx) * double(box.dy) * double(box.dz);
 
@@ -211,6 +214,20 @@ for s = 1:numel(sets)
             int_rmin = (rmax^pow - rmin^pow) / pow;
         end
         % Scale the target P32 down to the proportion valid for r >= rmin
+        target_P32 = seti.P32 * (int_rmin / int_r0);
+    elseif strcmp(seti.sizeDist.type, 'exponential')
+        % For exponential, r0 represents the mean, and baseline P32 represents all fractures (r>=0).
+        lambda = 1 / seti.sizeDist.r0;
+        rmax = seti.sizeDist.rmax;
+        rmin = seti.sizeDist.rmin; % 1.0m cutoff
+        
+        % Area integral factor: int r^2 * lambda * exp(-lambda*r)
+        % Using the analytical definite integral substitution:
+        int_func = @(r) -exp(-lambda*r) .* (r.^2 + 2*r/lambda + 2/lambda^2);
+        
+        int_r0 = int_func(rmax) - int_func(0);
+        int_rmin = int_func(rmax) - int_func(rmin);
+        
         target_P32 = seti.P32 * (int_rmin / int_r0);
     else
         target_P32 = seti.P32;
@@ -291,6 +308,11 @@ save(masterFile, 'master', '-v7.3');
 
 fprintf('\nDone. Total fractures = %d\n', master.total_N);
 
+if opts.run_validation_suite
+    fprintf('\nRunning Validation Suite...\n');
+    validate_dfn_generation(masterFile, sets);
+end
+
 %% -----------------------------
 %  Define central crop box centered at origin
 %% -----------------------------
@@ -305,12 +327,62 @@ cropBox.zmin = -cz / 2;
 cropBox.zmax =  cz / 2;
 
 %% -----------------------------
-%  Plot clipped DFN in crop box
+%  Load Tunnel Polygon First (for Filtering & Overlay)
 %% -----------------------------
-plot_clipped_dfn_crop(masterFile, cropBox);
+tunnel_poly_YZ = [];
+tunnel_Y = [];
+tunnel_Z = [];
+
+tunnel_file = fullfile(currentDir, '..', '..', '..', '단면_폴리곤.dat');
+if exist(tunnel_file, 'file')
+    poly = read_tunnel_polygon(tunnel_file);
+    poly_shifted = poly;
+    poly_shifted(:,2) = poly_shifted(:,2) - 4.0; % Z position sync
+    poly_shifted(end+1, :) = poly_shifted(1, :); % Close Polygon
+    
+    tunnel_Y = poly_shifted(:,1);
+    tunnel_Z = poly_shifted(:,2);
+    tunnel_poly_YZ = [tunnel_Y, tunnel_Z];
+else
+    disp('WARNING: [단면_폴리곤.dat] file not found in root directory! Tunnel overlay skipped.');
+end
+
+%% -----------------------------
+%  Plot clipped DFN (Options Based)
+%% -----------------------------
+if opts.plot_all_dfn
+    fig_dfn_3d_all = plot_clipped_dfn_crop(masterFile, cropBox);
+    if ~isempty(tunnel_Y)
+        overlay_tunnel_3d(fig_dfn_3d_all, cropBox, tunnel_Y, tunnel_Z);
+    end
+end
+
+if opts.plot_tunnel_intersect_dfn && ~isempty(tunnel_poly_YZ)
+    fig_dfn_3d_tunnel = plot_clipped_dfn_crop(masterFile, cropBox, tunnel_poly_YZ);
+    if ~isempty(tunnel_Y)
+        overlay_tunnel_3d(fig_dfn_3d_tunnel, cropBox, tunnel_Y, tunnel_Z);
+    end
+end
 
 %% -----------------------------
 %  Plot 2D Trace Slice (YZ, XZ, XY)
 %% -----------------------------
-% Example: Take a slice exactly at the center of the Y-axis (y = 0.0)
+% 굴진 방향(X축)을 따라 종단면 Slicing: y = 0.0 평면
 plot_2d_slice_cropbox(masterFile, cropBox, 'y', 0.0);
+
+
+%% -----------------------------
+%  Helper Inline Functions
+%% -----------------------------
+function overlay_tunnel_3d(fig_handle, cropBox, tunnel_Y, tunnel_Z)
+    figure(fig_handle); hold on;
+    N = length(tunnel_Y);
+    surf_X = repmat([cropBox.xmin; cropBox.xmax], 1, N);
+    surf_Y = repmat(tunnel_Y', 2, 1);
+    surf_Z = repmat(tunnel_Z', 2, 1);
+    
+    surf(surf_X, surf_Y, surf_Z, 'FaceColor', 'r', 'FaceAlpha', 0.15, 'EdgeColor', 'r', 'LineWidth', 0.5);
+    patch(repmat(cropBox.xmin, N, 1), tunnel_Y, tunnel_Z, 'r', 'FaceAlpha', 0.3, 'EdgeColor', 'r', 'LineWidth', 2.0);
+    patch(repmat(cropBox.xmax, N, 1), tunnel_Y, tunnel_Z, 'r', 'FaceAlpha', 0.3, 'EdgeColor', 'r', 'LineWidth', 2.0);
+    %disp('Successfully overlaid Solid 3D boundary mesh of structural tunnel.');
+end

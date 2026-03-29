@@ -75,7 +75,7 @@ function plot_2d_slice_cropbox(masterFile, cropBox, sliceAxis, sliceVal)
         for idx = 1:nValid
             seg = segs_ch{idx};
             if ~isempty(seg)
-                plot(seg(:,idx1), seg(:,idx2), '-', 'Color', 'k', 'LineWidth', 0.01);
+                plot(seg(:,idx1), seg(:,idx2), '-', 'Color', 'k', 'LineWidth', 0.005);
                 total_trace_len = total_trace_len + norm(seg(1,:) - seg(2,:));
             end
         end
