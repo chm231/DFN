@@ -178,6 +178,7 @@ end
 opts.centerMode = 'area_uniform';
 opts.plot_all_dfn = false;              % 전체 도메인 시각화 On/Off
 opts.plot_tunnel_intersect_dfn = true;  % 터널 교차부위 표출 On/Off
+opts.overlay_tunnel = true;            % 터널 오버레이 On/Off
 opts.verbose = true;
 opts.run_validation_suite = false; % <--- [검증 스크립트 ON/OFF 토글]
 
@@ -352,14 +353,14 @@ end
 %% -----------------------------
 if opts.plot_all_dfn
     fig_dfn_3d_all = plot_clipped_dfn_crop(masterFile, cropBox);
-    if ~isempty(tunnel_Y)
+    if opts.overlay_tunnel && ~isempty(tunnel_Y)
         overlay_tunnel_3d(fig_dfn_3d_all, cropBox, tunnel_Y, tunnel_Z);
     end
 end
 
 if opts.plot_tunnel_intersect_dfn && ~isempty(tunnel_poly_YZ)
     fig_dfn_3d_tunnel = plot_clipped_dfn_crop(masterFile, cropBox, tunnel_poly_YZ);
-    if ~isempty(tunnel_Y)
+    if opts.overlay_tunnel && ~isempty(tunnel_Y)
         overlay_tunnel_3d(fig_dfn_3d_tunnel, cropBox, tunnel_Y, tunnel_Z);
     end
 end
@@ -369,6 +370,7 @@ end
 %% -----------------------------
 % 굴진 방향(X축)을 따라 종단면 Slicing: y = 0.0 평면
 plot_2d_slice_cropbox(masterFile, cropBox, 'y', 0.0);
+
 
 
 %% -----------------------------
