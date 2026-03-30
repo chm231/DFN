@@ -31,7 +31,7 @@ rng('shuffle');
 %% -----------------------------
 %  CHOOSE STRATIGRAPHIC SITE
 %% -----------------------------
-site_name = 'Forsmark'; % <--- Change this to 'Forsmark' or 'Laxemar'
+site_name = 'Laxemar'; % <--- Change this to 'Forsmark' or 'Laxemar'
 
 %% -----------------------------
 %  DFN SETS
@@ -178,6 +178,7 @@ end
 opts.centerMode = 'area_uniform';
 opts.plot_all_dfn = false;              % 전체 도메인 시각화 On/Off
 opts.plot_tunnel_intersect_dfn = true;  % 터널 교차부위 표출 On/Off
+opts.export_for_python = true;         % Python 블록 탐지용 HDF5 내보내기 On/Off
 opts.overlay_tunnel = true;            % 터널 오버레이 On/Off
 opts.verbose = true;
 opts.run_validation_suite = false; % <--- [검증 스크립트 ON/OFF 토글]
@@ -366,10 +367,11 @@ if opts.plot_tunnel_intersect_dfn && ~isempty(tunnel_poly_YZ)
 end
 
 %% -----------------------------
-%  Plot 2D Trace Slice (YZ, XZ, XY)
+%  Export Data for Python GPU Block Detection
 %% -----------------------------
-% 굴진 방향(X축)을 따라 종단면 Slicing: y = 0.0 평면
-plot_2d_slice_cropbox(masterFile, cropBox, 'y', 0.0);
+if opts.export_for_python
+    export_dfn_for_python(masterFile, tunnel_poly_YZ, tunnel_Y, tunnel_Z, cropBox);
+end
 
 
 
