@@ -27,14 +27,17 @@ function export_dfn_for_python(masterFile, tunnel_poly_YZ, tunnel_Y, tunnel_Z, c
 
     M = load(masterFile);
     master = M.master;
-    
-    % 출력 경로
+
+    % 최종 출력 경로 (OneDrive)
     [master_dir, ~, ~] = fileparts(masterFile);
     export_path = fullfile(master_dir, 'dfn_export_for_python.h5');
-    if exist(export_path, 'file'), delete(export_path); end
-    
+
+    % ── OneDrive 동기화 잠금 방지: 로컬 temp에 먼저 쓰기 ──────────────
+    tmp_path = fullfile(tempdir(), 'dfn_export_for_python_tmp.h5');
+    if exist(tmp_path, 'file'), delete(tmp_path); end
+
     fprintf('\n🐍 Exporting DFN data for Python GPU pipeline...\n');
-    
+
     % 균열 데이터 통합
     all_c = []; all_n = []; all_r = []; all_sid = [];
     for k = 1:numel(master.set_files)
@@ -46,56 +49,62 @@ function export_dfn_for_python(masterFile, tunnel_poly_YZ, tunnel_Y, tunnel_Z, c
     end
     N = length(all_r);
     fprintf('  - %d fractures gathered.\n', N);
-    
-    % HDF5 Write – 균열
-    h5create(export_path, '/fractures/centers', [N 3], 'Datatype', 'single');
-    h5create(export_path, '/fractures/normals', [N 3], 'Datatype', 'single');
-    h5create(export_path, '/fractures/radii',   [N 1], 'Datatype', 'single');
-    h5create(export_path, '/fractures/set_id',  [N 1], 'Datatype', 'uint16');
-    
-    h5write(export_path, '/fractures/centers', single(all_c));
-    h5write(export_path, '/fractures/normals', single(all_n));
-    h5write(export_path, '/fractures/radii',   single(all_r));
-    h5write(export_path, '/fractures/set_id',  all_sid);
-    
+
+    % ── HDF5 Write (tmp 경로) ──────────────────────────────────────────
+    % 균열
+    h5create(tmp_path, '/fractures/centers', [N 3], 'Datatype', 'single');
+    h5create(tmp_path, '/fractures/normals', [N 3], 'Datatype', 'single');
+    h5create(tmp_path, '/fractures/radii',   [N 1], 'Datatype', 'single');
+    h5create(tmp_path, '/fractures/set_id',  [N 1], 'Datatype', 'uint16');
+
+    h5write(tmp_path, '/fractures/centers', single(all_c));
+    h5write(tmp_path, '/fractures/normals', single(all_n));
+    h5write(tmp_path, '/fractures/radii',   single(all_r));
+    h5write(tmp_path, '/fractures/set_id',  all_sid);
+
     % 터널 데이터
     if ~isempty(tunnel_poly_YZ)
         M_poly = size(tunnel_poly_YZ, 1);
-        h5create(export_path, '/tunnel/poly_YZ', [M_poly 2], 'Datatype', 'single');
-        h5write(export_path, '/tunnel/poly_YZ', single(tunnel_poly_YZ));
+        h5create(tmp_path, '/tunnel/poly_YZ', [M_poly 2], 'Datatype', 'single');
+        h5write(tmp_path, '/tunnel/poly_YZ', single(tunnel_poly_YZ));
     end
     if ~isempty(tunnel_Y)
         K = length(tunnel_Y);
-        h5create(export_path, '/tunnel/profile_Y', [K 1], 'Datatype', 'single');
-        h5create(export_path, '/tunnel/profile_Z', [K 1], 'Datatype', 'single');
-        h5write(export_path, '/tunnel/profile_Y', single(tunnel_Y(:)));
-        h5write(export_path, '/tunnel/profile_Z', single(tunnel_Z(:)));
+        h5create(tmp_path, '/tunnel/profile_Y', [K 1], 'Datatype', 'single');
+        h5create(tmp_path, '/tunnel/profile_Z', [K 1], 'Datatype', 'single');
+        h5write(tmp_path, '/tunnel/profile_Y', single(tunnel_Y(:)));
+        h5write(tmp_path, '/tunnel/profile_Z', single(tunnel_Z(:)));
     end
-    
+
     % 메타 정보 – 전체 도메인 박스
     xmin_d = min(all_c(:,1) - all_r) - 5;
     xmax_d = max(all_c(:,1) + all_r) + 5;
     domain_box = single([xmin_d, xmax_d, ...
                           min(tunnel_poly_YZ(:,1))-8, max(tunnel_poly_YZ(:,1))+8, ...
                           min(tunnel_poly_YZ(:,2))-8, max(tunnel_poly_YZ(:,2))+8]);
-    h5create(export_path, '/meta/domain_box', [1 6], 'Datatype', 'single');
-    h5write(export_path, '/meta/domain_box', domain_box);
-    
+    h5create(tmp_path, '/meta/domain_box', [1 6], 'Datatype', 'single');
+    h5write(tmp_path, '/meta/domain_box', domain_box);
+
     % crop_box – Python 분석 도메인
     if ~isempty(cropBox.xmin)
         crop_box_vec = single([cropBox.xmin, cropBox.xmax, ...
                                cropBox.ymin, cropBox.ymax, ...
                                cropBox.zmin, cropBox.zmax]);
     else
-        crop_box_vec = domain_box;  % fallback: 전체 도메인
+        crop_box_vec = domain_box;
     end
-    h5create(export_path, '/meta/crop_box', [1 6], 'Datatype', 'single');
-    h5write(export_path, '/meta/crop_box', crop_box_vec);
-    
-    h5writeatt(export_path, '/', 'created_by', 'dfn_10m_cube.m');
-    h5writeatt(export_path, '/', 'matlab_version', version);
-    h5writeatt(export_path, '/', 'num_fractures', N);
-    
+    h5create(tmp_path, '/meta/crop_box', [1 6], 'Datatype', 'single');
+    h5write(tmp_path, '/meta/crop_box', crop_box_vec);
+
+    % 속성 쓰기 (tmp 파일에 – OneDrive 잠금 없음)
+    h5writeatt(tmp_path, '/', 'created_by', 'dfn_10m_cube.m');
+    h5writeatt(tmp_path, '/', 'matlab_version', version);
+    h5writeatt(tmp_path, '/', 'num_fractures', N);
+
+    % ── 완성된 파일을 OneDrive 최종 경로로 이동 ──────────────────────
+    if exist(export_path, 'file'), delete(export_path); end
+    movefile(tmp_path, export_path);
+
     fprintf('  ✅ Exported to: %s\n', export_path);
     fprintf('  - Run Python pipeline:\n');
     fprintf('      cd "%s"\n', fullfile(fileparts(masterFile), '..', '..', '..', 'python'));

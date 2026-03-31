@@ -1,159 +1,125 @@
 """
 visualize_blocks.py
-블록 탐지 결과 시각화
+블록 탐지 결과 시각화 (PyVista 기반)
 
-matplotlib 기반:
- - 3D 산점도 (블록별 색상)
- - YZ 단면 슬라이스
- - XY/XZ 슬라이스
- - 블록 볼륨 히스토그램
+ - 3D 부드러운 메쉬 (Marching Cubes 적용)
+ - 터널 반투명 메쉬 표시
+ - 마우스 회전/확대 가능 대화형 3D 뷰어
 """
 
 from __future__ import annotations
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')  # 헤드리스 환경 대응 (GUI 있으면 'TkAgg' 또는 제거)
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon as MplPolygon
-from matplotlib.collections import PatchCollection
-import matplotlib.cm as cm
 
+try:
+    import pyvista as pv
+    from skimage.measure import marching_cubes
+except ImportError:
+    pv = None
 
-def plot_block_overview(
+def plot_block_3d_pyvista(
     labels: np.ndarray,       # (Nx, Ny, Nz) int32
     block_info: list,
     grid_info: dict,
     tunnel_poly_YZ: np.ndarray | None = None,
-    save_path: str = "block_overview.png",
+    save_path: str = "block_3d_pyvista.png",
 ):
-    """블록 3D 분포 개요 (4-panel)."""
-    xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
-    Nx, Ny, Nz = labels.shape
+    """
+    labels 에서 값이 0보다 큰 영역(블록)에 대해 Marching Cubes로
+    부드러운 메쉬를 생성하여 PyVista 대화형 창에 렌더링합니다.
+    """
+    if pv is None:
+        print("  [Viz] PyVista 또는 scikit-image가 설치되지 않아 3D 시각화를 건너뜁니다.")
+        return
 
     n_blocks = len(block_info)
     if n_blocks == 0:
         print("  [Viz] 탐지된 블록 없음.")
         return
 
-    cmap = cm.get_cmap('tab20', max(n_blocks, 1))
+    print("  [Viz] PyVista 3D 렌더링 준비 중 (Marching Cubes 적용)...")
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10), facecolor='#1a1a2e')
-    fig.suptitle(f'3D DFN Block Detection Results\n{n_blocks} blocks detected',
-                 color='white', fontsize=14, fontweight='bold')
-
-    for ax in axes.ravel():
-        ax.set_facecolor('#16213e')
-
-    # ── Panel 1: YZ 단면 (X 중앙) ──────────────────────────────────────
-    ax1 = axes[0, 0]
-    xmid = Nx // 2
-    slice_yz = labels[xmid, :, :]  # (Ny, Nz)
-    im1 = ax1.imshow(slice_yz.T, origin='lower',
-                     extent=[ys[0], ys[-1], zs[0], zs[-1]],
-                     cmap='tab20', aspect='equal', interpolation='nearest',
-                     vmin=0, vmax=max(n_blocks, 1))
-    if tunnel_poly_YZ is not None:
-        ax1.plot(tunnel_poly_YZ[:, 0], tunnel_poly_YZ[:, 1],
-                 'w-', linewidth=1.5, label='Tunnel')
-        ax1.legend(fontsize=8, facecolor='#1a1a2e', labelcolor='white')
-    ax1.set_xlabel('Y (m)', color='white'); ax1.set_ylabel('Z (m)', color='white')
-    ax1.set_title(f'YZ slice @ X={xs[xmid]:.1f}m', color='white', fontsize=10)
-    ax1.tick_params(colors='white')
-    plt.colorbar(im1, ax=ax1, label='Block ID').ax.yaxis.set_tick_params(color='white')
-
-    # ── Panel 2: XY 단면 (Z 중앙) ──────────────────────────────────────
-    ax2 = axes[0, 1]
-    zmid = Nz // 2
-    slice_xy = labels[:, :, zmid]  # (Nx, Ny)
-    im2 = ax2.imshow(slice_xy.T, origin='lower',
-                     extent=[xs[0], xs[-1], ys[0], ys[-1]],
-                     cmap='tab20', aspect='auto', interpolation='nearest',
-                     vmin=0, vmax=max(n_blocks, 1))
-    ax2.set_xlabel('X (m)', color='white'); ax2.set_ylabel('Y (m)', color='white')
-    ax2.set_title(f'XY slice @ Z={zs[zmid]:.1f}m', color='white', fontsize=10)
-    ax2.tick_params(colors='white')
-
-    # ── Panel 3: 블록 볼륨 히스토그램 ──────────────────────────────────
-    ax3 = axes[1, 0]
-    vols = [b['volume_m3'] for b in block_info]
-    ax3.hist(vols, bins=min(30, n_blocks), color='#e94560', edgecolor='white', linewidth=0.5)
-    ax3.set_xlabel('Block Volume (m³)', color='white')
-    ax3.set_ylabel('Count', color='white')
-    ax3.set_title('Block Volume Distribution', color='white', fontsize=10)
-    ax3.tick_params(colors='white')
-    ax3.grid(True, alpha=0.2, color='white')
-    if len(vols) > 0:
-        ax3.axvline(np.median(vols), color='yellow', linestyle='--',
-                    linewidth=1.5, label=f'Median: {np.median(vols):.2f} m³')
-        ax3.legend(fontsize=8, facecolor='#1a1a2e', labelcolor='white')
-
-    # ── Panel 4: 블록 통계 테이블 ──────────────────────────────────────
-    ax4 = axes[1, 1]
-    ax4.axis('off')
-    top_n = min(10, n_blocks)
-    table_data = []
-    for i, b in enumerate(block_info[:top_n]):
-        cx, cy, cz = b['centroid']
-        table_data.append([
-            f"{b['label']}",
-            f"{b['n_voxels']:,}",
-            f"{b['volume_m3']:.3f}",
-            f"({cx:.1f}, {cy:.1f}, {cz:.1f})",
-        ])
-    col_labels = ['Block ID', 'Voxels', 'Volume (m³)', 'Centroid (m)']
-    tbl = ax4.table(cellText=table_data, colLabels=col_labels,
-                    loc='center', cellLoc='center')
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(8)
-    tbl.scale(1, 1.4)
-    for (r, c), cell in tbl.get_celld().items():
-        cell.set_facecolor('#0f3460' if r == 0 else '#16213e')
-        cell.set_text_props(color='white')
-        cell.set_edgecolor('#e94560')
-    ax4.set_title(f'Top-{top_n} Blocks by Volume', color='white', fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='#1a1a2e')
-    print(f"  [Viz] 저장: {save_path}")
-    plt.close(fig)
-
-
-def plot_block_3d_scatter(
-    labels: np.ndarray,
-    block_info: list,
-    grid_info: dict,
-    max_voxels_per_block: int = 500,
-    save_path: str = "block_3d_scatter.png",
-):
-    """3D 산점도로 블록 위치 시각화."""
-    if not block_info:
-        return
-
+    # 그리드 좌표 및 간격 정보
     xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
-    XX, YY, ZZ = np.meshgrid(xs, ys, zs, indexing='ij')
+    vs = float(grid_info['voxel_size'])
+    spacing = (vs, vs, vs)
+    
+    # 마스킹 배열에 사용하는 인덱스가 (0,0,0)일 때 실제 공간 좌표 시작점
+    origin = np.array([xs[0], ys[0], zs[0]])
 
-    fig = plt.figure(figsize=(12, 9), facecolor='#1a1a2e')
-    ax = fig.add_subplot(111, projection='3d', facecolor='#16213e')
+    plotter = pv.Plotter()
+    plotter.set_background('white')
 
-    cmap = cm.get_cmap('tab20', max(len(block_info), 1))
-    rng = np.random.default_rng(42)
+    # 보통 tab20과 같은 matplotlib 호환 컬러맵 사용 가능
+    try:
+        colors = pv.colors.get_cmap("tab20")
+    except AttributeError:
+        import matplotlib.cm as cm
+        colors = cm.get_cmap("tab20", max(20, n_blocks))
 
+    # 1. 터널 시각화 (반투명 원통형 메쉬 생성)
+    if tunnel_poly_YZ is not None:
+        xmin, xmax = xs[0], xs[-1]
+        n_pts = len(tunnel_poly_YZ)
+        
+        pts = []
+        faces = []
+        for i in range(n_pts):
+            y, z = tunnel_poly_YZ[i]
+            pts.append([xmin, y, z])
+            pts.append([xmax, y, z])
+            
+        # 표면을 삼각 메쉬 형태로 구성
+        for i in range(n_pts - 1):
+            p0 = 2 * i
+            p1 = 2 * i + 1
+            p2 = 2 * (i + 1)
+            p3 = 2 * (i + 1) + 1
+            # 2개의 삼각형(Quad) 추가
+            faces.extend([3, p0, p1, p3])
+            faces.extend([3, p0, p3, p2])
+            
+        tunnel_mesh = pv.PolyData(np.array(pts), np.array(faces))
+        # 반투명 멘더링
+        plotter.add_mesh(tunnel_mesh, color='lightblue', opacity=0.3, style='surface', label='Tunnel')
+
+    # 2. 블록들에 대해 Marching Cubes 적용 및 렌더링
     for i, b in enumerate(block_info):
-        mask = labels == b['label']
-        xi = XX[mask]; yi = YY[mask]; zi = ZZ[mask]
-        if len(xi) > max_voxels_per_block:
-            idx = rng.choice(len(xi), max_voxels_per_block, replace=False)
-            xi, yi, zi = xi[idx], yi[idx], zi[idx]
-        ax.scatter(xi, yi, zi, c=[cmap(i % 20)], s=4, alpha=0.6)
+        label_id = b['label']
+        # 특정 블록만의 불리언 마스크
+        mask = (labels == label_id)
+        
+        try:
+            # 부드러운 표면(Isosurface) 추출 (0과 1 사이의 경계인 0.5 레벨)
+            verts, faces, normals, values = marching_cubes(mask, level=0.5, spacing=spacing)
+            
+            # 배열 인덱스 기반 좌표(verts)를 실제 공간 좌표로 보정
+            # marching_cubes가 생성한 verts 위치는 mask 배열의 인덱스에 spacing을 곱한 값이므로
+            # 여기에 원점(origin)만 더해주면 실제 위치와 일치하게 됩니다.
+            verts += origin
+            
+            # PyVista의 faces 배열 구조: [다각형 정점 수, 정점인덱스1, 정점인덱스2, 정점인덱스3]
+            pv_faces = np.pad(faces, ((0, 0), (1, 0)), constant_values=3).flatten()
+            
+            block_mesh = pv.PolyData(verts, pv_faces)
+            
+            cidx = i % 20
+            color = colors(cidx) if callable(colors) else colors.colors[cidx]
+            
+            plotter.add_mesh(block_mesh, color=color[:3], smooth_shading=True, label=f'Block {label_id}')
+            
+        except ValueError:
+            # 해상도 대비 너무 작은 블록(예: 2x2x2 미만)은 추출 실패할 수 있음
+            pass
 
-    ax.set_xlabel('X (m)', color='white', labelpad=6)
-    ax.set_ylabel('Y (m)', color='white', labelpad=6)
-    ax.set_zlabel('Z (m)', color='white', labelpad=6)
-    ax.set_title(f'3D Block Distribution ({len(block_info)} blocks)', color='white', fontsize=12)
-    ax.tick_params(colors='white')
-    ax.xaxis.pane.fill = False; ax.yaxis.pane.fill = False; ax.zaxis.pane.fill = False
+    print("  [Viz] 인터랙티브 뷰어 창을 엽니다. 마우스로 회전 및 확대/축소가 가능합니다.")
+    print("        창을 닫으면 파이프라인 처리가 완전히 종료됩니다.")
+    
+    # 축 좌표 표시
+    plotter.show_axes()
+    
+    # 스크린샷 자동 저장 설정 가능 여부 (선택)
+    # plotter.show(screenshot=save_path) 
+    
+    # 대화형 그래픽 띄우기
+    plotter.show()
 
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='#1a1a2e')
-    print(f"  [Viz] 저장: {save_path}")
-    plt.close(fig)

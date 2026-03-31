@@ -94,20 +94,24 @@ def build_voxel_masks(
     dist_yz = _signed_dist_to_polygon_yz(py_flat, pz_flat, poly_Y, poly_Z, inside_yz.ravel())
     dist_yz = dist_yz.reshape(Ny, Nz)  # 양수=외부, 음수=내부
 
-    halo_yz = (dist_yz > 0) & (dist_yz <= halo_dist)  # 외부이면서 halo 이내
+    if halo_dist > 0:
+        halo_yz = (dist_yz > 0) & (dist_yz <= halo_dist)
+    else:
+        halo_yz = np.zeros((Ny, Nz), dtype=bool)
     halo_mask_np = x_in[:, np.newaxis, np.newaxis] & halo_yz[np.newaxis, :, :]
 
-    # GPU로 전송
+    # GPU로 전송 (boolean 마스크만 – asarray는 JIT 불필요)
     xp = cp if HAS_GPU else np
     tunnel_mask = xp.asarray(tunnel_mask_np)
     halo_mask   = xp.asarray(halo_mask_np)
 
-    # 복셀 중심 좌표 배열 (Nx,Ny,Nz,3)
+    # 복셀 중심 좌표는 CPU(numpy)로 유지 – cp.stack()은 nvrtc JIT 필요
+    # block_detector의 통계 계산이 CPU에서 이뤄지므로 GPU 불필요
     XX3, YY3, ZZ3 = np.meshgrid(xs, ys, zs, indexing='ij')
-    voxel_centers = xp.stack([
-        xp.asarray(XX3.astype(np.float32)),
-        xp.asarray(YY3.astype(np.float32)),
-        xp.asarray(ZZ3.astype(np.float32)),
+    voxel_centers = np.stack([
+        XX3.astype(np.float32),
+        YY3.astype(np.float32),
+        ZZ3.astype(np.float32),
     ], axis=-1)
 
     grid_info = dict(

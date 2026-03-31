@@ -177,7 +177,7 @@ end
 %% -----------------------------
 opts.centerMode = 'area_uniform';
 opts.plot_all_dfn = false;              % 전체 도메인 시각화 On/Off
-opts.plot_tunnel_intersect_dfn = true;  % 터널 교차부위 표출 On/Off
+opts.plot_tunnel_intersect_dfn = false;  % 터널 교차부위 표출 On/Off
 opts.plot_2d_trace_map = true;          % 2D Trace Map (X/Y/Z 슬라이스) On/Off
 opts.export_for_python = true;         % Python 블록 탐지용 HDF5 내보내기 On/Off
 opts.overlay_tunnel = true;            % 터널 오버레이 On/Off
@@ -382,9 +382,8 @@ if opts.plot_2d_trace_map
     plot_2d_slice_cropbox(masterFile, cropBox, 'x', 0);
     if opts.overlay_tunnel && ~isempty(tunnel_poly_YZ)
         hold on;
-        plot(tunnel_poly_YZ(:,1), tunnel_poly_YZ(:,2), ...
-             'r-', 'LineWidth', 2.0, 'DisplayName', 'Tunnel');
-        legend('show', 'Location', 'best');
+        plot(tunnel_poly_YZ(:,1), tunnel_poly_YZ(:,2), 'r-', 'LineWidth', 2.0);
+        legend('off');
     end
 
     % --- Y=0 단면 (XZ 평면) ---
