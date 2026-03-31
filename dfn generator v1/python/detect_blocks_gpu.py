@@ -9,6 +9,7 @@ detect_blocks_gpu.py  –  GPU 가속 3D 블록 탐지 파이프라인 (메인 �
                                 [--min_voxels 8]
                                 [--outdir ./results]
                                 [--no_gpu]
+    & "C:\Users\user\miniconda3\python.exe" "c:\Users\user\OneDrive\2026-1\3D DFN modeling\dfn generator v1\python\detect_blocks_gpu.py" --input "c:\Users\user\OneDrive\2026-1\3D DFN modeling\dfn generator v1\src\main\dfn_output_cube250m\dfn_export_for_python.h5" --voxel_size 0.5 --tol_factor 0.6
 
 알고리즘:
     Step 1 – 3D Voxel 분류  (ROCK / FRACTURE / TUNNEL)  → GPU 가속
