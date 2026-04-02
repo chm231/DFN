@@ -1,8 +1,9 @@
-"""
+r"""
 plot_3d_tunnel_fractures.py
 3차원 터널 튜브와 교차하는 균열원판(Disc)의 시각화 파이프라인.
 
 옵션:
+& "C:\Users\user\miniconda3\python.exe" "c:\Users\user\OneDrive\2026-1\3D DFN modeling\dfn generator v1\python\plot_3d_tunnel_fractures.py" --input "c:\Users\user\OneDrive\2026-1\3D DFN modeling\dfn generator v1\src\main\dfn_output_cube250m\dfn_export_for_python.h5"
   --mode [all | intersect | inside]
     - all: 터널 내부 완전히 포함된 균열 + 경계와 교차하는 균열 모두 표시
     - intersect: 터널 경계면을 뚫고 지나가는(교차하는) 균열만 표시
@@ -178,21 +179,23 @@ def main():
         faces.extend([3, p0, p3, p2])
         
     tunnel_mesh = pv.PolyData(np.array(pts), np.array(faces))
-    plotter.add_mesh(tunnel_mesh, color='red', opacity=0.8, show_edges=True, edge_color='black', label="Tunnel Tube")
+    plotter.add_mesh(tunnel_mesh, color='darkgray', opacity=0.35, show_edges=True, edge_color='black', label="Tunnel Tube")
 
     # 5-2. 균열 원판 생성
     # 다중 PolyData 병합 최적화를 통해 렌더링 속도 개선
     discs = []
+    cmap = pv.colors.get_cmap("tab20")
     for i in range(final_count):
-        # pyvista.Disc(center, normal, inner, outer, c_res)
+        # pyvista.Disc(center, direction, inner, outer)
         # c_res: 원판 테두리의 다각형 분할 개수 (계산 효율을 위해 24각형 정도로 설정)
-        disc = pv.Disc(center=final_centers[i], normal=final_normals[i], inner=0.0, outer=final_radii[i], c_res=24)
+        disc = pv.Disc(center=final_centers[i], direction=final_normals[i], inner=0.0, outer=final_radii[i], c_res=24)
         discs.append(disc)
 
     if discs:
         # 단일 MultiBlock으로 결합하여 Plotter 부하 경감
         blocks = pv.MultiBlock(discs)
-        plotter.add_mesh(blocks, color='lightgray', opacity=0.4, smooth_shading=True)
+        plotter.add_mesh(blocks, cmap=cmap, show_scalar_bar=False, scalars=np.arange(final_count) % 20, 
+                         opacity=0.85, smooth_shading=True)
 
     plotter.add_text(f"Mode: {args.mode.upper()}  |  Visible Fractures: {final_count:,}", 
                      position='upper_left', color='black', font_size=12)

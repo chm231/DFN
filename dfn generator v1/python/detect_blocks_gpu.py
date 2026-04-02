@@ -1,4 +1,4 @@
-"""
+r"""
 detect_blocks_gpu.py  –  GPU 가속 3D 블록 탐지 파이프라인 (메인 스크립트)
 
 사용법:
@@ -7,6 +7,7 @@ detect_blocks_gpu.py  –  GPU 가속 3D 블록 탐지 파이프라인 (메인 �
                                 [--halo 6.0]          # crop_box 크기 제한 (미사용 시 전체)
                                 [--tol_factor 0.6]    # 균열 슬랩 두께 = tol_factor × voxel_size
                                 [--min_voxels 8]
+                                [--connectivity 6 or 26]
                                 [--outdir ./results]
                                 [--no_gpu]
     & "C:\Users\user\miniconda3\python.exe" "c:\Users\user\OneDrive\2026-1\3D DFN modeling\dfn generator v1\python\detect_blocks_gpu.py" --input "c:\Users\user\OneDrive\2026-1\3D DFN modeling\dfn generator v1\src\main\dfn_output_cube250m\dfn_export_for_python.h5" --voxel_size 0.5 --tol_factor 0.6
@@ -44,7 +45,7 @@ sys.path.insert(0, _here)
 from tunnel_geometry import build_voxel_masks
 from block_detector  import (classify_voxels, run_cca,
                               filter_and_stat_blocks, TUNNEL)
-from visualize_blocks import plot_block_3d_pyvista
+from visualize_blocks import plot_block_3d_pyvista, plot_block_overview, plot_block_3d_scatter
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -92,6 +93,7 @@ def main():
     parser.add_argument('--voxel_size',  type=float, default=0.5,   help='복셀 크기 (m)')
     parser.add_argument('--tol_factor',  type=float, default=0.6,   help='균열 슬랩 두께 계수')
     parser.add_argument('--min_voxels',  type=int,   default=8,     help='최소 블록 복셀 수')
+    parser.add_argument('--connectivity',type=int,   default=26,    help='CCA Connectivity (6 or 26)')
     parser.add_argument('--outdir',      default=None)
     parser.add_argument('--no_gpu',      action='store_true')
     args = parser.parse_args()
@@ -159,14 +161,15 @@ def main():
         tol_factor=args.tol_factor,
     )
 
-    # ── 5. CCA ───────────────────────────────────────────────────────────
-    print(f"\n[Step 3/4] CCA (26-connectivity)...")
-    labels, n_labels = run_cca(state)
+    # ── 5. Connected Component Analysis (CCA) ────────────────────────────
+    print(f"\n[Step 3/4] CCA (블록 번호 부여) 작동 중 (connectivity={args.connectivity})...")
+    labels, n_labels = run_cca(state, connectivity=args.connectivity)
 
     # ── 6. 블록 필터 + 통계 ───────────────────────────────────────────────
     block_info = filter_and_stat_blocks(
         labels, n_labels, state, grid_info,
         min_voxels=args.min_voxels,
+        connectivity=args.connectivity,
     )
 
     # ── 7. 결과 저장 ─────────────────────────────────────────────────────
@@ -207,7 +210,21 @@ def main():
         grp.create_dataset('zs', data=grid_info['zs'])
     print(f"  HDF5 : {out_h5}")
 
-    # 시각화 (PyVista 대화형 뷰어 실행)
+    # 시각화 0: overview 대시보드 (2D 슬라이스 및 통계)
+    plot_block_overview(
+        labels, block_info, grid_info,
+        tunnel_poly_YZ=poly_YZ,
+        save_path=os.path.join(args.outdir, 'block_overview.png'),
+    )
+
+    # 시각화 1: matplotlib 3D Scatter (터널 포함 정적 이미지)
+    plot_block_3d_scatter(
+        labels, block_info, grid_info,
+        tunnel_poly_YZ=poly_YZ,
+        save_path=os.path.join(args.outdir, 'block_3d_scatter.png'),
+    )
+
+    # 시각화 2: PyVista 대화형 뷰어 실행
     plot_block_3d_pyvista(
         labels, block_info, grid_info,
         tunnel_poly_YZ=poly_YZ,

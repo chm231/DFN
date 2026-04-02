@@ -31,6 +31,7 @@ TUNNEL   = np.uint8(2)
 
 # 26-connectivity structuring element
 STRUCT26 = np.ones((3, 3, 3), dtype=bool)
+STRUCT6  = ndi.generate_binary_structure(3, 1)
 
 # AABB size threshold: fractures with local grid > this use GPU
 _GPU_AABB_THRESH = 32_768   # 32³
@@ -127,26 +128,27 @@ def classify_voxels(
 #  STEP 2 – Connected Component Analysis (26-connectivity)
 # ══════════════════════════════════════════════════════════════════════════
 
-def run_cca(state: np.ndarray) -> tuple:
+def run_cca(state: np.ndarray, connectivity: int = 26) -> tuple:
     """
-    26-connectivity CCA on ROCK voxels.
+    CCA on ROCK voxels with 6 or 26 connectivity.
     Tries GPU (cupyx.scipy.ndimage.label), falls back to CPU scipy.
     Returns: labels (Nx,Ny,Nz) int32,  n_labels int
     """
+    struct = STRUCT26 if connectivity == 26 else STRUCT6
     rock_mask = (state == ROCK)
-    print(f"  CCA 시작 (ROCK 복셀: {rock_mask.sum():,}개, 26-connectivity)...")
+    print(f"  CCA 시작 (ROCK 복셀: {rock_mask.sum():,}개, {connectivity}-connectivity)...")
 
     try:
         if not HAS_GPU:
             raise RuntimeError("no GPU")
         from cupyx.scipy import ndimage as cpndi
-        rock_gpu  = cp.asarray(rock_mask)
-        struct_gpu = cp.asarray(STRUCT26)
+        rock_gpu   = cp.asarray(rock_mask)
+        struct_gpu = cp.asarray(struct)
         labels_gpu, n_labels = cpndi.label(rock_gpu, structure=struct_gpu)
         labels = cp.asnumpy(labels_gpu).astype(np.int32)
         print(f"  GPU CCA 완료: {n_labels:,} 컴포넌트")
     except Exception:
-        labels, n_labels = ndi.label(rock_mask.astype(np.int8), structure=STRUCT26)
+        labels, n_labels = ndi.label(rock_mask.astype(np.int8), structure=struct)
         labels = labels.astype(np.int32)
         print(f"  CPU CCA 완료: {n_labels:,} 컴포넌트")
 
@@ -163,6 +165,7 @@ def filter_and_stat_blocks(
     state:       np.ndarray,   # (Nx,Ny,Nz) uint8  – full state array
     grid_info:   dict,
     min_voxels:  int = 8,
+    connectivity:int = 26,     # Dilation 구조체
 ) -> list:
     """
     Conditions:
@@ -202,7 +205,8 @@ def filter_and_stat_blocks(
             continue
 
         # ── Condition A: 터널과 접촉해야 함 (1-voxel dilation) ──────────
-        dilated = ndi.binary_dilation(mask, structure=STRUCT26)
+        struct = STRUCT26 if connectivity == 26 else STRUCT6
+        dilated = ndi.binary_dilation(mask, structure=struct)
         if not bool(np.any(dilated & tunnel_bool)):
             rejected_no_tunnel += 1
             continue
