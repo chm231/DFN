@@ -45,7 +45,7 @@ sys.path.insert(0, _here)
 from tunnel_geometry import build_voxel_masks
 from block_detector  import (classify_voxels, run_cca,
                               filter_and_stat_blocks, TUNNEL)
-from visualize_blocks import plot_block_3d_pyvista, plot_block_overview, plot_block_3d_scatter
+from visualize_blocks import plot_block_3d_pyvista_interactive, plot_block_overview, plot_block_3d_scatter
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -91,6 +91,7 @@ def main():
     parser = argparse.ArgumentParser(description='GPU 가속 3D 블록 탐지')
     parser.add_argument('--input',       required=True)
     parser.add_argument('--voxel_size',  type=float, default=0.5,   help='복셀 크기 (m)')
+    parser.add_argument('--halo',        type=float, default=0.0,   help='터널 주변 해석 반경(Halo) 두께 (m). 미지정시 전체 도메인.')
     parser.add_argument('--tol_factor',  type=float, default=0.6,   help='균열 슬랩 두께 계수')
     parser.add_argument('--min_voxels',  type=int,   default=8,     help='최소 블록 복셀 수')
     parser.add_argument('--connectivity',type=int,   default=26,    help='CCA Connectivity (6 or 26)')
@@ -134,7 +135,7 @@ def main():
         poly_Y, poly_Z,
         domain_box=domain_box,
         voxel_size=args.voxel_size,
-        halo_dist=0.0,   # halo 불필요 (전체 도메인 분석)
+        halo_dist=args.halo,
     )
     try:
         import cupy as cp
@@ -225,10 +226,9 @@ def main():
     )
 
     # 시각화 2: PyVista 대화형 뷰어 실행
-    plot_block_3d_pyvista(
+    plot_block_3d_pyvista_interactive(
         labels, block_info, grid_info,
         tunnel_poly_YZ=poly_YZ,
-        save_path=os.path.join(args.outdir, 'block_3d_pyvista.png'),
     )
 
     print(f"\n{'='*60}")

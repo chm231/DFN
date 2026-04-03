@@ -169,10 +169,11 @@ def filter_and_stat_blocks(
 ) -> list:
     """
     Conditions:
-      A – dilated component overlaps TUNNEL voxels
-      B – component does NOT touch any grid boundary face
+      A – dilated component overlaps TUNNEL voxels (vectorized via tunnel mask dilation)
+      B – component does NOT touch any grid boundary face (vectorized via boundary mask)
 
     Returns list of dicts, sorted by volume descending.
+    (Vectorized approach for extreme speed up)
     """
     Nx, Ny, Nz   = grid_info['shape']
     vs           = float(grid_info['voxel_size'])
@@ -180,58 +181,100 @@ def filter_and_stat_blocks(
     xs, ys, zs   = grid_info['xs'], grid_info['ys'], grid_info['zs']
 
     tunnel_bool  = (state == TUNNEL)
-    XX, YY, ZZ   = np.meshgrid(xs, ys, zs, indexing='ij')
+    
+    print(f"  블록 필터링 병목 개선 파이프라인 시작 (전체 {n_labels:,} 컴포넌트)...")
 
+    # ── 1. Voxel Count 계산 및 소형 제거 ────────────────────────────
+    try:
+        if HAS_GPU:
+            counts_gpu = cp.bincount(cp.asarray(labels).ravel())
+            voxel_counts = cp.asnumpy(counts_gpu)
+        else:
+            voxel_counts = np.bincount(labels.ravel())
+    except Exception:
+        voxel_counts = np.bincount(labels.ravel())
+
+    if len(voxel_counts) <= n_labels:
+        voxel_counts = np.pad(voxel_counts, (0, n_labels + 1 - len(voxel_counts)))
+
+    surviving_labels = np.where(voxel_counts >= min_voxels)[0]
+    surviving_labels = surviving_labels[surviving_labels > 0]
+    print(f"    - 1단계: min_voxels(>={min_voxels}) 필터 통과 컴포넌트: {len(surviving_labels):,} 개")
+
+    # ── 2. Boundary Touch 벡터화 판정 ──────────────────────────────
+    boundary_mask = np.zeros((Nx, Ny, Nz), dtype=bool)
+    boundary_mask[0,:,:] = True
+    boundary_mask[-1,:,:] = True
+    boundary_mask[:,0,:] = True
+    boundary_mask[:,-1,:] = True
+    boundary_mask[:,:,0] = True
+    boundary_mask[:,:,-1] = True
+    
+    boundary_labels = np.unique(labels[boundary_mask])
+    boundary_labels = boundary_labels[boundary_labels > 0]
+    print(f"    - 2단계: boundary-touch labels 수: {len(boundary_labels):,} 개")
+
+    # ── 3. Tunnel Touch 벡터화 판정 (1회 Dilation) ─────────────────
+    struct = STRUCT26 if connectivity == 26 else STRUCT6
+    try:
+        if HAS_GPU:
+            from cupyx.scipy import ndimage as cpndi
+            tmask_gpu = cp.asarray(tunnel_bool)
+            struct_gpu = cp.asarray(struct)
+            dilated_tmask_gpu = cpndi.binary_dilation(tmask_gpu, structure=struct_gpu)
+            dilated_tunnel_mask = cp.asnumpy(dilated_tmask_gpu)
+        else:
+            dilated_tunnel_mask = ndi.binary_dilation(tunnel_bool, structure=struct)
+    except Exception:
+        dilated_tunnel_mask = ndi.binary_dilation(tunnel_bool, structure=struct)
+
+    tunnel_touch_labels = np.unique(labels[dilated_tunnel_mask])
+    tunnel_touch_labels = tunnel_touch_labels[tunnel_touch_labels > 0]
+    print(f"    - 3단계: tunnel-touch labels 수: {len(tunnel_touch_labels):,} 개")
+
+    # ── 4. 최종 유효 라벨 교집합 필터링 ────────────────────────────
+    surviving_set = set(surviving_labels)
+    boundary_set = set(boundary_labels)
+    tunnel_set = set(tunnel_touch_labels)
+    
+    final_labels = surviving_set - boundary_set
+    final_labels = final_labels.intersection(tunnel_set)
+    final_labels = list(final_labels)
+    print(f"    - 4단계: 최종 통과 labels (surviving - boundary & tunnel): {len(final_labels):,} 개")
+
+    # ── 5. 통계 계산 (최종 라벨 대상만 for loop) ───────────────────
+    XX, YY, ZZ = np.meshgrid(xs, ys, zs, indexing='ij')
     block_info = []
-    rejected_small = rejected_boundary = rejected_no_tunnel = 0
 
-    print(f"  블록 필터링 ({n_labels:,} 컴포넌트)...")
-    for lbl in tqdm(range(1, n_labels + 1),
-                    desc="  필터링", miniters=max(1, n_labels // 100)):
-
+    for lbl in tqdm(final_labels, desc="  최종 통계 산출", miniters=max(1, len(final_labels)//10)):
         mask = (labels == lbl)
-        cnt  = int(mask.sum())
-
-        # ── 최소 크기 ───────────────────────────────────────────────────
-        if cnt < min_voxels:
-            rejected_small += 1
-            continue
-
-        # ── Condition B: 경계 접촉 없어야 함 ────────────────────────────
-        if (mask[0,:,:].any() or mask[-1,:,:].any() or
-            mask[:,0,:].any() or mask[:,-1,:].any() or
-            mask[:,:,0].any() or mask[:,:,-1].any()):
-            rejected_boundary += 1
-            continue
-
-        # ── Condition A: 터널과 접촉해야 함 (1-voxel dilation) ──────────
-        struct = STRUCT26 if connectivity == 26 else STRUCT6
-        dilated = ndi.binary_dilation(mask, structure=struct)
-        if not bool(np.any(dilated & tunnel_bool)):
-            rejected_no_tunnel += 1
-            continue
-
-        # ── 통계 계산 ───────────────────────────────────────────────────
-        vol             = cnt * voxel_vol
-        cx_             = float(XX[mask].mean())
-        cy_             = float(YY[mask].mean())
-        cz_             = float(ZZ[mask].mean())
-        contact_voxels  = int(np.sum(dilated & tunnel_bool))
-        contact_area    = contact_voxels * (vs ** 2)
-
+        cnt = int(voxel_counts[lbl])
+        
+        vol_ = cnt * voxel_vol
+        cx_ = float(XX[mask].mean())
+        cy_ = float(YY[mask].mean())
+        cz_ = float(ZZ[mask].mean())
+        
+        # symmetric dilation에 의해 mask & dilated_tunnel_mask 교집합이 접촉 Voxel 수
+        contact_voxels = int(np.sum(mask & dilated_tunnel_mask))
+        contact_area   = float(contact_voxels * (vs ** 2))
+        
         block_info.append(dict(
             label          = int(lbl),
             n_voxels       = cnt,
-            volume_m3      = float(vol),
+            volume_m3      = vol_,
             centroid       = (cx_, cy_, cz_),
-            contact_area_m2= float(contact_area),
+            contact_area_m2= contact_area,
         ))
 
     block_info.sort(key=lambda d: d['volume_m3'], reverse=True)
     for rank, b in enumerate(block_info):
         b['rank'] = rank + 1
 
+    rejected_small = n_labels - len(surviving_labels)
+    rejected_boundary = len(surviving_set.intersection(boundary_set))
+    rejected_no_tunnel = len(surviving_set - boundary_set) - len(final_labels)
+
     print(f"  필터 결과: {len(block_info)}개 블록 확정")
-    print(f"    제외 – 소형:{rejected_small}  경계접촉:{rejected_boundary}"
-          f"  터널미접촉:{rejected_no_tunnel}")
+    print(f"    제외 – 소형:{rejected_small}  경계접촉:{rejected_boundary}  터널미접촉:{rejected_no_tunnel}")
     return block_info

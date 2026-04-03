@@ -22,16 +22,16 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 
-def plot_block_3d_pyvista(
+def plot_block_3d_pyvista_interactive(
     labels: np.ndarray,       # (Nx, Ny, Nz) int32
     block_info: list,
     grid_info: dict,
     tunnel_poly_YZ: np.ndarray | None = None,
-    save_path: str = "block_3d_pyvista.png",
 ):
     """
     labels 에서 값이 0보다 큰 영역(블록)에 대해 Marching Cubes로
-    부드러운 메쉬를 생성하여 PyVista 대화형 창에 렌더링합니다.
+    부드러운 메쉬를 생성하여 PyVista 대화형 창에 렌더링합니다. (Interactive)
+    x, y, z 그리드도 함께 표시됩니다.
     """
     if pv is None:
         print("  [Viz] PyVista 또는 scikit-image가 설치되지 않아 3D 시각화를 건너뜁니다.")
@@ -42,7 +42,7 @@ def plot_block_3d_pyvista(
         print("  [Viz] 탐지된 블록 없음.")
         return
 
-    print("  [Viz] PyVista 3D 렌더링 준비 중 (Marching Cubes 적용)...")
+    print("  [Viz] PyVista Interactive 3D 렌더링 준비 중 (Marching Cubes 적용)...")
 
     xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
     vs = float(grid_info['voxel_size'])
@@ -94,8 +94,9 @@ def plot_block_3d_pyvista(
         except ValueError:
             pass
 
+    # x,y,z 그리드 표시
+    plotter.show_grid(color='black', font_size=10)
     print("  [Viz] 인터랙티브 뷰어 창이 뜹니다. 마우스 회전/확대 가능.")
-    plotter.show_axes()
     plotter.show()
 
 
