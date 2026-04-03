@@ -13,6 +13,7 @@ import numpy as np
 try:
     import pyvista as pv
     from skimage.measure import marching_cubes
+    from scipy import ndimage
 except ImportError:
     pv = None
 
@@ -27,6 +28,7 @@ def plot_block_3d_pyvista_interactive(
     block_info: list,
     grid_info: dict,
     tunnel_poly_YZ: np.ndarray | None = None,
+    downsample_stride: int = 2,
 ):
     """
     labels 에서 값이 0보다 큰 영역(블록)에 대해 Marching Cubes로
@@ -76,14 +78,54 @@ def plot_block_3d_pyvista_interactive(
         tunnel_mesh = pv.PolyData(np.array(pts), np.array(faces))
         plotter.add_mesh(tunnel_mesh, color='lightblue', opacity=0.3, style='surface', label='Tunnel')
 
+    # 1. 빠른 바운딩 박스 탐색 (scipy.ndimage.find_objects)
+    print("  [Viz] 블록 경계 상자(Bounding Box) 빠른 스캔 중...")
+    try:
+        slices = ndimage.find_objects(labels)
+    except Exception as e:
+        print(f"  [Viz] Warning: find_objects 실패 ({e}), fallback 사용.")
+        slices = None
+
     # 블록 메쉬 (Marching Cubes)
     for i, b in enumerate(block_info):
-        label_id = b['label']
-        mask = (labels == label_id)
+        label_id = int(b['label'])
+        
+        # 2. Bounding Box Crop (1 voxel 패딩 추가로 닫힌 메쉬 유지)
+        if slices is not None and label_id <= len(slices) and slices[label_id-1] is not None:
+            s = slices[label_id-1]
+            bbox_slice = tuple(slice(max(0, sl.start - 1), min(labels.shape[dim], sl.stop + 1)) 
+                               for dim, sl in enumerate(s))
+        else:
+            coords = np.where(labels == label_id)
+            if len(coords[0]) == 0: continue
+            bbox_slice = tuple(slice(max(0, np.min(c)-1), min(labels.shape[dim], np.max(c)+2)) 
+                               for dim, c in enumerate(coords))
+            
+        region = labels[bbox_slice]
+        mask = (region == label_id)
+        
+        # 3. Downsampling (선택적)
+        if downsample_stride > 1 and mask.size > 1000:
+            stride = downsample_stride
+        else:
+            stride = 1
+            
+        if stride > 1:
+            mask_d = mask[::stride, ::stride, ::stride]
+            current_spacing = (spacing[0]*stride, spacing[1]*stride, spacing[2]*stride)
+        else:
+            mask_d = mask
+            current_spacing = spacing
         
         try:
-            verts, faces_mc, normals, values = marching_cubes(mask, level=0.5, spacing=spacing)
-            verts += origin
+            verts, faces_mc, normals, values = marching_cubes(mask_d, level=0.5, spacing=current_spacing)
+            
+            # 크롭된 영역의 원래 절대 좌표 오프셋 복원
+            offset_x = origin[0] + bbox_slice[0].start * spacing[0]
+            offset_y = origin[1] + bbox_slice[1].start * spacing[1]
+            offset_z = origin[2] + bbox_slice[2].start * spacing[2]
+            
+            verts += np.array([offset_x, offset_y, offset_z])
             pv_faces = np.pad(faces_mc, ((0, 0), (1, 0)), constant_values=3).flatten()
             block_mesh = pv.PolyData(verts, pv_faces)
             
@@ -91,7 +133,7 @@ def plot_block_3d_pyvista_interactive(
             color_val = cmap(cidx)[:3]  # RGB tuple
             
             plotter.add_mesh(block_mesh, color=color_val, smooth_shading=True, label=f'Block {label_id}')
-        except ValueError:
+        except Exception:
             pass
 
     # x,y,z 그리드 표시
