@@ -46,6 +46,7 @@ from tunnel_geometry import build_voxel_masks
 from block_detector  import (classify_voxels, run_cca,
                               filter_and_stat_blocks, TUNNEL)
 from visualize_blocks import plot_block_3d_pyvista_interactive, plot_block_overview, plot_block_3d_scatter
+from export_blocks import export_blocks_csv, export_interfaces_csv
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -210,6 +211,10 @@ def main():
         grp.create_dataset('ys', data=grid_info['ys'])
         grp.create_dataset('zs', data=grid_info['zs'])
     print(f"  HDF5 : {out_h5}")
+
+    # ── 8. CSV Data Export ───────────────────────────────────────────────
+    export_blocks_csv(block_info, args.outdir)
+    export_interfaces_csv(labels, block_info, grid_info, args.outdir)
 
     # 시각화 0: overview 대시보드 (2D 슬라이스 및 통계)
     plot_block_overview(
