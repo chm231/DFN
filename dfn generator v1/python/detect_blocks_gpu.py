@@ -52,7 +52,7 @@ from export_blocks import export_blocks_csv, export_interfaces_csv
 # ════════════════════════════════════════════════════════════════════════════
 def load_hdf5(path: str) -> dict:
     """HDF5 로드 – MATLAB 전치(transpose) 자동 보정."""
-    print(f"\n📂 HDF5 로드: {path}")
+    print(f"\n[Info] HDF5 로드: {path}")
     data = {}
     with h5py.File(path, 'r') as f:
         raw_c = f['/fractures/centers'][:]
@@ -111,7 +111,7 @@ def main():
             os.path.dirname(os.path.abspath(args.input)),
             'block_detection_results')
     os.makedirs(args.outdir, exist_ok=True)
-    print(f"📁 결과 저장: {args.outdir}")
+    print(f"[Info] 결과 저장: {args.outdir}")
 
     t0 = time.time()
 
@@ -230,14 +230,19 @@ def main():
         save_path=os.path.join(args.outdir, 'block_3d_scatter.png'),
     )
 
-    # 시각화 2: PyVista 대화형 뷰어 실행
+    # 시각화 2: PyVista 대화형 뷰어 실행 (및 파라미터 조합명으로 PNG 저장)
+    def fmt(val): return str(val).replace('.', 'p')
+    tag = f"vs{fmt(args.voxel_size)}_h{fmt(args.halo)}_tol{fmt(args.tol_factor)}_minv{args.min_voxels}_conn{args.connectivity}"
+    pyvista_png_path = os.path.join(args.outdir, f"pyvista_3d_{tag}.png")
+    
     plot_block_3d_pyvista_interactive(
         labels, block_info, grid_info,
         tunnel_poly_YZ=poly_YZ,
+        save_path=pyvista_png_path,
     )
 
     print(f"\n{'='*60}")
-    print(f"  ✅ 블록 탐지 완료")
+    print(f"  [Info] 블록 탐지 완료")
     print(f"  - 탐지된 블록: {len(block_info):,}개")
     if block_info:
         vols = [b['volume_m3'] for b in block_info]
