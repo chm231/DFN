@@ -61,11 +61,62 @@ def match_traces_between_faces(
              
     return matches
 
-def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict = None) -> List[List[FaceTrace]]:
+def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict = None, min_faces: int = 3) -> List[List[FaceTrace]]:
     """
     매칭 정보를 종합하여, face 0 부터 n까지 연속적으로 이어지는 
     trace들의 궤적(Trace Track) 리스트를 구성하여 반환합니다.
     이 궤적 1개가 1개의 3D 절리면(Plane) 재구성 후보가 됨.
+    최소 min_faces 이상 꼬리를 물고 이어진 트랙만 유효함!
     """
-    # TODO: 연결 리스트 형태의 궤적 빌더 구현
-    return []
+    face_ids = sorted(grouped_traces.keys())
+    if len(face_ids) < 2:
+        return []
+        
+    finished_tracks = []
+    # active_tracks: List[List[FaceTrace]]
+    active_tracks = []
+    
+    for i in range(1, len(face_ids)):
+        prev_traces = grouped_traces[face_ids[i - 1]]
+        curr_traces = grouped_traces[face_ids[i]]
+        
+        matches = match_traces_between_faces(prev_traces, curr_traces, params)
+        
+        # 이전 트레이스 ID -> 매칭 정보 딕셔너리 구성
+        match_dict = {}
+        for m in matches:
+            if m.accepted:
+                match_dict[m.trace_id_prev] = m
+                
+        new_active_tracks = []
+        
+        # 1. 생존 중인 트랙들 연장(Extension)
+        for track in active_tracks:
+            last_trace = track[-1]
+            if last_trace.trace_id in match_dict:
+                # 꼬리물기 연장 성공
+                m = match_dict[last_trace.trace_id]
+                t_curr = next(t for t in curr_traces if t.trace_id == m.trace_id_curr)
+                track.append(t_curr)
+                new_active_tracks.append(track)
+                # 처리된 매칭은 목록에서 제거
+                del match_dict[last_trace.trace_id]
+            else:
+                # 더 이상 연결되지 못해 궤적 종료
+                finished_tracks.append(track)
+                
+        # 2. 이번 단계에서 새로 탄생하는 궤적들 시작
+        for prev_id, m in match_dict.items():
+            t_prev = next(t for t in prev_traces if t.trace_id == m.trace_id_prev)
+            t_curr = next(t for t in curr_traces if t.trace_id == m.trace_id_curr)
+            new_active_tracks.append([t_prev, t_curr])
+            
+        active_tracks = new_active_tracks
+        
+    # 루프가 끝나고 남은 진행 중인 트랙들은 모두 완료 처리
+    finished_tracks.extend(active_tracks)
+    
+    # 3. 최소 막장면 수(min_faces) 기준 미달 트랙 폐기
+    valid_tracks = [t for t in finished_tracks if len(t) >= min_faces]
+    
+    return valid_tracks

@@ -66,6 +66,7 @@ class ReconstructedPlane:
     normal_x: float
     normal_y: float
     normal_z: float
+    radius: float = 10.0
     source_trace_ids: List[int] = field(default_factory=list)
     confidence: float = 1.0
 

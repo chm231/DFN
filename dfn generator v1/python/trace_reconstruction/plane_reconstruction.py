@@ -36,6 +36,12 @@ def reconstruct_plane_from_trace_pair(trace_prev: FaceTrace, trace_curr: FaceTra
     if normal[0] < 0:
         normal = -normal
         
+    # 원판 반지름 추정 (가장 멀리 떨어진 포인트까지의 유클리드 거리 + 안전 여유율)
+    dists = np.linalg.norm(centered, axis=1)
+    est_radius = float(np.max(dists) * 1.5)
+    if est_radius < 1.0:
+        est_radius = 5.0 # 최소 보장 반지름
+        
     return ReconstructedPlane(
         plane_id=plane_id,
         point_x=float(centroid[0]),
@@ -44,18 +50,58 @@ def reconstruct_plane_from_trace_pair(trace_prev: FaceTrace, trace_curr: FaceTra
         normal_x=float(normal[0]),
         normal_y=float(normal[1]),
         normal_z=float(normal[2]),
+        radius=est_radius,
         source_trace_ids=[trace_prev.trace_id, trace_curr.trace_id],
         confidence=1.0  # SVD 핏 오차를 이용해 Confidence 도출 가능
     )
 
 def fit_plane_from_trace_track(trace_track: List[FaceTrace], plane_id: int) -> Optional[ReconstructedPlane]:
     """
-    3개 이상의 face에서 연속 매칭된 막대한 트랙에 대한 평면 복원
+    3개 이상의 face에서 연속 매칭된 추적 궤적(Track)의 모든 Point(2N개)에 대해
+    SVD를 수행하여 극대화된 정밀도로 평면을 거시 복원합니다.
     """
-    if len(trace_track) < 2:
+    if len(trace_track) < 3:
         return None
-    # TODO: 3개 이상의 trace points에 대한 SVD 피팅 로직
-    return reconstruct_plane_from_trace_pair(trace_track[0], trace_track[-1], plane_id)
+        
+    points = []
+    for trace in trace_track:
+        p0, p1 = lift_face_trace_to_3d(trace)
+        points.extend([p0, p1])
+        
+    points = np.array(points)  # shape (2N, 3)
+    
+    # 평면의 기하학적 중심
+    centroid = np.mean(points, axis=0)
+    
+    # SVD를 통한 평면 법선 벡터 추정 (다수 점군에 대한 최소자승법)
+    centered = points - centroid
+    _, _, vh = np.linalg.svd(centered)
+    normal = vh[-1, :]
+    
+    # 방향 일관성 검증
+    if normal[0] < 0:
+        normal = -normal
+        
+    # 중심점에서 가장 멀리 떨어진 포인트를 기준으로 반경 추정
+    dists = np.linalg.norm(centered, axis=1)
+    est_radius = float(np.max(dists) * 1.5)
+    if est_radius < 1.0:
+        est_radius = 5.0
+        
+    source_ids = [t.trace_id for t in trace_track]
+    
+    return ReconstructedPlane(
+        plane_id=plane_id,
+        point_x=float(centroid[0]),
+        point_y=float(centroid[1]),
+        point_z=float(centroid[2]),
+        normal_x=float(normal[0]),
+        normal_y=float(normal[1]),
+        normal_z=float(normal[2]),
+        radius=est_radius,
+        source_trace_ids=source_ids,
+        confidence=1.0
+    )
 
 def evaluate_plane_fit(plane: ReconstructedPlane, trace_track: List[FaceTrace]) -> float:
     """복원된 평면이 실제 입력 trace 들과 얼마나 거리가 먼지 오차(Tolerance) 평가. 미구현 시 NaN 허용"""

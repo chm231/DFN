@@ -25,7 +25,13 @@ def export_blocks_csv(block_info: list, outdir: str):
         })
 
     df = pd.DataFrame(data)
-    csv_path = os.path.join(outdir, 'blocks.csv')
+    if outdir.endswith('.csv'):
+        csv_path = outdir
+    else:
+        csv_path = os.path.join(outdir, 'blocks.csv')
+        
+    # ensure parent dir exists
+    os.makedirs(os.path.dirname(os.path.abspath(csv_path)), exist_ok=True)
     df.to_csv(csv_path, index=False, na_rep='NaN')
     
     nan_cols = df.columns[df.isna().any()].tolist()

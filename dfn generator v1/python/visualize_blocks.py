@@ -29,6 +29,7 @@ def plot_block_3d_pyvista_interactive(
     grid_info: dict,
     tunnel_poly_YZ: np.ndarray | None = None,
     downsample_stride: int = 2,
+    save_path: str | None = None,
 ):
     """
     labels 에서 값이 0보다 큰 영역(블록)에 대해 Marching Cubes로
@@ -41,8 +42,7 @@ def plot_block_3d_pyvista_interactive(
 
     n_blocks = len(block_info)
     if n_blocks == 0:
-        print("  [Viz] 탐지된 블록 없음.")
-        return
+        print("  [Viz] 탐지된 블록 없음 - 배경 및 터널만 시각화합니다.")
 
     print("  [Viz] PyVista Interactive 3D 렌더링 준비 중 (Marching Cubes 적용)...")
 
@@ -138,6 +138,19 @@ def plot_block_3d_pyvista_interactive(
 
     # x,y,z 그리드 표시
     plotter.show_grid(color='black', font_size=10)
+    
+    # 뷰어 카메라 위치 한 번 초기화 후 (isometric 등), 스크린샷 렌더링
+    plotter.view_isometric()
+    
+    if save_path:
+        try:
+            # 창을 띄우되 코드 진행을 멈추지 않고 렌더링(1프레임) 수행 (Window 생성)
+            plotter.show(auto_close=False, interactive_update=True)
+            plotter.screenshot(save_path)
+            print(f"  [Viz] 저장: {save_path}")
+        except Exception as e:
+            print(f"  [Viz][WARN] PyVista screenshot 저장 실패: {e}")
+
     print("  [Viz] 인터랙티브 뷰어 창이 뜹니다. 마우스 회전/확대 가능.")
     plotter.show()
 
@@ -152,7 +165,7 @@ def plot_block_3d_scatter(
 ):
     """3D 점묘법(Scatter)으로 블록 분포 시각화 (matplotlib) + 터널 형상 추가"""
     if not block_info:
-        return
+        print("  [Viz] 탐지된 블록 없음 - 3D Scatter 배경/터널 렌더링 중...")
 
     print("  [Viz] 3D Scatter (matplotlib) 렌더링 중...")
     xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']

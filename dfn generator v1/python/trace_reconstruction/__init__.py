@@ -10,7 +10,7 @@ from .face_trace_io import load_face_traces, save_face_traces
 from .excavation_face_traces import extract_excavation_face_traces_from_truth, clip_trace_to_tunnel_polygon
 from .trace_matching import match_traces_between_faces
 from .plane_reconstruction import reconstruct_plane_from_trace_pair
-from .block_polyhedron import extract_closed_block_candidates
+from .block_polyhedron import extract_reconstructed_blocks_voxel
 from .reconstruction_pipeline import run_inverse_pipeline
 
 __all__ = [
@@ -25,6 +25,6 @@ __all__ = [
     "clip_trace_to_tunnel_polygon",
     "match_traces_between_faces",
     "reconstruct_plane_from_trace_pair",
-    "extract_closed_block_candidates",
+    "extract_reconstructed_blocks_voxel",
     "run_inverse_pipeline",
 ]
