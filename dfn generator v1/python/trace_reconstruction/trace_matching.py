@@ -20,7 +20,7 @@ def compute_trace_match_score(trace_a: FaceTrace, trace_b: FaceTrace, params: di
     ang_diff = abs(np.sin(trace_a.local_orientation_2d - trace_b.local_orientation_2d))
     
     # Heuristic cost (파라미터화 필요)
-    cost = dist_sq + (len_diff**2 * 0.5) + (ang_diff * 10.0)
+    cost = dist_sq + (len_diff**2 * 0.5) + (ang_diff * 1.0)
     return float(cost)
 
 
@@ -48,7 +48,7 @@ def match_traces_between_faces(
                 best_ta = ta
                 
         # threshold(비용 제한) 통과 여부 검사 (임시값 5.0)
-        accepted = True if best_score < 5.0 else False
+        accepted = True if best_score < 10.0 else False
         if best_ta is not None:
              matches.append(TraceMatch(
                  face_id_prev=best_ta.face_id,
