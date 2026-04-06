@@ -80,8 +80,8 @@ function export_dfn_for_python(masterFile, tunnel_poly_YZ, tunnel_Y, tunnel_Z, c
     xmin_d = min(all_c(:,1) - all_r) - 5;
     xmax_d = max(all_c(:,1) + all_r) + 5;
     domain_box = single([xmin_d, xmax_d, ...
-                          min(tunnel_poly_YZ(:,1))-8, max(tunnel_poly_YZ(:,1))+8, ...
-                          min(tunnel_poly_YZ(:,2))-8, max(tunnel_poly_YZ(:,2))+8]);
+                          min(tunnel_poly_YZ(:,1))-15, max(tunnel_poly_YZ(:,1))+15, ...
+                          min(tunnel_poly_YZ(:,2))-15, max(tunnel_poly_YZ(:,2))+15]);
     h5create(tmp_path, '/meta/domain_box', [1 6], 'Datatype', 'single');
     h5write(tmp_path, '/meta/domain_box', domain_box);
 
