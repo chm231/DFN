@@ -25,8 +25,9 @@ import matplotlib.cm as cm
 
 def plot_block_3d_pyvista_interactive(
     labels: np.ndarray,       # (Nx, Ny, Nz) int32
-    block_info: list,
+    state: np.ndarray,
     grid_info: dict,
+    block_info: list,
     tunnel_poly_YZ: np.ndarray | None = None,
     downsample_stride: int = 2,
     save_path: str | None = None,
@@ -110,60 +111,362 @@ def plot_block_3d_pyvista_interactive(
         else:
             stride = 1
             
-        if stride > 1:
-            mask_d = mask[::stride, ::stride, ::stride]
-            current_spacing = (spacing[0]*stride, spacing[1]*stride, spacing[2]*stride)
-        else:
-            mask_d = mask
-            current_spacing = spacing
-        
+        # VTK 기반 고성능 메쉬 추출 (ImageData.contour)
         try:
-            verts, faces_mc, normals, values = marching_cubes(mask_d, level=0.5, spacing=current_spacing)
+            # VTK 그리드 설정
+            Nx, Ny, Nz = mask.shape
+            off = [origin[0] + bbox_slice[0].start * spacing[0], 
+                   origin[1] + bbox_slice[1].start * spacing[1], 
+                   origin[2] + bbox_slice[2].start * spacing[2]]
             
-            # 크롭된 영역의 원래 절대 좌표 오프셋 복원
-            offset_x = origin[0] + bbox_slice[0].start * spacing[0]
-            offset_y = origin[1] + bbox_slice[1].start * spacing[1]
-            offset_z = origin[2] + bbox_slice[2].start * spacing[2]
-            
-            verts += np.array([offset_x, offset_y, offset_z])
-            pv_faces = np.pad(faces_mc, ((0, 0), (1, 0)), constant_values=3).flatten()
-            block_mesh = pv.PolyData(verts, pv_faces)
+            try:
+                grid = pv.ImageData(dimensions=(Nx, Ny, Nz), spacing=spacing, origin=off)
+            except AttributeError:
+                grid = pv.UniformGrid(dimensions=(Nx, Ny, Nz), spacing=spacing, origin=off)
+                
+            grid.point_data["values"] = mask.flatten(order="F")
+            block_mesh = grid.contour([0.5])
             
             cidx = i % 20
             color_val = cmap(cidx)[:3]  # RGB tuple
             
             plotter.add_mesh(block_mesh, color=color_val, smooth_shading=True, label=f'Block {label_id}')
-        except Exception:
+        except Exception as e:
+            print(f"  [Viz][WARN] Block {label_id} mesh creation failed: {e}")
             pass
 
     # x,y,z 그리드 표시
     plotter.show_grid(color='black', font_size=10)
     
-    # 뷰어 카메라 위치 한 번 초기화 후 (isometric 등), 스크린샷 렌더링
+    # 뷰어 카메라 위치 한 번 초기화 (isometric)
     plotter.view_isometric()
     
     if save_path:
         try:
-            # 창을 띄우되 코드 진행을 멈추지 않고 렌더링(1프레임) 수행 (Window 생성)
-            plotter.show(auto_close=False, interactive_update=True)
-            plotter.screenshot(save_path)
+            # 1. 먼저 이미지를 렌더링하여 저장 (창을 띄우지 않고 메모리에서 수행 가능하도록 유도)
+            plotter.show(screenshot=save_path, auto_close=False, interactive=False)
             print(f"  [Viz] 저장: {save_path}")
         except Exception as e:
             print(f"  [Viz][WARN] PyVista screenshot 저장 실패: {e}")
 
-    print("  [Viz] 인터랙티브 뷰어 창이 뜹니다. 마우스 회전/확대 가능.")
-    plotter.show()
+    # 2. 진짜 인터랙티브 창을 띄움 (여기서 코드가 멈추고 사용자의 조작을 대기함)
+    print("  [Viz] 인터랙티브 뷰어 창이 뜹니다. 마우스 회전/확대 가능. (창을 닫으면 프로그램이 계속됩니다.)")
+    plotter.show(interactive=True)
+
+
+def _extract_block_patches(
+    lbl: int,
+    labels: np.ndarray,
+    voxel_class: np.ndarray,
+    fracture_owner: np.ndarray,
+    fracture_data: dict,
+    grid_info: dict,
+    shell_thickness: int = 2,
+    min_contact_voxels: int = 10
+) -> list:
+    """
+    특정 블록(lbl)의 경계를 이루는 균열 원판 조각(Patch) 메쉬 리스트를 추출합니다.
+    """
+    xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
+    vs = grid_info['voxel_size']
+    
+    # 1. Bounding Box Crop
+    objs = ndimage.find_objects((labels == lbl).astype(np.int32))
+    if not objs or objs[0] is None: return []
+    bbox_slice = objs[0]
+    
+    # 여유분 추가 (쉘 확장용)
+    b = shell_thickness
+    bbox_slice = (
+        slice(max(0, bbox_slice[0].start-b), min(labels.shape[0], bbox_slice[0].stop+b)),
+        slice(max(0, bbox_slice[1].start-b), min(labels.shape[1], bbox_slice[1].stop+b)),
+        slice(max(0, bbox_slice[2].start-b), min(labels.shape[2], bbox_slice[2].stop+b))
+    )
+    
+    sub_labels = labels[bbox_slice]
+    sub_class = voxel_class[bbox_slice]
+    sub_owner = fracture_owner[bbox_slice]
+    
+    # 2. 쉘(Shell) 추출 및 접촉 균열 식별
+    block_mask = (sub_labels == lbl)
+    shell = ndimage.binary_dilation(block_mask, iterations=shell_thickness) & ~block_mask
+    
+    contact_owners = sub_owner[shell & (sub_class == 1)] # FRACTURE 클래스만
+    unique_owners, counts = np.unique(contact_owners, return_counts=True)
+    
+    valid_fids = unique_owners[(unique_owners > 0) & (counts >= min_contact_voxels)]
+    
+    patches = []
+    for fid in valid_fids:
+        # 이 균열에 해당하는 복셀 좌표들
+        f_mask = (sub_owner == fid) & shell
+        coords = np.argwhere(f_mask)
+        
+        # 실제 좌표로 변환
+        pts = coords.copy().astype(float)
+        pts[:, 0] = xs[0] + (coords[:, 0] + bbox_slice[0].start) * vs
+        pts[:, 1] = ys[0] + (coords[:, 1] + bbox_slice[1].start) * vs
+        pts[:, 2] = zs[0] + (coords[:, 2] + bbox_slice[2].start) * vs
+        
+        # 균열 정보 (법선 등)
+        f_idx = fid - 1
+        if f_idx >= len(fracture_data['normals']): continue
+        norm = fracture_data['normals'][f_idx]
+        
+        patch_mesh = _create_fracture_patch_mesh(pts, norm)
+        if patch_mesh:
+            patches.append(patch_mesh)
+            
+    return patches
+
+
+def plot_all_blocks_with_fractures(
+    labels: np.ndarray,
+    voxel_class: np.ndarray,
+    fracture_owner: np.ndarray,
+    grid_info: dict,
+    block_info: list,
+    fracture_data: dict,
+    tunnel_poly_YZ: np.ndarray | None = None,
+    shell_thickness: int = 2,
+    min_contact_voxels: int = 15,
+    save_path: str = None
+):
+    """
+    [사진 2] 모든 블록과 그 경계 균열 패치를 하나의 화면에 통합 시각화합니다.
+    """
+    # GPU 데이터 변환
+    if hasattr(labels, 'get'): labels = labels.get()
+    if hasattr(voxel_class, 'get'): voxel_class = voxel_class.get()
+    if hasattr(fracture_owner, 'get'): fracture_owner = fracture_owner.get()
+    
+    print(f"\n  [Viz] 전역 인터페이스 시각화(사진 2) 중... (블록: {len(block_info)}개)")
+    
+    plotter = pv.Plotter()
+    plotter.set_background('white')
+    cmap = plt.get_cmap('tab20')
+    xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
+    vs = grid_info['voxel_size']
+
+    for i, b in enumerate(block_info):
+        lbl = b['label']
+        color = cmap(i % 20)[:3]
+        
+        # 균열 패치들 (블록 본체 메쉬는 제외)
+        patches = _extract_block_patches(lbl, labels, voxel_class, fracture_owner, fracture_data, grid_info, shell_thickness, min_contact_voxels)
+        for p in patches:
+            plotter.add_mesh(p, color=color, opacity=0.4, line_width=1)
+
+    # 터널
+    if tunnel_poly_YZ is not None:
+        xmin, xmax = xs[0], xs[-1]
+        pts, faces = [], []
+        for pt in tunnel_poly_YZ:
+            pts.append([xmin, pt[0], pt[1]]); pts.append([xmax, pt[0], pt[1]])
+        for j in range(0, len(tunnel_poly_YZ)*2 -2, 2):
+            faces.extend([4, j, j+1, j+3, j+2])
+        plotter.add_mesh(pv.PolyData(np.array(pts), np.array(faces)), color='lightblue', opacity=0.1, style='wireframe')
+
+    plotter.show_grid(color='black', font_size=10)
+    plotter.view_isometric()
+    
+    print("  [Viz] 전역 인터페이스 뷰어 창을 엽니다. (사진 2 저장 포함)")
+    plotter.show(screenshot=save_path)
+
+
+def _create_fracture_patch_mesh(points: np.ndarray, normal: np.ndarray):
+    """
+    3D 점들을 평면에 투영하여 Delaunay 2D 메쉬를 생성한 뒤, 다시 3D로 복원합니다.
+    """
+    if len(points) < 3:
+        return None
+    
+    normal = np.array(normal) / np.linalg.norm(normal)
+    origin = points.mean(axis=0)
+    
+    # 1. 로컬 좌표계 (u, v, n) 생성
+    if abs(normal[2]) < 0.9:
+        axis = np.array([0, 0, 1])
+    else:
+        axis = np.array([0, 1, 0])
+    u = np.cross(normal, axis); u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+    
+    # 2. 2D 투영 (u, v 평면)
+    rel_pts = points - origin
+    pts_2d = np.zeros((len(points), 2))
+    pts_2d[:, 0] = rel_pts @ u
+    pts_2d[:, 1] = rel_pts @ v
+    
+    # 3. Delaunay 2D (PyVista)
+    poly_2d = pv.PolyData(np.column_stack([pts_2d, np.zeros(len(pts_2d))]))
+    mesh_2d = poly_2d.delaunay_2d()
+    
+    # 4. 3D 복원 (Delaunay가 점 순서를 바꿀 수 있으므로 mesh_2d.points 사용)
+    pts_projected_2d = mesh_2d.points[:, :2]
+    pts_3d = (pts_projected_2d[:, 0:1] * u + 
+              pts_projected_2d[:, 1:2] * v + origin)
+    
+    return pv.PolyData(pts_3d, mesh_2d.faces)
+
+
+def plot_block_with_bounding_fractures(
+    labels: np.ndarray,
+    voxel_class: np.ndarray,
+    fracture_owner: np.ndarray,
+    target_label: int,
+    fracture_data: dict,
+    grid_info: dict,
+    tunnel_poly_YZ: np.ndarray | None = None,
+    shell_thickness: int = 2,
+    min_contact_voxels: int = 15,
+    show_block_surface: bool = True,
+    show_all_blocks: bool = False,
+    show_fractures: bool = False,
+    interactive: bool = True,
+    save_path: str = None
+):
+    """
+    특정 블록(target_label)과 그 블록의 경계를 형성하는 실제 균열(Fracture Discs)을 함께 시각화합니다.
+    """
+    if pv is None:
+        print("  [Viz] PyVista가 필요합니다.")
+        return
+
+    # GPU(CuPy) 데이터일 경우 CPU(NumPy)로 전송
+    if hasattr(labels, 'get'): labels = labels.get()
+    if hasattr(voxel_class, 'get'): voxel_class = voxel_class.get()
+    if hasattr(fracture_owner, 'get'): fracture_owner = fracture_owner.get()
+
+    print(f"  [Viz] 블록 #{target_label} 및 경계 균열 추출 중...")
+    
+    xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
+    vs = float(grid_info['voxel_size'])
+    origin = np.array([xs[0], ys[0], zs[0]])
+
+    # 1. 블록 마스크 및 경계 쉘 추출
+    block_mask = (labels == target_label)
+    if not np.any(block_mask):
+        print(f"  [ERROR] 블록 ID {target_label}을 찾을 수 없습니다.")
+        return
+
+    # 팽창(Dilation)을 통해 블록 주변 쉘 획득
+    struct = ndimage.generate_binary_structure(3, 1)
+    dilated = ndimage.binary_dilation(block_mask, structure=struct, iterations=shell_thickness)
+    shell = dilated & (~block_mask)
+    
+    # 2. 인접 균열 ID 추출 및 통계
+    adj_owners = fracture_owner[shell]
+    unique_ids, counts = np.unique(adj_owners, return_counts=True)
+    
+    # 유효한 균열(ID >= 0)만 필터링
+    valid = (unique_ids >= 0)
+    unique_ids = unique_ids[valid]
+    counts = counts[valid]
+    
+    # 접촉 복셀 수 기준 내림차순 정렬
+    sort_idx = np.argsort(-counts)
+    unique_ids = unique_ids[sort_idx]
+    counts = counts[sort_idx]
+
+    # 최소 접촉 수 필터링
+    meaningful = counts >= min_contact_voxels
+    unique_ids = unique_ids[meaningful]
+    counts = counts[meaningful]
+
+    print(f"    - 감지된 인접 균열: {len(unique_ids)}개 (min_contact={min_contact_voxels})")
+
+    # 3. 렌더링 준비
+    plotter = pv.Plotter()
+    plotter.set_background('white')
+
+    # (B) 터널 지오메트리
+    if tunnel_poly_YZ is not None:
+        xmin, xmax = xs[0], xs[-1]
+        pts = []; faces = []
+        for i, (y, z) in enumerate(tunnel_poly_YZ):
+            pts.append([xmin, y, z]); pts.append([xmax, y, z])
+            if i < len(tunnel_poly_YZ)-1:
+                p0=2*i; p1=2*i+1; p2=2*(i+1); p3=2*(i+1)+1
+                faces.extend([3, p0, p1, p3]); faces.extend([3, p0, p3, p2])
+        tunnel_mesh = pv.PolyData(np.array(pts), np.array(faces))
+        plotter.add_mesh(tunnel_mesh, color='lightblue', opacity=0.15, style='wireframe', label='Tunnel')
+
+    # (C) 블록 표면 (PyVista/VTK Optimized)
+    if show_block_surface:
+        # Bounding Box Crop for efficiency
+        objs = ndimage.find_objects(block_mask.astype(np.int32))
+        if not objs or objs[0] is None:
+            print(f"    [WARN] Block {target_label} has no valid bounding box.")
+            return
+
+        obj = objs[0]
+        bbox = tuple(slice(max(0, s.start-1), min(labels.shape[d], s.stop+1)) for d, s in enumerate(obj))
+        local_mask = block_mask[bbox]
+        
+        try:
+            verts, faces_mc, _, _ = marching_cubes(local_mask, level=0.5, spacing=(vs,vs,vs))
+            verts += origin + np.array([bbox[0].start*vs, bbox[1].start*vs, bbox[2].start*vs])
+            pv_faces = np.pad(faces_mc, ((0,0), (1,0)), constant_values=3).flatten()
+            block_mesh = pv.PolyData(verts, pv_faces)
+            plotter.add_mesh(block_mesh, color='lightgray', opacity=0.5, smooth_shading=True, label=f'Block {target_label}')
+        except Exception as e:
+            print(f"    [WARN] Block surface generation failed: {e}")
+
+    # (C) 균열 평면 패치 메쉬 생성 및 렌더링
+    rng = np.random.default_rng(target_label)
+    normals = fracture_data['normals']
+    
+    # 그리드 좌표 준비 (복셀 중심 좌표 추출용)
+    XX, YY, ZZ = np.meshgrid(xs, ys, zs, indexing='ij')
+
+    for i, fid in enumerate(unique_ids):
+        # 해당 균열의 접촉 복셀 좌표 추출
+        fid_mask = (fracture_owner == fid) & shell
+        pts = np.column_stack([XX[fid_mask], YY[fid_mask], ZZ[fid_mask]])
+        
+        n = normals[fid]
+        patch = _create_fracture_patch_mesh(pts, n)
+        
+        if patch:
+            color = rng.random(3) # 랜덤 색상
+            plotter.add_mesh(patch, color=color, opacity=0.9, 
+                             label=f'Frac {fid} (vox={counts[i]})',
+                             show_edges=True if len(unique_ids) < 10 else False)
+            print(f"      - Frac {fid:4d}: contact voxels = {counts[i]:4d} (Plane Patch)")
+        else:
+            print(f"      - Frac {fid:4d}: points too few for patch.")
+
+    plotter.show_grid(color='gray', font_size=8)
+    plotter.add_legend(size=(0.15, 0.15))
+    plotter.view_isometric()
+    
+    if save_path:
+        # 렌더링 후 스크린샷 저장
+        plotter.show(auto_close=False, interactive_update=True)
+        plotter.screenshot(save_path)
+        print(f"    - Visualization saved to: {save_path}")
+    
+    if interactive:
+        print(f"  [Viz] 블록 시괄화 완료 (ID: {target_label}) - 인터랙티브 창을 엽니다.")
+        plotter.show()
+    else:
+        plotter.close()
 
 
 def plot_block_3d_scatter(
     labels: np.ndarray,
-    block_info: list,
+    state: np.ndarray,
     grid_info: dict,
+    block_info: list,
     tunnel_poly_YZ: np.ndarray | None = None,
     max_voxels_per_block: int = 500,
     save_path: str = "block_3d_scatter.png",
 ):
     """3D 점묘법(Scatter)으로 블록 분포 시각화 (matplotlib) + 터널 형상 추가"""
+    if hasattr(labels, 'get'): labels = labels.get()
+    if hasattr(state, 'get'): state = state.get()
+    
     if not block_info:
         print("  [Viz] 탐지된 블록 없음 - 3D Scatter 배경/터널 렌더링 중...")
 
@@ -214,12 +517,16 @@ def plot_block_3d_scatter(
 
 def plot_block_overview(
     labels: np.ndarray,
-    block_info: list,
+    state: np.ndarray,
     grid_info: dict,
+    block_info: list,
     tunnel_poly_YZ: np.ndarray | None = None,
     save_path: str = "block_overview.png",
 ):
     """블록 3D 분포 개요 (4-panel) 대시보드 시각화"""
+    if hasattr(labels, 'get'): labels = labels.get()
+    if hasattr(state, 'get'): state = state.get()
+    
     xs, ys, zs = grid_info['xs'], grid_info['ys'], grid_info['zs']
     Nx, Ny, Nz = labels.shape
 

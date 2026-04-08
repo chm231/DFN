@@ -45,7 +45,9 @@ sys.path.insert(0, _here)
 from tunnel_geometry import build_voxel_masks
 from block_detector  import (classify_voxels, run_cca,
                               filter_and_stat_blocks, TUNNEL)
-from visualize_blocks import plot_block_3d_pyvista_interactive, plot_block_overview, plot_block_3d_scatter
+from visualize_blocks import (plot_block_3d_pyvista_interactive, plot_block_overview, 
+                              plot_block_3d_scatter, plot_block_with_bounding_fractures,
+                              plot_all_blocks_with_fractures)
 from export_blocks import export_blocks_csv, export_interfaces_csv
 
 
@@ -92,12 +94,20 @@ def main():
     parser = argparse.ArgumentParser(description='GPU 가속 3D 블록 탐지')
     parser.add_argument('--input',       required=True)
     parser.add_argument('--voxel_size',  type=float, default=0.5,   help='복셀 크기 (m)')
-    parser.add_argument('--halo',        type=float, default=0.0,   help='터널 주변 해석 반경(Halo) 두께 (m). 미지정시 전체 도메인.')
-    parser.add_argument('--tol_factor',  type=float, default=0.6,   help='균열 슬랩 두께 계수')
+    parser.add_argument('--halo',        type=float, default=10.0,   help='터널 주변 해석 반경(Halo) 두께 (m). 미지정시 전체 도메인.')
+    parser.add_argument('--tol_factor',  type=float, default=0.5,   help='균열 슬랩 두께 계수')
     parser.add_argument('--min_voxels',  type=int,   default=8,     help='최소 블록 복셀 수')
-    parser.add_argument('--connectivity',type=int,   default=26,    help='CCA Connectivity (6 or 26)')
-    parser.add_argument('--outdir',      default=None)
+    parser.add_argument('--connectivity',type=int,   default=6,     help='CCA Connectivity (6 or 26)')
+    parser.add_argument('--outdir',      default='results')
     parser.add_argument('--no_gpu',      action='store_true')
+    
+    # ── 추가: 시각화 제어 인자 ────────────────────────────────
+    parser.add_argument('--target_block', type=int,   default=None,  help='상세 분석할 특정 블록 ID (기본값: 모든 블록 순회 분석)')
+    parser.add_argument('--shell_thickness', type=int, default=2,    help='경계 균열 탐색용 쉘 두께 (voxel)')
+    parser.add_argument('--min_contact',   type=int,   default=10,   help='최소 접촉 복셀 수 (이하 제외)')
+    parser.add_argument('--max_auto_viz', type=int, default=100, help='자동 상세 시각화 최대 개수')
+    parser.add_argument('--show_fractures', action='store_true', help='상세 시각화 시 경계 균열 패치 표시')
+    
     args = parser.parse_args()
 
     if args.no_gpu:
@@ -105,13 +115,9 @@ def main():
         import tunnel_geometry as tg; tg.HAS_GPU = False
         print("[!] GPU 비활성화")
 
-    # 출력 폴더
-    if args.outdir is None:
-        args.outdir = os.path.join(
-            os.path.dirname(os.path.abspath(args.input)),
-            'block_detection_results')
+    # 출력 폴더 생성
     os.makedirs(args.outdir, exist_ok=True)
-    print(f"[Info] 결과 저장: {args.outdir}")
+    print(f"[Info] 결과 저장: {os.path.abspath(args.outdir)}")
 
     t0 = time.time()
 
@@ -156,8 +162,8 @@ def main():
     r_crop = radii[in_box]
     print(f"\n[Step 2/4] 균열 복셀 분류 ({in_box.sum():,} / {len(radii):,} 균열)...")
 
-    # ── 4. 복셀 분류 (ROCK / FRACTURE / TUNNEL) ──────────────────────────
-    state = classify_voxels(
+    # ── 4. 복셀 분류 (ROCK / FRACTURE / TUNNEL + Owner Tracking) ──────────
+    state, fracture_owner = classify_voxels(
         grid_info, c_crop, n_crop, r_crop,
         tunnel_mask=tunnel_mask,
         tol_factor=args.tol_factor,
@@ -195,12 +201,14 @@ def main():
 
     np.save(os.path.join(args.outdir, 'block_labels.npy'), labels)
     np.save(os.path.join(args.outdir, 'voxel_state.npy'),  state)
+    np.save(os.path.join(args.outdir, 'fracture_owner.npy'), fracture_owner)
 
     out_h5 = os.path.join(args.outdir, 'block_results.h5')
     with h5py.File(out_h5, 'w') as f:
-        f.create_dataset('labels',      data=labels, compression='gzip')
-        f.create_dataset('voxel_state', data=state,  compression='gzip')
-        f.create_dataset('tunnel_mask', data=tunnel_mask, compression='gzip')
+        f.create_dataset('labels',         data=labels, compression='gzip')
+        f.create_dataset('voxel_state',    data=state,  compression='gzip')
+        f.create_dataset('tunnel_mask',    data=tunnel_mask, compression='gzip')
+        f.create_dataset('fracture_owner', data=fracture_owner, compression='gzip')
         f.attrs['n_blocks']    = len(block_info)
         f.attrs['voxel_size']  = args.voxel_size
         f.attrs['tol_factor']  = args.tol_factor
@@ -212,33 +220,51 @@ def main():
         grp.create_dataset('zs', data=grid_info['zs'])
     print(f"  HDF5 : {out_h5}")
 
-    # ── 8. CSV Data Export ───────────────────────────────────────────────
+    # ── 8. CPU 데이터 전송 (시각화 안정성 확보) ──────────────────────────
+    if hasattr(labels, 'get'):
+        labels_cpu = labels.get()
+        state_cpu  = state.get()
+        fracture_owner_cpu = fracture_owner.get()
+    else:
+        labels_cpu = labels; state_cpu = state
+        fracture_owner_cpu = fracture_owner
+
+    # ── 9. CSV Data Export ───────────────────────────────────────────────
     export_blocks_csv(block_info, args.outdir)
     export_interfaces_csv(labels, block_info, grid_info, args.outdir)
 
-    # 시각화 0: overview 대시보드 (2D 슬라이스 및 통계)
+    # 시각화 0: overview    # 1) 2D Dashboard
     plot_block_overview(
-        labels, block_info, grid_info,
-        tunnel_poly_YZ=poly_YZ,
-        save_path=os.path.join(args.outdir, 'block_overview.png'),
+        labels_cpu, state_cpu, grid_info, block_info, tunnel_poly_YZ=poly_YZ,
+        save_path=os.path.join(args.outdir, "block_overview.png")
     )
-
-    # 시각화 1: matplotlib 3D Scatter (터널 포함 정적 이미지)
-    plot_block_3d_scatter(
-        labels, block_info, grid_info,
-        tunnel_poly_YZ=poly_YZ,
-        save_path=os.path.join(args.outdir, 'block_3d_scatter.png'),
-    )
-
-    # 시각화 2: PyVista 대화형 뷰어 실행 (및 파라미터 조합명으로 PNG 저장)
-    def fmt(val): return str(val).replace('.', 'p')
-    tag = f"vs{fmt(args.voxel_size)}_h{fmt(args.halo)}_tol{fmt(args.tol_factor)}_minv{args.min_voxels}_conn{args.connectivity}"
-    pyvista_png_path = os.path.join(args.outdir, f"pyvista_3d_{tag}.png")
     
+    # 2) 3D Scatter
+    plot_block_3d_scatter(
+        labels_cpu, state_cpu, grid_info, block_info, tunnel_poly_YZ=poly_YZ,
+        save_path=os.path.join(args.outdir, "block_3d_scatter.png")
+    )
+    
+    # ── 10. 최종 통합 시각화 파이프라인 (2단계) ──────────────────────────────
+    frac_data = {'centers': c_crop, 'normals': n_crop, 'radii': r_crop}
+    
+    # [사진 1] 전체 블럭 분포 뷰
+    print(f"\n  [Viz] [1/2] 전체 블록 분포 뷰어 창을 엽니다. (사진 1 저장 포함)")
+    pyvista_png_blocks = os.path.join(args.outdir, f"pyvista_3d_blocks_vs{args.voxel_size}_minv{args.min_voxels}.png")
     plot_block_3d_pyvista_interactive(
-        labels, block_info, grid_info,
+        labels_cpu, state_cpu, grid_info, block_info, tunnel_poly_YZ=poly_YZ,
+        save_path=pyvista_png_blocks,
+    )
+
+    # [사진 2] 전체 블럭 + 균열 인터페이스 뷰
+    print(f"\n  [Viz] [2/2] 전체 블록-균열 인터페이스 뷰어 창을 엽니다. (사진 2 저장 포함)")
+    pyvista_png_interfaces = os.path.join(args.outdir, f"pyvista_3d_interfaces_vs{args.voxel_size}_minv{args.min_voxels}.png")
+    plot_all_blocks_with_fractures(
+        labels_cpu, state_cpu, fracture_owner_cpu, grid_info, block_info, frac_data,
         tunnel_poly_YZ=poly_YZ,
-        save_path=pyvista_png_path,
+        shell_thickness=args.shell_thickness,
+        min_contact_voxels=args.min_contact,
+        save_path=pyvista_png_interfaces
     )
 
     print(f"\n{'='*60}")

@@ -50,9 +50,11 @@ def classify_voxels(
     tol_factor: float = 0.6,
 ) -> np.ndarray:
     """
-    Returns (Nx,Ny,Nz) uint8 array:
-      ROCK=0,  FRACTURE=1,  TUNNEL=2
-    Priority:  TUNNEL > FRACTURE > ROCK
+    Returns (state, fracture_owner):
+      state: (Nx,Ny,Nz) uint8 array (ROCK=0, FRACTURE=1, TUNNEL=2)
+      fracture_owner: (Nx,Ny,Nz) int32 array (Fracture ID or -1)
+    Priority: TUNNEL > FRACTURE > ROCK
+    For FRACTURE voxels, owner is assigned to the fracture with smallest distance to plane.
     """
     Nx, Ny, Nz = grid_info['shape']
     vs   = float(grid_info['voxel_size'])
@@ -62,6 +64,9 @@ def classify_voxels(
     tol  = vs * tol_factor          # fracture half-thickness [m]
 
     state = np.zeros((Nx, Ny, Nz), dtype=np.uint8)   # all ROCK
+    fracture_owner = np.full((Nx, Ny, Nz), -1, dtype=np.int32)
+    min_dist = np.full((Nx, Ny, Nz), np.inf, dtype=np.float32)
+    
     state[tunnel_mask.astype(bool)] = TUNNEL
 
     N = len(fracture_radii)
@@ -115,13 +120,23 @@ def classify_voxels(
             hit_cpu  = (np.abs(d_plane) <= tol) & (d_rad_sq <= r*r)
 
         local = state[ix0:ix1, iy0:iy1, iz0:iz1]
-        local[hit_cpu & (local == ROCK)] = FRACTURE
+        local_owner = fracture_owner[ix0:ix1, iy0:iy1, iz0:iz1]
+        local_min_dist = min_dist[ix0:ix1, iy0:iy1, iz0:iz1]
+
+        # smallest distance logic
+        dist_abs = np.abs(d_plane) if not (HAS_GPU and aabb_size >= _GPU_AABB_THRESH) else cp.asnumpy(cp.abs(d_plane))
+        
+        # update if hit AND (dist < min_dist)
+        update_mask = hit_cpu & (dist_abs < local_min_dist)
+        local[update_mask & (local == ROCK)] = FRACTURE
+        local_owner[update_mask] = i
+        local_min_dist[update_mask] = dist_abs[update_mask]
 
     n_rock = int((state == ROCK).sum())
     n_frac = int((state == FRACTURE).sum())
     n_tunn = int((state == TUNNEL).sum())
     print(f"  분류 결과:  ROCK={n_rock:,}  FRACTURE={n_frac:,}  TUNNEL={n_tunn:,}")
-    return state
+    return state, fracture_owner
 
 
 # ══════════════════════════════════════════════════════════════════════════
