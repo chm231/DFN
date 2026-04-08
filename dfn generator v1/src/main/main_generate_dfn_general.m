@@ -1,5 +1,9 @@
 clc; clear; close all;
 
+% 현재 파일 위치를 기준으로 상위 폴더(src) 및 하위 폴더들을 MATLAB 경로에 추가
+currentDir = fileparts(mfilename('fullpath'));
+addpath(genpath(fullfile(currentDir, '..')));
+
 %% =========================================================
 %  GENERAL 3D ROCK MASS DFN GENERATOR
 %  - not FPI-specific
@@ -23,6 +27,9 @@ masterFile = fullfile(outDir, 'dfn_master_index.mat');
 %  MODEL DOMAIN (rock mass box)
 %  User-defined representative rock mass volume
 %% -----------------------------
+box.x0 = single(0);
+box.y0 = single(0);
+box.z0 = single(0);
 box.dx = single(100);
 box.dy = single(100);
 box.dz = single(100);
@@ -164,27 +171,53 @@ for s = 1:numel(sets)
     end
 
     % sample radius
-    radius = single(sample_radius(seti.sizeDist, N));
-
-    % sample normals from Fisher distribution
     mean_n  = mean_pole_vector_from_trend_plunge(seti.trend, seti.plunge);
-    normals = single(sample_fisher_normals(mean_n, seti.kappa, N));
+    
+    setFile = fullfile(outDir, sprintf('dfn_set_%02d.mat', s));
+    mFile = matfile(setFile, 'Writable', true);
 
-    % temporary in-plane basis only for center generation
-    [strike_u, dip_u] = normal_to_strike_dip_basis_vectorized(normals);
+    % Initialize empty arrays in the mat-file for continuous appending
+    mFile.centers = single.empty(0,3);
+    mFile.normals = single.empty(0,3);
+    mFile.radius  = single.empty(0,1);
+    mFile.set_id  = uint16.empty(0,1);
 
-    % sample centers using surface-point method
-    centers = sample_centers_from_surface_points_vectorized( ...
-        box, radius, strike_u, dip_u, opts.centerMode);
+    chunkSize = 2000000; % 2 Million chunk memory blocks
+    numChunks = ceil(N / chunkSize);
+    currentIdx = 1;
+    P32_nominal = 0;
 
-    % integer set id
-    set_id = uint16(s * ones(N,1));
+    for ch = 1:numChunks
+        nChunk = min(chunkSize, N - currentIdx + 1);
+        
+        radius_ch = single(sample_radius(seti.sizeDist, nChunk));
+        normals_ch = single(sample_fisher_normals(mean_n, seti.kappa, nChunk));
 
-    % nominal P32 check
-    area_total = sum(pi * double(radius).^2);
-    P32_nominal = area_total / V;
+        [strike_u, dip_u] = normal_to_strike_dip_basis_vectorized(normals_ch);
+        centers_ch = sample_centers_from_surface_points_vectorized(box, radius_ch, strike_u, dip_u, opts.centerMode);
 
-    % metadata
+        set_id_ch = uint16(s * ones(nChunk, 1));
+        
+        idxRange = currentIdx : (currentIdx + nChunk - 1);
+        mFile.centers(idxRange, 1:3) = centers_ch;
+        mFile.normals(idxRange, 1:3) = normals_ch;
+        mFile.radius(idxRange, 1) = radius_ch;
+        mFile.set_id(idxRange, 1) = set_id_ch;
+        
+        P32_nominal = P32_nominal + sum(pi * double(radius_ch).^2) / V;
+        
+        % For quick plotting, append some samples from each chunk
+        if opts.makeQuickPlot
+            nTake = min(max(2, floor(round(opts.maxPlotTotal/numel(sets))/numChunks)), nChunk);
+            idxTest = randperm(nChunk, nTake);
+            plotPack.center  = [plotPack.center;  double(centers_ch(idxTest,:))];
+            plotPack.radius  = [plotPack.radius;  double(radius_ch(idxTest))];
+            plotPack.normals = [plotPack.normals; double(normals_ch(idxTest,:))];
+        end
+        
+        currentIdx = currentIdx + nChunk;
+    end
+
     metadata = struct();
     metadata.name         = seti.name;
     metadata.trend        = seti.trend;
@@ -197,28 +230,10 @@ for s = 1:numel(sets)
     metadata.centerMode   = opts.centerMode;
     metadata.box          = box;
     metadata.generator    = 'main_generate_dfn_general';
-    metadata.storageType  = 'matrix_single_setwise_no_strike_dip_saved';
+    metadata.storageType  = 'matrix_single_setwise_chunked_appended';
 
-    % save immediately
-    setFile = fullfile(outDir, sprintf('dfn_set_%02d.mat', s));
-    save(setFile, 'centers', 'normals', 'radius', 'set_id', 'metadata', '-v7.3');
+    mFile.metadata = metadata;
 
-    if opts.verbose
-        fprintf('[%s] saved -> %s\n', seti.name, setFile);
-        fprintf('[%s] nominal realized P32 = %.4f m^2/m^3\n', seti.name, P32_nominal);
-    end
-
-    % append a small sample for preview
-    if opts.makeQuickPlot
-        nTake = min(max(10, round(opts.maxPlotTotal/numel(sets))), N);
-        idx = randperm(N, nTake);
-
-        plotPack.center  = [plotPack.center;  double(centers(idx,:))];
-        plotPack.radius  = [plotPack.radius;  double(radius(idx))];
-        plotPack.normals = [plotPack.normals; double(normals(idx,:))];
-    end
-
-    % update master
     master.set_files{s}   = setFile;
     master.set_names{s}   = seti.name;
     master.N_per_set(s)   = N;
@@ -226,8 +241,10 @@ for s = 1:numel(sets)
     master.P32_nominal(s) = P32_nominal;
     master.total_N        = master.total_N + N;
 
-    % clear large arrays immediately
-    clear radius normals centers set_id metadata strike_u dip_u
+    if opts.verbose
+        fprintf('[%s] saved -> %s\n', seti.name, setFile);
+        fprintf('[%s] nominal realized P32 = %.4f m^2/m^3\n', seti.name, P32_nominal);
+    end
 end
 
 %% -----------------------------
@@ -254,15 +271,15 @@ if opts.makeQuickPlot && ~isempty(plotPack.center)
     title('General 3D DFN preview');
 
     % draw box
-    plot3([0 double(box.dx) double(box.dx) 0 0], ...
-          [0 0 double(box.dy) double(box.dy) 0], ...
-          [0 0 0 0 0], 'k-');
-    plot3([0 double(box.dx) double(box.dx) 0 0], ...
-          [0 0 double(box.dy) double(box.dy) 0], ...
-          [double(box.dz) double(box.dz) double(box.dz) double(box.dz) double(box.dz)], 'k-');
-    for x = [0 double(box.dx)]
-        for y = [0 double(box.dy)]
-            plot3([x x], [y y], [0 double(box.dz)], 'k-');
+    plot3([box.x0 box.x0+double(box.dx) box.x0+double(box.dx) box.x0 box.x0], ...
+          [box.y0 box.y0 box.y0+double(box.dy) box.y0+double(box.dy) box.y0], ...
+          [box.z0 box.z0 box.z0 box.z0 box.z0], 'k-');
+    plot3([box.x0 box.x0+double(box.dx) box.x0+double(box.dx) box.x0 box.x0], ...
+          [box.y0 box.y0 box.y0+double(box.dy) box.y0+double(box.dy) box.y0], ...
+          [box.z0 box.z0 box.z0 box.z0 box.z0] + double(box.dz), 'k-');
+    for x = [box.x0 box.x0+double(box.dx)]
+        for y = [box.y0 box.y0+double(box.dy)]
+            plot3([x x], [y y], [box.z0 box.z0+double(box.dz)], 'k-');
         end
     end
 

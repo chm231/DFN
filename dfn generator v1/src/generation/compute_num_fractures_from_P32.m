@@ -25,13 +25,17 @@ function val = size_pdf_truncated(r, sizeDist)
         case 'powerlaw'
             k = sizeDist.kr;
 
-            if abs(k - 1) < 1e-12
+            % Paper SKB R-06-54 Eq [1] yields CDF of r ~ U. Solving gives f(r) ~ r^{-(k+1)}
+            % Thus the true PDF for size sampling must use k+1.
+            alpha = k + 1;
+
+            if abs(alpha - 1) < 1e-12
                 C = 1 / log(rmax / rmin);
             else
-                C = (1-k) / (rmax^(1-k) - rmin^(1-k));
+                C = (1-alpha) / (rmax^(1-alpha) - rmin^(1-alpha));
             end
 
-            val(mask) = C .* r(mask).^(-k);
+            val(mask) = C .* r(mask).^(-alpha);
 
         case 'exponential'
             lambda = 1 / sizeDist.r0;

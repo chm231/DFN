@@ -10,10 +10,16 @@ function r = sample_radius(sizeDist, N)
         case 'powerlaw'
             k = sizeDist.kr;
 
-            if abs(k - 1) < 1e-12
+            % Fix: Paper Eq[1] SKB R-06-54 dictates CDF is proportional to r^{-k}.
+            % This implies the PDF is f(r) ~ r^{-(k+1)}. Thus alpha = k+1.
+            alpha = k + 1;
+
+            if abs(alpha - 1) < 1e-12
                 r = rmin .* (rmax/rmin).^U;
             else
-                r = ( rmin^(1-k) + U .* (rmax^(1-k) - rmin^(1-k)) ).^(1/(1-k));
+                % This algebraically simplifies EXACTLY to SKB Eq[1]:
+                % r = rmin * ( U * ( (rmin/rmax)^k - 1 ) + 1 )^(-1/k)
+                r = ( rmin^(1-alpha) + U .* (rmax^(1-alpha) - rmin^(1-alpha)) ).^(1/(1-alpha));
             end
 
         case 'exponential'
