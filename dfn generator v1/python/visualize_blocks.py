@@ -257,21 +257,39 @@ def plot_all_blocks_with_fractures(
         for p in patches:
             plotter.add_mesh(p, color=color, opacity=0.4, line_width=1)
 
-    # 터널
+    # 터널 (반투명 서피스 스타일로 통일)
     if tunnel_poly_YZ is not None:
         xmin, xmax = xs[0], xs[-1]
-        pts, faces = [], []
-        for pt in tunnel_poly_YZ:
-            pts.append([xmin, pt[0], pt[1]]); pts.append([xmax, pt[0], pt[1]])
-        for j in range(0, len(tunnel_poly_YZ)*2 -2, 2):
-            faces.extend([4, j, j+1, j+3, j+2])
-        plotter.add_mesh(pv.PolyData(np.array(pts), np.array(faces)), color='lightblue', opacity=0.1, style='wireframe')
+        n_pts = len(tunnel_poly_YZ)
+        pts = []
+        for i in range(n_pts):
+            y, z = tunnel_poly_YZ[i]
+            pts.append([xmin, y, z])
+            pts.append([xmax, y, z])
+        
+        faces = []
+        for i in range(n_pts - 1):
+            p0 = 2 * i; p1 = 2 * i + 1; p2 = 2 * (i + 1); p3 = 2 * (i + 1) + 1
+            faces.extend([3, p0, p1, p3])
+            faces.extend([3, p0, p3, p2])
+            
+        tunnel_mesh = pv.PolyData(np.array(pts), np.array(faces))
+        plotter.add_mesh(tunnel_mesh, color='lightblue', opacity=0.3, style='surface', label='Tunnel')
 
     plotter.show_grid(color='black', font_size=10)
     plotter.view_isometric()
     
-    print("  [Viz] 전역 인터페이스 뷰어 창을 엽니다. (사진 2 저장 포함)")
-    plotter.show(screenshot=save_path)
+    if save_path:
+        try:
+            # 1. 먼저 이미지를 렌더링하여 저장 (interactive=False로 강제 렌더링)
+            plotter.show(screenshot=save_path, auto_close=False, interactive=False)
+            print(f"  [Viz] 저장: {save_path}")
+        except Exception as e:
+            print(f"  [Viz][WARN] PyVista screenshot 저장 실패: {e}")
+
+    # 2. 진짜 인터랙티브 창을 띄움
+    print("  [Viz] 전역 인터페이스 뷰어 창을 엽니다. 마우스 회전/확대 가능. (창을 닫으면 프로그램이 계속됩니다.)")
+    plotter.show(interactive=True)
 
 
 def _create_fracture_patch_mesh(points: np.ndarray, normal: np.ndarray):
@@ -380,17 +398,24 @@ def plot_block_with_bounding_fractures(
     plotter = pv.Plotter()
     plotter.set_background('white')
 
-    # (B) 터널 지오메트리
+    # (B) 터널 지오메트리 (반투명 서피스 스타일로 통일)
     if tunnel_poly_YZ is not None:
         xmin, xmax = xs[0], xs[-1]
-        pts = []; faces = []
-        for i, (y, z) in enumerate(tunnel_poly_YZ):
-            pts.append([xmin, y, z]); pts.append([xmax, y, z])
-            if i < len(tunnel_poly_YZ)-1:
-                p0=2*i; p1=2*i+1; p2=2*(i+1); p3=2*(i+1)+1
-                faces.extend([3, p0, p1, p3]); faces.extend([3, p0, p3, p2])
+        n_pts = len(tunnel_poly_YZ)
+        pts = []
+        for i in range(n_pts):
+            y, z = tunnel_poly_YZ[i]
+            pts.append([xmin, y, z])
+            pts.append([xmax, y, z])
+        
+        faces = []
+        for i in range(n_pts - 1):
+            p0 = 2 * i; p1 = 2 * i + 1; p2 = 2 * (i + 1); p3 = 2 * (i + 1) + 1
+            faces.extend([3, p0, p1, p3])
+            faces.extend([3, p0, p3, p2])
+            
         tunnel_mesh = pv.PolyData(np.array(pts), np.array(faces))
-        plotter.add_mesh(tunnel_mesh, color='lightblue', opacity=0.15, style='wireframe', label='Tunnel')
+        plotter.add_mesh(tunnel_mesh, color='lightblue', opacity=0.3, style='surface', label='Tunnel')
 
     # (C) 블록 표면 (PyVista/VTK Optimized)
     if show_block_surface:
@@ -442,14 +467,16 @@ def plot_block_with_bounding_fractures(
     plotter.view_isometric()
     
     if save_path:
-        # 렌더링 후 스크린샷 저장
-        plotter.show(auto_close=False, interactive_update=True)
-        plotter.screenshot(save_path)
-        print(f"    - Visualization saved to: {save_path}")
+        try:
+            # 1. 먼저 이미지를 렌더링 및 저장
+            plotter.show(screenshot=save_path, auto_close=False, interactive=False)
+            print(f"    - Visualization saved to: {save_path}")
+        except Exception as e:
+             print(f"    [WARN] Visualization save failed: {e}")
     
     if interactive:
-        print(f"  [Viz] 블록 시괄화 완료 (ID: {target_label}) - 인터랙티브 창을 엽니다.")
-        plotter.show()
+        print(f"  [Viz] 블록 시각화 완료 (ID: {target_label}) - 인터랙티브 창을 엽니다.")
+        plotter.show(interactive=True)
     else:
         plotter.close()
 

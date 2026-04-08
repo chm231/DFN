@@ -105,7 +105,7 @@ def main():
     parser.add_argument('--target_block', type=int,   default=None,  help='상세 분석할 특정 블록 ID (기본값: 모든 블록 순회 분석)')
     parser.add_argument('--shell_thickness', type=int, default=2,    help='경계 균열 탐색용 쉘 두께 (voxel)')
     parser.add_argument('--min_contact',   type=int,   default=10,   help='최소 접촉 복셀 수 (이하 제외)')
-    parser.add_argument('--max_auto_viz', type=int, default=100, help='자동 상세 시각화 최대 개수')
+    parser.add_argument('--max_auto_viz', type=int, default=1000, help='자동 상세 시각화 최대 개수')
     parser.add_argument('--show_fractures', action='store_true', help='상세 시각화 시 경계 균열 패치 표시')
     
     args = parser.parse_args()
