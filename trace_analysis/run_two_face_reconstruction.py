@@ -75,61 +75,49 @@ def main():
     
     print(f"  - Reconstructed {len(reconstructed_planes)} planes from matching pairs.")
 
-    # 4. 도메인 필터링 (전방 5m, 주변 10m)
-    # 도메인 정의: X=[x_curr, x_curr + forward], Y/Z = [tunnel_min-halo, tunnel_max+halo]
-    y_min, y_max = np.min(poly_y), np.max(poly_y)
-    z_min, z_max = np.min(poly_z), np.max(poly_z)
+    # 4. 도메인 필터링 (입력 막장 ~ 전방 관심 깊이 전체 구간으로 확장)
+    # X: [x_curr - interval, x_curr + forward], Y: [-15.5, 15.5], Z: [-15.0, 15.0]
+    d_xmin = args.x_curr - args.interval
+    d_xmax = args.x_curr + args.forward_dist
+    d_ymin, d_ymax = -15.5, 15.5
+    d_zmin, d_zmax = -15.0, 15.0
     
-    d_xmin, d_xmax = args.x_curr, args.x_curr + args.forward_dist
-    d_ymin, d_ymax = y_min - args.halo, y_max + args.halo
-    d_zmin, d_zmax = z_min - args.halo, z_max + args.halo
+    print(f"\n[3/3] Filtering and Clipping planes to expanded domain...")
+    print(f"  - Domain Box: X[{d_xmin}, {d_xmax}], Y[{d_ymin}, {d_ymax}], Z[{d_zmin}, {d_zmax}]")
     
-    print(f"\n[3/3] Filtering planes to forward domain...")
-    print(f"  - Filter Box: X[{d_xmin}, {d_xmax}], Y[{d_ymin:.1f}, {d_ymax:.1f}], Z[{d_zmin:.1f}, {d_zmax:.1f}]")
-    
-    final_planes = []
-    for p in reconstructed_planes:
-        # 평면 원판이 타겟 도메인 박스와 교차하는지 거칠게 필터링
-        # (원판의 중심이 도메인 박스 근처에 있는지 확인)
-        cx, cy, cz = p.point_x, p.point_y, p.point_z
-        r = p.radius
-        
-        # AABB 교차 검사
-        if (cx + r >= d_xmin and cx - r <= d_xmax and
-            cy + r >= d_ymin and cy - r <= d_ymax and
-            cz + r >= d_zmin and cz - r <= d_zmax):
-            final_planes.append(p)
-            
-    print(f"  - Final planes in target domain: {len(final_planes)}")
+    # 도메인 박스 (클리핑용)
+    domain_bounds = (d_xmin, d_xmax, d_ymin, d_ymax, d_zmin, d_zmax)
+    domain_box_mesh = pv.Box(bounds=domain_bounds)
 
-    # 5. 시각화 (선택 사항)
-    if args.visualize and final_planes:
-        print("\n[Viz] Launching 3D Viewer...")
+    # 5. 시각화
+    if args.visualize and reconstructed_planes:
+        print("\n[Viz] Launching 3D Viewer (Expanded Domain Mode)...")
         plotter = pv.Plotter()
         
-        # 5.1 터널 형상 구현 (Extrusion)
-        # 시작 단면 생성 (X = d_xmin)
+        # 5.1 터널 형상 구현 (실제 굴착된 3m 구간만 생성)
         pts = np.column_stack([np.full(len(poly_yz), d_xmin), poly_yz])
-        # PyVista 폴리곤 데이터 생성 (닫힌 루프 가정)
         faces = np.array([len(poly_yz)] + list(range(len(poly_yz))))
         tunnel_cap = pv.PolyData(pts, faces=faces)
-        # 전방 거리만큼 X축 방향으로 압출
-        tunnel_3d = tunnel_cap.extrude((args.forward_dist, 0, 0), capping=True)
-        plotter.add_mesh(tunnel_3d, color='lightblue', opacity=0.15, show_edges=True, label="Tunnel Domain")
+        # 압출 길이를 실제 굴착 간격(interval)으로 제한
+        tunnel_3d = tunnel_cap.extrude((args.interval, 0, 0), capping=True)
+        plotter.add_mesh(tunnel_3d, color='lightblue', opacity=0.4, show_edges=True, label="Excavated Tunnel (Known)")
         
-        # 5.2 좌표계 격자(X, Y, Z Axes Grid) 표시
+        # 5.2 좌표계 격자
         plotter.show_grid(color='gray', font_size=10, location='outer')
 
-        # 5.3 도메인 박스 표시 (외곽 가이드)
-        domain_box = pv.Box(bounds=(d_xmin, d_xmax, d_ymin, d_ymax, d_zmin, d_zmax))
-        plotter.add_mesh(domain_box, color='white', opacity=0.1, style='wireframe')
+        # 5.3 예측 도메인 가이드 박스 (전방 5m 포함 전체)
+        plotter.add_mesh(domain_box_mesh, color='white', opacity=0.05, style='wireframe', label="Prediction Zone")
         
-        # 5.3 복원된 평면들 (더 투명하게 설정)
-        for p in final_planes:
-            disc = pv.Disc(center=(p.point_x, p.point_y, p.point_z), 
-                           normal=(p.normal_x, p.normal_y, p.normal_z), 
-                           outer=p.radius, inner=0, c_res=40)
-            plotter.add_mesh(disc, color='orange', opacity=0.3)  # 투명도 0.3으로 하향
+        # 5.4 복원된 평면들 (무한 평면 -> 전체 도메인 클리핑)
+        for p in reconstructed_planes:
+            large_plane = pv.Plane(center=(p.point_x, p.point_y, p.point_z), 
+                                   direction=(p.normal_x, p.normal_y, p.normal_z), 
+                                   i_size=100, j_size=100)
+            
+            clipped_plane = large_plane.clip_box(domain_bounds, invert=False)
+            
+            if clipped_plane.n_points > 0:
+                plotter.add_mesh(clipped_plane, color='orange', opacity=0.15)
             
         plotter.add_legend()
         plotter.add_axes()
