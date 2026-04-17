@@ -60,8 +60,11 @@ def fit_plane_from_trace_track(trace_track: List[FaceTrace], plane_id: int) -> O
     3개 이상의 face에서 연속 매칭된 추적 궤적(Track)의 모든 Point(2N개)에 대해
     SVD를 수행하여 극대화된 정밀도로 평면을 거시 복원합니다.
     """
-    if len(trace_track) < 3:
+    if len(trace_track) < 2:
         return None
+        
+    if len(trace_track) == 2:
+        return reconstruct_plane_from_trace_pair(trace_track[0], trace_track[1], plane_id)
         
     points = []
     for trace in trace_track:

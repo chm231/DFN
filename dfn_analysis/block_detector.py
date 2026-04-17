@@ -293,3 +293,4 @@ def filter_and_stat_blocks(
     print(f"  필터 결과: {len(block_info)}개 블록 확정")
     print(f"    제외 - 소형:{rejected_small}  경계접촉:{rejected_boundary}  터널미접촉:{rejected_no_tunnel}")
     return block_info
+

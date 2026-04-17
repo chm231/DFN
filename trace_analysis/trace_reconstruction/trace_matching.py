@@ -61,7 +61,7 @@ def match_traces_between_faces(
              
     return matches
 
-def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict = None, min_faces: int = 3) -> List[List[FaceTrace]]:
+def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict = None, min_faces: int = 2) -> List[List[FaceTrace]]:
     """
     매칭 정보를 종합하여, face 0 부터 n까지 연속적으로 이어지는 
     trace들의 궤적(Trace Track) 리스트를 구성하여 반환합니다.
