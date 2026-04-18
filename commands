@@ -20,19 +20,7 @@ $env:PYTHONPATH = "."
 #   --show_fractures [flag] 시각화 시 경계 균열 패치 표시
 & "C:\Users\user\miniconda3\python.exe" dfn_analysis/run_dfn_pipeline.py --input storage/data/dfn_export_for_python.h5 --voxel_size 0.01 --halo 8 --tol_factor 0.5 --min_voxels 5000
 
-# ------------------------------------------------------------
-# Package B: Slab 기반 균열 평면 복원 및 검증 (Optimized)
-# ------------------------------------------------------------
-# 스크립트: trace_analysis/slab_reconstruction/run_slab_pipeline.py
-# 주요 Argument:
-#   --input         [str]   HDF5 DFN 파일 경로
-#   --spacing       [float] Slab 간격 (m) (기본값: 3.0)
-#   --thickness     [float] Slab 두께 (m) (기본값: 0.2)
-#   --eps           [float] DBSCAN eps (m) - 균열 분리 정밀도 (기본값: 1.0)
-#   --min_points    [int]   최소 클러스터 포인트 수 (기본값: 5)
-#   --max_link_score [float] 최대 매칭 점수 임계값 (기본값: 3.0)
-#   --export_cad    [flag]  AutoCAD SCR 파일로 결과 내보내기
-& "C:\Users\user\miniconda3\python.exe" -m trace_analysis.slab_reconstruction.run_slab_pipeline --spacing 3.0 --thickness 0.2 --eps 0.1 --min_points 5 --max_link_score 10.0 --export_cad
+
 
 # ------------------------------------------------------------
 # Utility: 2개 연속 막장 기반 균열 복원 (전방 예측용)
@@ -46,20 +34,21 @@ $env:PYTHONPATH = "."
 #   --visualize    [flag]  3D 시각화 실행
 & "C:\Users\user\miniconda3\python.exe" trace_analysis/run_two_face_reconstruction.py --x_curr 20.0 --interval 3.0 --forward_dist 5.0 --halo 10.0 --visualize
 
+# ------------------------------------------------------------
+# Package C: SC-PMFR (절리군 제약 확률적 복원 프로토타입)
+# ------------------------------------------------------------
+# 스크립트: trace_analysis/reconstruction/main_reconstruct.py
+# 설명:
+#   절리군(Fracture Set) 추론 정보를 매칭 Prior로 사용하여
+#   연속 막장(2~3개)으로부터 3D 원판을 확률적으로 복원함.
+# 주요 기능:
+#   - 법선 매니폴드 기반 절리군 자동 추론
+    - 확률적 가중 매칭 (Set/Geometry/Continuity)
+    - 제약 조건 하의 수치 최적화 평면 피팅
+& "C:\Users\user\miniconda3\python.exe" -m trace_analysis.reconstruction.main_reconstruct --x_curr 20.0 --num_faces 3 --visualize
 
-# ------------------------------------------------------------
-# Package D: 전체 터널 구간 비평면(Rough Face) 시뮬레이션
-# ------------------------------------------------------------
-# 스크립트: trace_analysis/rough_face/run_rough_pipeline.py
-# 주요 Argument:
-#   --interval      [float] 굴착 간격 (m) (기본값: 3.0)
-#   --dx            [float] 굴착면 최대 요철 진폭 (m) (기본값: 0.3)
-#   --lc            [float] 상관 거리 (Correlation Length, m) (기본값: 1.0)
-#   --res           [float] 그리드 해상도 (m) (기본값: 0.1)
-#   --num_faces     [int]   시뮬레이션할 막장 수 (0=전체) (기본값: 0)
-#   --visualize     [flag]  동작 확인용 시각화 실행
-#   --export_cad    [flag]  AutoCAD SCR 파일로 결과 내보내기
-& "C:\Users\user\miniconda3\python.exe" -m trace_analysis.rough_face.run_rough_pipeline --interval 3.0 --dx 0.3 --lc 1.0 --export_cad
+
+
 
 
 & "C:\Users\user\miniconda3\python.exe" trace_analysis/run_trace_pipeline.py

@@ -16,8 +16,6 @@
 **막장면 2D Trace 데이터를 역산하여 3D 절리면을 복원하고 블록을 분석하는 패키지**입니다.
 - `run_trace_pipeline.py`: Trace 기반 역산 메인 실행 스크립트.
 - `load_tunnel_dat.py`: 터널 설계 데이터(.dat) 로더.
-- `slab_reconstruction/`: [NEW] Slab 기반 평면 복원 알고리즘 테스트 베드.
-  - `run_slab_pipeline.py`: Slab 방식 평면 복원 및 정밀도 검증 스크립트.
 - `trace_reconstruction/`: 추적 매칭, SVD 기반 평면 복원 알고리즘 서브패키지.
 - `plot_2d_trace_map.py`: 2D Trace 분포 인터랙티브 뷰어.
 
@@ -34,12 +32,6 @@
 ```powershell
 $env:PYTHONPATH = "."
 & python dfn_analysis/run_dfn_pipeline.py --input storage/data/dfn_export_for_python.h5
-```
-
-### Package C: Slab 기반 평면 복원 검증 (Direction B 전용)
-```powershell
-$env:PYTHONPATH = "."
-& python trace_analysis/slab_reconstruction/run_slab_pipeline.py --spacing 3.0 --thickness 0.2
 ```
 
 ---

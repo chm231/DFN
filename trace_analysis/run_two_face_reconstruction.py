@@ -108,16 +108,19 @@ def main():
         # 5.3 예측 도메인 가이드 박스 (전방 5m 포함 전체)
         plotter.add_mesh(domain_box_mesh, color='white', opacity=0.05, style='wireframe', label="Prediction Zone")
         
-        # 5.4 복원된 평면들 (무한 평면 -> 전체 도메인 클리핑)
-        for p in reconstructed_planes:
-            large_plane = pv.Plane(center=(p.point_x, p.point_y, p.point_z), 
-                                   direction=(p.normal_x, p.normal_y, p.normal_z), 
-                                   i_size=100, j_size=100)
+        # 5.4 복원된 평면들 (원판 Disc 형태로 시각화)
+        for i, p in enumerate(reconstructed_planes):
+            # 복원된 반경을 사용하는 원판 생성
+            disc = pv.Disc(center=(p.point_x, p.point_y, p.point_z), 
+                           normal=(p.normal_x, p.normal_y, p.normal_z), 
+                           outer=p.radius, inner=0, c_res=40)
             
-            clipped_plane = large_plane.clip_box(domain_bounds, invert=False)
+            # 원판 본체 (반투명 주황색)
+            plotter.add_mesh(disc, color='orange', opacity=0.15, label="Reconstructed Fracture" if i==0 else None)
             
-            if clipped_plane.n_points > 0:
-                plotter.add_mesh(clipped_plane, color='orange', opacity=0.15)
+            # 검은색 윤곽선 (원판의 둘레 강조)
+            edges = disc.extract_feature_edges(boundary_edges=True, feature_edges=False, non_manifold_edges=False, manifold_edges=False)
+            plotter.add_mesh(edges, color='black', line_width=1)
             
         plotter.add_legend()
         plotter.add_axes()
