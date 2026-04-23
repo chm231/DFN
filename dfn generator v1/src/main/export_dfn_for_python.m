@@ -28,9 +28,10 @@ function export_dfn_for_python(masterFile, tunnel_poly_YZ, tunnel_Y, tunnel_Z, c
     M = load(masterFile);
     master = M.master;
 
-    % 최종 출력 경로 (OneDrive)
-    [master_dir, ~, ~] = fileparts(masterFile);
-    export_path = fullfile(master_dir, 'dfn_export_for_python.h5');
+    % 최종 출력 경로 (Python 파이프라인이 사용하는 공용 storage/data 폴더로 지정)
+    % [변경] 로컬 폴더가 아닌 프로젝트 루트의 storage/data 폴더를 직접 타겟팅합니다.
+    current_script_dir = fileparts(mfilename('fullpath'));
+    export_path = fullfile(current_script_dir, '..', '..', '..', 'storage', 'data', 'dfn_export_for_python.h5');
 
     % ── OneDrive 동기화 잠금 방지: 로컬 temp에 먼저 쓰기 ──────────────
     tmp_path = fullfile(tempdir(), 'dfn_export_for_python_tmp.h5');
@@ -76,12 +77,15 @@ function export_dfn_for_python(masterFile, tunnel_poly_YZ, tunnel_Y, tunnel_Z, c
         h5write(tmp_path, '/tunnel/profile_Z', single(tunnel_Z(:)));
     end
 
-    % 메타 정보 – 전체 도메인 박스
+    % 메타 정보 – 전체 도메인 박스 (균열의 실제 가용 범위 전체를 포함하도록 수정)
     xmin_d = min(all_c(:,1) - all_r) - 5;
     xmax_d = max(all_c(:,1) + all_r) + 5;
-    domain_box = single([xmin_d, xmax_d, ...
-                          min(tunnel_poly_YZ(:,1))-15, max(tunnel_poly_YZ(:,1))+15, ...
-                          min(tunnel_poly_YZ(:,2))-15, max(tunnel_poly_YZ(:,2))+15]);
+    ymin_d = min(all_c(:,2) - all_r) - 5;
+    ymax_d = max(all_c(:,2) + all_r) + 5;
+    zmin_d = min(all_c(:,3) - all_r) - 5;
+    zmax_d = max(all_c(:,3) + all_r) + 5;
+
+    domain_box = single([xmin_d, xmax_d, ymin_d, ymax_d, zmin_d, zmax_d]);
     h5create(tmp_path, '/meta/domain_box', [1 6], 'Datatype', 'single');
     h5write(tmp_path, '/meta/domain_box', domain_box);
 

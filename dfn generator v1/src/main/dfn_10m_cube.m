@@ -182,7 +182,7 @@ opts.plot_2d_trace_map = false;          % 2D Trace Map (X/Y/Z 슬라이스) On/
 opts.export_for_python = true;         % Python 블록 탐지용 HDF5 내보내기 On/Off
 opts.overlay_tunnel = true;            % 터널 오버레이 On/Off
 opts.verbose = true;
-opts.run_validation_suite = true; % <--- [검증 스크립트 ON/OFF 토글]
+opts.run_validation_suite = false; % <--- [검증 스크립트 ON/OFF 토글]
 
 V = double(box.dx) * double(box.dy) * double(box.dz);
 
@@ -336,7 +336,7 @@ tunnel_poly_YZ = [];
 tunnel_Y = [];
 tunnel_Z = [];
 
-tunnel_file = fullfile(currentDir, '..', '..', '..', '단면_폴리곤.dat');
+tunnel_file = fullfile(currentDir, '..', '..', '..', 'storage', 'data', '단면_폴리곤.dat');
 if exist(tunnel_file, 'file')
     poly = read_tunnel_polygon(tunnel_file);
     poly_shifted = poly;
