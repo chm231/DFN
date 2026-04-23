@@ -1,28 +1,43 @@
-"""
-[Direction B: Inverse Reconstruction]
-연속된 굴착 막장면(face n-1, face n) 상에서 관측된 Face Trace들을 엮는 매칭 모듈입니다.
-추출된 trace를 이용해 "이 trace가 이전 면에서 본 그 절리의 trace인가?"를 Heuristic으로 판단합니다.
-"""
 import numpy as np
 from typing import List, Dict
-from .trace_types import FaceTrace, TraceMatch
+from .trace_types import FaceTrace, TraceMatch, CensoringType
 
 def compute_trace_match_score(trace_a: FaceTrace, trace_b: FaceTrace, params: dict = None) -> float:
     """
-    Face n-1의 Trace A와 Face n의 Trace B의 유사성을 점수화 (낮을수록 일치 확률 높음/Cost 기반)
-    고려요소: 중심점 거리 차이, 스케일(길이) 변동성, 2D 회전(방향) 변위.
+    Face n-1의 Trace A와 Face n의 Trace B의 유사성을 점수화 (낮을수록 일치 확률 높음)
+    Zhang & Einstein (2000) 권고에 의거:
+    - 2D Trace 길이는 Bias가 크므로 매칭 비중을 낮춤.
+    - 방향성(Orientation) 및 기하학적 연속성(Midpoint)을 핵심 지표로 사용.
+    - Censoring 상태에 따른 가중치 시스템 도입.
     """
+    # 1. 기하학적 중심 거리 비용 (Y, Z 평면)
     dy = trace_a.midpoint_y - trace_b.midpoint_y
     dz = trace_a.midpoint_z - trace_b.midpoint_z
-    dist_sq = dy**2 + dz**2
+    dist_cost = (dy**2 + dz**2) * 2.0  # 위치 연속성 가중치
     
-    len_diff = abs(trace_a.length - trace_b.length)
+    # 2. 방향성(Orientation) 일치도 비용 - 매우 중요
+    # sin 차이를 사용하여 각도 차이가 클수록 급격하게 페널티 부여
     ang_diff = abs(np.sin(trace_a.local_orientation_2d - trace_b.local_orientation_2d))
+    ang_cost = ang_diff * 10.0  # 방향 일치도 가중치 대폭 강화
     
-    # Heuristic cost (파라미터화 필요)
-    cost = dist_sq + (len_diff**2 * 0.5) + (ang_diff * 1.0)
-    return float(cost)
+    # 3. 길이 차이 비용 (축소 - Clipping에 의한 편향 때문)
+    # 절대 차이 대신 비율 차이를 사용해 스케일 영향 최소화
+    len_diff_ratio = abs(trace_a.length - trace_b.length) / (max(trace_a.length, trace_b.length) + 1e-6)
+    len_cost = len_diff_ratio * 1.0  
+    
+    # 4. Censoring 데이터 품질 보정
+    # 둘 다 온전하게 보이는(Visible) 경우 매칭 신뢰도 대폭 상승 (Cost 차감)
+    quality_bonus = 0.0
+    if trace_a.censoring == CensoringType.VISIBLE and trace_b.censoring == CensoringType.VISIBLE:
+        quality_bonus = -1.0  # Quality Bonus
+    
+    # 둘 중 하나라도 양 끝이 잘린 경우(Both-end clipped) 불확실성 페널티 부여
+    elif (trace_a.censoring == CensoringType.BOTH_END_CLIPPED or 
+          trace_b.censoring == CensoringType.BOTH_END_CLIPPED):
+        quality_bonus = 2.0   # Uncertainty Penalty
 
+    cost = dist_cost + ang_cost + len_cost + quality_bonus
+    return float(max(0.1, cost))
 
 def match_traces_between_faces(
     face_prev_traces: List[FaceTrace], 
@@ -47,7 +62,7 @@ def match_traces_between_faces(
                 best_score = score
                 best_ta = ta
                 
-        # threshold(비용 제한) 통과 여부 검사 (임시값 5.0)
+        # threshold(비용 제한) 통과 여부 검사 (임시값 5.0 -> 10.0)
         accepted = True if best_score < 10.0 else False
         if best_ta is not None:
              matches.append(TraceMatch(
@@ -63,17 +78,13 @@ def match_traces_between_faces(
 
 def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict = None, min_faces: int = 2) -> List[List[FaceTrace]]:
     """
-    매칭 정보를 종합하여, face 0 부터 n까지 연속적으로 이어지는 
-    trace들의 궤적(Trace Track) 리스트를 구성하여 반환합니다.
-    이 궤적 1개가 1개의 3D 절리면(Plane) 재구성 후보가 됨.
-    최소 min_faces 이상 꼬리를 물고 이어진 트랙만 유효함!
+    여러 막장면에 걸쳐 연속적으로 매칭되는 플래그먼트들을 'Track'단위로 묶습니다.
+    반환값: 각 트랙(리스트)들의 리스트
     """
     face_ids = sorted(grouped_traces.keys())
-    if len(face_ids) < 2:
-        return []
+    if len(face_ids) < 2: return []
         
     finished_tracks = []
-    # active_tracks: List[List[FaceTrace]]
     active_tracks = []
     
     for i in range(1, len(face_ids)):
@@ -82,30 +93,25 @@ def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict 
         
         matches = match_traces_between_faces(prev_traces, curr_traces, params)
         
-        # 이전 트레이스 ID -> 매칭 정보 딕셔너리 구성
         match_dict = {}
         for m in matches:
-            if m.accepted:
-                match_dict[m.trace_id_prev] = m
+            if m.accepted: match_dict[m.trace_id_prev] = m
                 
         new_active_tracks = []
         
-        # 1. 생존 중인 트랙들 연장(Extension)
+        # 이전 트랙 이어나가기
         for track in active_tracks:
             last_trace = track[-1]
             if last_trace.trace_id in match_dict:
-                # 꼬리물기 연장 성공
                 m = match_dict[last_trace.trace_id]
                 t_curr = next(t for t in curr_traces if t.trace_id == m.trace_id_curr)
                 track.append(t_curr)
                 new_active_tracks.append(track)
-                # 처리된 매칭은 목록에서 제거
                 del match_dict[last_trace.trace_id]
             else:
-                # 더 이상 연결되지 못해 궤적 종료
                 finished_tracks.append(track)
                 
-        # 2. 이번 단계에서 새로 탄생하는 궤적들 시작
+        # 새로 시작하는 트랙 (이전에 매칭 안된 애들 중 이번에 매칭 성공한 애들)
         for prev_id, m in match_dict.items():
             t_prev = next(t for t in prev_traces if t.trace_id == m.trace_id_prev)
             t_curr = next(t for t in curr_traces if t.trace_id == m.trace_id_curr)
@@ -113,10 +119,8 @@ def build_trace_tracks(grouped_traces: Dict[int, List[FaceTrace]], params: dict 
             
         active_tracks = new_active_tracks
         
-    # 루프가 끝나고 남은 진행 중인 트랙들은 모두 완료 처리
     finished_tracks.extend(active_tracks)
     
-    # 3. 최소 막장면 수(min_faces) 기준 미달 트랙 폐기
+    # 최소 관측 횟수를 만족하는 트랙만 필터링
     valid_tracks = [t for t in finished_tracks if len(t) >= min_faces]
-    
     return valid_tracks

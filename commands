@@ -22,36 +22,7 @@ $env:PYTHONPATH = "."
 
 
 
-# ------------------------------------------------------------
-# Utility: 2개 연속 막장 기반 균열 복원 (전방 예측용)
-# ------------------------------------------------------------
-# 스크립트: trace_analysis/run_two_face_reconstruction.py
-# 주요 Argument:
-#   --x_curr       [float] 현재 막장 위치 (m)
-#   --interval     [float] 막장 간격 (m) (기본값: 3.0)
-#   --forward_dist [float] 예측 전방 거리 (m) (기본값: 5.0)
-#   --halo         [float] 터널 주변 반경 (m) (기본값: 10.0)
-#   --visualize    [flag]  3D 시각화 실행
-& "C:\Users\user\miniconda3\python.exe" trace_analysis/run_two_face_reconstruction.py --x_curr 20.0 --interval 3.0 --forward_dist 5.0 --halo 10.0 --visualize
-
-# ------------------------------------------------------------
-# Package C: SC-PMFR (절리군 제약 확률적 복원 프로토타입)
-# ------------------------------------------------------------
-# 스크립트: trace_analysis/reconstruction/main_reconstruct.py
-# 설명:
-#   절리군(Fracture Set) 추론 정보를 매칭 Prior로 사용하여
-#   연속 막장(2~3개)으로부터 3D 원판을 확률적으로 복원함.
-# 주요 기능:
-#   - 법선 매니폴드 기반 절리군 자동 추론
-    - 확률적 가중 매칭 (Set/Geometry/Continuity)
-    - 제약 조건 하의 수치 최적화 평면 피팅
-& "C:\Users\user\miniconda3\python.exe" -m trace_analysis.reconstruction.main_reconstruct --x_curr 20.0 --num_faces 3 --visualize
-
-
-
-
-
-& "C:\Users\user\miniconda3\python.exe" trace_analysis/run_trace_pipeline.py
+# [Utility archived: run_two_face_reconstruction.py moved to _archive]
 
 # ------------------------------------------------------------
 # Utility: 2D Trace Map 시각화

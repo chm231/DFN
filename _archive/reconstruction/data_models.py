@@ -1,6 +1,11 @@
-from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
-import numpy as np
+from enum import Enum, auto
+
+class CensoringType(Enum):
+    """트레이스의 중단(Censoring) 상태를 정의"""
+    VISIBLE = auto()            # 양 끝단이 모두 노출면 내부에 존재 (Full length)
+    ONE_END_CLIPPED = auto()    # 한쪽 끝이 경계에 의해 잘림 (One-end truncated)
+    BOTH_END_CLIPPED = auto()   # 양쪽 끝이 모두 경계에 의해 잘림 (Both-ends truncated)
+    UNKNOWN = auto()            # 판별 전 상태
 
 @dataclass
 class Trace:
@@ -13,6 +18,7 @@ class Trace:
     direction: Optional[np.ndarray] = None  # unit vector
     confidence: float = 1.0
     raw_polyline: Optional[np.ndarray] = None  # Optional raw points
+    censoring: CensoringType = CensoringType.UNKNOWN
 
 @dataclass
 class Face:
