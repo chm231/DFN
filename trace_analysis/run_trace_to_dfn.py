@@ -49,7 +49,8 @@ def extract_observed_traces_from_truth(
             ft = intersect_disc_with_face(
                 centers[i, 0], centers[i, 1], centers[i, 2],
                 normals[i, 0], normals[i, 1], normals[i, 2],
-                radii[i], face, start_trace_id=tid, set_id=int(set_ids[i])
+                radii[i], face, start_trace_id=tid, set_id=int(set_ids[i]),
+                parent_fracture_id=i
             )
             obs_traces.extend(ft)
             tid += len(ft)

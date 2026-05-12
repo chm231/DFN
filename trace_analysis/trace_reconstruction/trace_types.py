@@ -27,6 +27,7 @@ class FaceTrace:
     p1_y: float
     p1_z: float
     confidence: float = 1.0
+    parent_fracture_id: Optional[int] = None
     
     # Pre-calculated geometric fields
     midpoint_y: float = field(init=False)

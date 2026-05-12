@@ -180,12 +180,14 @@ def intersect_disc_with_face(
     radius: float,
     face: ExcavationFace,
     start_trace_id: int = 5000,
-    set_id: int = 1
+    set_id: int = 1,
+    parent_fracture_id: Optional[int] = None
 ) -> List[FaceTrace]:
     """
     Analytically intersects a 3D disc with an excavation face plane (x = x_face),
     clipping the intersection segment to the tunnel polygon boundary.
     """
+    from typing import Optional
     x_f = face.x_face
     poly = face.tunnel_polygon_yz
     
@@ -233,7 +235,8 @@ def intersect_disc_with_face(
             p0_z=float(cp0[1]),
             p1_y=float(cp1[0]),
             p1_z=float(cp1[1]),
-            confidence=1.0
+            confidence=1.0,
+            parent_fracture_id=parent_fracture_id
         )
         t.set_id = set_id
         traces.append(t)
