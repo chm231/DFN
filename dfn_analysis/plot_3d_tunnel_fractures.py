@@ -45,6 +45,11 @@ def load_data(h5_path):
             data['crop_box'] = f['/meta/domain_box'][:].ravel()
         else:
             data['crop_box'] = None
+            
+        if '/meta/x_start' in f:
+            data['x_start'] = float(f['/meta/x_start'][()])
+        if '/meta/x_end' in f:
+            data['x_end'] = float(f['/meta/x_end'][()])
     return data
 
 def distance_to_polygon(pts_y, pts_z, poly_y, poly_z):
@@ -78,6 +83,8 @@ def main():
                         help="all: 교차+완전포함 / intersect: 터널경계 교차만 / inside: 터널내부 완전포함만")
     parser.add_argument('--max_plot', type=int, default=10000, 
                         help="최대 렌더링 균열 수 제한 (과부하 방지)")
+    parser.add_argument('--tunnel_x_start', type=float, default=None, help="터널 시작 위치 (X) (기본값: HDF5 x_start 또는 crop_box 시작)")
+    parser.add_argument('--tunnel_end_offset', type=float, default=None, help="막장면 뒤 추가 연장 미터 (n)")
     args = parser.parse_args()
 
     data = load_data(args.input)
@@ -89,10 +96,27 @@ def main():
     poly_Z = poly_YZ[:, 1]
     
     crop = data['crop_box']
-    if crop is not None:
-        xmin, xmax = crop[0], crop[1]
+    
+    # xmin 결정
+    if args.tunnel_x_start is not None:
+        xmin = args.tunnel_x_start
+    elif 'x_start' in data:
+        xmin = data['x_start']
+    elif crop is not None:
+        xmin = crop[0]
     else:
-        xmin, xmax = np.min(centers[:, 0]), np.max(centers[:, 0])
+        xmin = np.min(centers[:, 0])
+        
+    # xmax 결정
+    if 'x_end' in data:
+        offset = args.tunnel_end_offset if args.tunnel_end_offset is not None else 0.0
+        xmax = data['x_end'] + offset
+    elif crop is not None:
+        xmax = crop[1]
+    else:
+        xmax = np.max(centers[:, 0])
+
+    print(f"▶ 3D 시각화 터널 범위: X = [{xmin:.2f}m, {xmax:.2f}m]")
 
     N_total = len(radii)
     print(f"▶ 총 균열 데이터 스캔 중: {N_total:,} 개")
@@ -184,22 +208,24 @@ def main():
     # 5-2. 균열 원판 생성
     # 다중 PolyData 병합 최적화를 통해 렌더링 속도 개선
     discs = []
-    cmap = pv.colors.get_cmap("tab20")
     for i in range(final_count):
-        # pyvista.Disc(center, direction, inner, outer)
+        # pyvista.Disc(center, normal, inner, outer)
         # c_res: 원판 테두리의 다각형 분할 개수 (계산 효율을 위해 24각형 정도로 설정)
-        disc = pv.Disc(center=final_centers[i], direction=final_normals[i], inner=0.0, outer=final_radii[i], c_res=24)
+        disc = pv.Disc(center=final_centers[i], normal=final_normals[i], inner=0.0, outer=final_radii[i], c_res=24)
+        disc["my_scalars"] = np.full(disc.n_points, i % 20, dtype=np.int32)
         discs.append(disc)
 
     if discs:
         # 단일 MultiBlock으로 결합하여 Plotter 부하 경감
         blocks = pv.MultiBlock(discs)
-        plotter.add_mesh(blocks, cmap=cmap, show_scalar_bar=False, scalars=np.arange(final_count) % 20, 
-                         opacity=0.85, smooth_shading=True)
+        plotter.add_mesh(blocks, color="orange", opacity=0.55, smooth_shading=True)
 
     plotter.add_text(f"Mode: {args.mode.upper()}  |  Visible Fractures: {final_count:,}", 
                      position='upper_left', color='black', font_size=12)
-    plotter.show_axes()
+    
+    # 3D 그리드 및 축도 표시
+    plotter.show_grid(color='gray', font_size=10)
+    plotter.add_axes()
     
     print("\n✅ 창을 뛰웠습니다! 회전, 확대, 축소를 마음껏 조작해보세요.")
     plotter.show()

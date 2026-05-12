@@ -81,6 +81,10 @@ def load_hdf5(path: str) -> dict:
         data['crop_box']   = (f['/meta/crop_box'][:].ravel()
                               if '/meta/crop_box' in f
                               else data['domain_box'].copy())
+        if '/meta/x_start' in f:
+            data['x_start'] = float(f['/meta/x_start'][()])
+        if '/meta/x_end' in f:
+            data['x_end'] = float(f['/meta/x_end'][()])
 
     N = len(data['radii'])
     print(f"  균열 수  : {N:,}")
@@ -108,6 +112,8 @@ def main():
     parser.add_argument('--min_contact',   type=int,   default=10,   help='최소 접촉 복셀 수 (이하 제외)')
     parser.add_argument('--max_auto_viz', type=int, default=1000, help='자동 상세 시각화 최대 개수')
     parser.add_argument('--show_fractures', action='store_true', help='상세 시각화 시 경계 균열 패치 표시')
+    parser.add_argument('--tunnel_x_start', type=float, default=None, help='3D 시각화 시 터널 시작 위치 (기본값: HDF5 x_start 또는 xs[0])')
+    parser.add_argument('--tunnel_end_offset', type=float, default=None, help='막장면 뒤 연장할 추가 터널 튜브 길이 (n 미터)')
     
     args = parser.parse_args()
 
@@ -236,6 +242,22 @@ def main():
 
     param_suffix = f"vs{args.voxel_size}_tol{args.tol_factor}_minv{args.min_voxels}_minc{args.min_contact}"
 
+    # Determine tunnel 3D range
+    t_start = args.tunnel_x_start
+    if t_start is None:
+        t_start = data.get('x_start', float(grid_info['xs'][0]))
+        
+    t_end = None
+    if data.get('x_end') is not None:
+        offset = args.tunnel_end_offset if args.tunnel_end_offset is not None else 0.0
+        t_end = data['x_end'] + offset
+        
+    if t_end is None:
+        t_end = float(grid_info['xs'][-1])
+        
+    tunnel_range = (t_start, t_end)
+    print(f"\n[Info] 3D 시각화 터널 범위: X = [{tunnel_range[0]:.2f}m, {tunnel_range[1]:.2f}m]")
+
     # 시각화 0: overview    # 1) 2D Dashboard
     plot_block_overview(
         labels_cpu, state_cpu, grid_info, block_info, tunnel_poly_YZ=poly_YZ,
@@ -245,7 +267,8 @@ def main():
     # 2) 3D Scatter
     plot_block_3d_scatter(
         labels_cpu, state_cpu, grid_info, block_info, tunnel_poly_YZ=poly_YZ,
-        save_path=os.path.join(args.outdir, f"block_3d_scatter_{param_suffix}.png")
+        save_path=os.path.join(args.outdir, f"block_3d_scatter_{param_suffix}.png"),
+        tunnel_range=tunnel_range
     )
     
     # ── 10. 최종 통합 시각화 파이프라인 (2단계) ──────────────────────────────
@@ -257,6 +280,7 @@ def main():
     plot_block_3d_pyvista_interactive(
         labels_cpu, state_cpu, grid_info, block_info, tunnel_poly_YZ=poly_YZ,
         save_path=pyvista_png_blocks,
+        tunnel_range=tunnel_range
     )
 
     # [사진 2] 전체 블럭 + 균열 인터페이스 뷰
@@ -267,7 +291,8 @@ def main():
         tunnel_poly_YZ=poly_YZ,
         shell_thickness=args.shell_thickness,
         min_contact_voxels=args.min_contact,
-        save_path=pyvista_png_interfaces
+        save_path=pyvista_png_interfaces,
+        tunnel_range=tunnel_range
     )
 
     print(f"\n{'='*60}")

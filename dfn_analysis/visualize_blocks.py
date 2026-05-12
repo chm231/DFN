@@ -31,6 +31,7 @@ def plot_block_3d_pyvista_interactive(
     tunnel_poly_YZ: np.ndarray | None = None,
     downsample_stride: int = 2,
     save_path: str | None = None,
+    tunnel_range: tuple[float, float] | None = None,
 ):
     """
     labels 에서 값이 0보다 큰 영역(블록)에 대해 Marching Cubes로
@@ -62,7 +63,10 @@ def plot_block_3d_pyvista_interactive(
 
     # 터널 반투명 메쉬 (폴리곤 압출)
     if tunnel_poly_YZ is not None:
-        xmin, xmax = xs[0], xs[-1]
+        if tunnel_range is not None:
+            xmin, xmax = tunnel_range
+        else:
+            xmin, xmax = xs[0], xs[-1]
         n_pts = len(tunnel_poly_YZ)
         pts = []
         for i in range(n_pts):
@@ -230,7 +234,8 @@ def plot_all_blocks_with_fractures(
     tunnel_poly_YZ: np.ndarray | None = None,
     shell_thickness: int = 2,
     min_contact_voxels: int = 15,
-    save_path: str = None
+    save_path: str = None,
+    tunnel_range: tuple[float, float] | None = None,
 ):
     """
     [사진 2] 모든 블록과 그 경계 균열 패치를 하나의 화면에 통합 시각화합니다.
@@ -259,7 +264,10 @@ def plot_all_blocks_with_fractures(
 
     # 터널 (반투명 서피스 스타일로 통일)
     if tunnel_poly_YZ is not None:
-        xmin, xmax = xs[0], xs[-1]
+        if tunnel_range is not None:
+            xmin, xmax = tunnel_range
+        else:
+            xmin, xmax = xs[0], xs[-1]
         n_pts = len(tunnel_poly_YZ)
         pts = []
         for i in range(n_pts):
@@ -342,7 +350,8 @@ def plot_block_with_bounding_fractures(
     show_all_blocks: bool = False,
     show_fractures: bool = False,
     interactive: bool = True,
-    save_path: str = None
+    save_path: str = None,
+    tunnel_range: tuple[float, float] | None = None,
 ):
     """
     특정 블록(target_label)과 그 블록의 경계를 형성하는 실제 균열(Fracture Discs)을 함께 시각화합니다.
@@ -400,7 +409,10 @@ def plot_block_with_bounding_fractures(
 
     # (B) 터널 지오메트리 (반투명 서피스 스타일로 통일)
     if tunnel_poly_YZ is not None:
-        xmin, xmax = xs[0], xs[-1]
+        if tunnel_range is not None:
+            xmin, xmax = tunnel_range
+        else:
+            xmin, xmax = xs[0], xs[-1]
         n_pts = len(tunnel_poly_YZ)
         pts = []
         for i in range(n_pts):
@@ -489,6 +501,7 @@ def plot_block_3d_scatter(
     tunnel_poly_YZ: np.ndarray | None = None,
     max_voxels_per_block: int = 500,
     save_path: str = "block_3d_scatter.png",
+    tunnel_range: tuple[float, float] | None = None,
 ):
     """3D 점묘법(Scatter)으로 블록 분포 시각화 (matplotlib) + 터널 형상 추가"""
     if hasattr(labels, 'get'): labels = labels.get()
@@ -521,7 +534,10 @@ def plot_block_3d_scatter(
 
     # 터널 3D 와이어프레임 렌더링
     if tunnel_poly_YZ is not None:
-        xmin, xmax = xs[0], xs[-1]
+        if tunnel_range is not None:
+            xmin, xmax = tunnel_range
+        else:
+            xmin, xmax = xs[0], xs[-1]
         y_poly = np.append(tunnel_poly_YZ[:,0], tunnel_poly_YZ[0,0])
         z_poly = np.append(tunnel_poly_YZ[:,1], tunnel_poly_YZ[0,1])
         

@@ -10,15 +10,22 @@ $env:PYTHONPATH = "."
 # ------------------------------------------------------------
 # 스크립트: dfn_analysis/run_dfn_pipeline.py
 # 주요 Argument:
-#   --input         [str]   [필수] HDF5 DFN 데이터 경로
-#   --voxel_size    [float] 복셀 크기 (m) (기본값: 0.5)
-#   --halo          [float] 터널 주변 해석 반경 (m) (기본값: 10.0)
-#   --tol_factor    [float] 균열 슬랩 두께 계수 (기본값: 0.5)
-#   --min_voxels    [int]   블록으로 인정할 최소 복셀 수 (기본값: 8)
-#   --connectivity  [int]   CCA 연결성 (6 또는 26) (기본값: 6)
-#   --no_gpu        [flag]  GPU 가속 비활성화
-#   --show_fractures [flag] 시각화 시 경계 균열 패치 표시
+#   --input             [str]   [필수] HDF5 DFN 데이터 경로
+#   --voxel_size        [float] 복셀 크기 (m) (기본값: 0.5)
+#   --halo              [float] 터널 주변 해석 반경 (m) (기본값: 10.0)
+#   --tol_factor        [float] 균열 슬랩 두께 계수 (기본값: 0.5)
+#   --min_voxels        [int]   블록으로 인정할 최소 복셀 수 (기본값: 8)
+#   --connectivity      [int]   CCA 연결성 (6 또는 26) (기본값: 6)
+#   --no_gpu            [flag]  GPU 가속 비활성화
+#   --show_fractures    [flag]  시각화 시 경계 균열 패치 표시
+#   --tunnel_x_start    [float] 3D 시각화 시 터널 시작 위치 (X)
+#   --tunnel_end_offset [float] 막장면 뒤 연장할 추가 터널 튜브 길이 (n 미터)
+#
+# 전체 범위 3D 터널 시각화 실행 예시:
 & "C:\Users\user\miniconda3\python.exe" dfn_analysis/run_dfn_pipeline.py --input storage/data/dfn_export_for_python.h5 --voxel_size 0.5
+
+# 역산 복원 DFN 시각화 예시 (터널을 x_start부터 막장 뒤 n 미터까지 표시):
+& "C:\Users\user\miniconda3\python.exe" dfn_analysis/run_dfn_pipeline.py --input storage/output/trace_to_dfn_results/reconstructed_dfn.h5 --voxel_size 0.5 --tunnel_x_start 0.0 --tunnel_end_offset 3.0
 
 
 # ------------------------------------------------------------
@@ -76,3 +83,19 @@ $env:PYTHONPATH = "."
 #   --input         [str]   입력 Trace CSV 경로
 #   --outdir        [str]   저장할 디렉토리 경로
 & "C:\Users\user\miniconda3\python.exe" dfn_analysis/export_traces_to_cad.py --input storage/output/inverse_results/synthetic_face_traces.csv --outdir storage/output/cad_export
+
+
+# ------------------------------------------------------------
+# Package E: 베이지안 3D DFN 역산 및 블록 탐지 통합 파이프라인 (Bayesian Inverse Pipeline)
+# ------------------------------------------------------------
+# 스크립트: trace_analysis/run_trace_to_dfn.py
+# 주요 Argument:
+#   --input         [str]   [필수] Ground-Truth HDF5 DFN 파일 경로
+#   --tunnel-dat    [str]   [필수] 터널 폴리곤 .dat 파일 경로
+#   --x-start       [float] 분석 시작 x 위치 (m) (기본값: 0.0)
+#   --x-end         [float] 분석 종료 x 위치 (m) (기본값: 6.0)
+#   --advance-step  [float] 막면 굴진 간격 (m) (기본값: 3.0)
+#   --sa-iterations [int]   Simulated Annealing 최적화 횟수 (기본값: 150)
+#   --output-dir    [str]   결과 저장 디렉토리 경로
+#   --run-block-detector    [flag]  역산 후 다운스트림 3D 블록 탐지 엔진 연계 자동 호출
+& "C:\Users\user\miniconda3\python.exe" trace_analysis/run_trace_to_dfn.py --input storage/data/dfn_export_for_python.h5 --tunnel-dat storage/data/단면_폴리곤.dat --x-start 0 --x-end 6.0 --advance-step 3.0 --sa-iterations 100 --output-dir storage/output/trace_to_dfn_results --run-block-detector
