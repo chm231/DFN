@@ -412,26 +412,39 @@ def main():
         p32_true = total_area_3d_local / db_volume
 
         # --- NEW: Fisher Concentration Parameter (kappa) Inversion ---
-        # 1. Collect unit normal vectors of parent fractures
+        # 1. Collect and normalize unit normal vectors of parent fractures
         set_normals_list = []
         for t in set_traces:
             parent_id = t.parent_fracture_id
-            set_normals_list.append(gt_normals[parent_id])
+            n = gt_normals[parent_id].copy()
+            
+            # Step 1: Force Unit Vector Normalization
+            norm_val = np.linalg.norm(n)
+            if norm_val > 1e-12:
+                n = n / norm_val
+            else:
+                n = np.array([0.0, 0.0, 1.0])
+                
+            # Step 2: Hemisphere Alignment based on Z-axis (nz >= 0)
+            if n[2] < 0:
+                n = -n
+                
+            set_normals_list.append(n)
         set_normals_arr = np.array(set_normals_list)
         
-        # 2. Unify vector directions to the upper hemisphere (normal_x >= 0)
-        from trace_reconstruction.two_stage_clustering import map_to_upper_hemisphere
-        mapped_set_normals = map_to_upper_hemisphere(set_normals_arr)
-        
         # 3. Sum vector R and its Euclidean norm |R|
-        R_vec = np.sum(mapped_set_normals, axis=0)
+        R_vec = np.sum(set_normals_arr, axis=0)
         R_len = np.linalg.norm(R_vec)
         
-        # 4. Compute kappa with division by zero exception handling
-        if abs(n_traces - R_len) < 1e-9:
-            kappa_est = 500.0
+        # 4. Compute kappa with division by zero exception handling and capping (denom <= 1e-6)
+        denom = n_traces - R_len
+        max_kappa = 1000.0
+        if denom <= 1e-6:
+            kappa_est = max_kappa
         else:
-            kappa_est = (n_traces - 1) / (n_traces - R_len)
+            kappa_est = (n_traces - 1) / denom
+            if kappa_est > max_kappa:
+                kappa_est = max_kappa
 
         error_pct = abs(p32_est - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
         error_pct_constrained = abs(p32_est_constrained - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
