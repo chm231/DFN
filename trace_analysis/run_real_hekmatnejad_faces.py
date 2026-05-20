@@ -411,6 +411,27 @@ def main():
         total_area_3d_local = np.sum(np.pi * (gt_radii[mask_3d_local] ** 2))
         p32_true = total_area_3d_local / db_volume
 
+        # --- NEW: Fisher Concentration Parameter (kappa) Inversion ---
+        # 1. Collect unit normal vectors of parent fractures
+        set_normals_list = []
+        for t in set_traces:
+            parent_id = t.parent_fracture_id
+            set_normals_list.append(gt_normals[parent_id])
+        set_normals_arr = np.array(set_normals_list)
+        
+        # 2. Unify vector directions to the upper hemisphere (normal_x >= 0)
+        from trace_reconstruction.two_stage_clustering import map_to_upper_hemisphere
+        mapped_set_normals = map_to_upper_hemisphere(set_normals_arr)
+        
+        # 3. Sum vector R and its Euclidean norm |R|
+        R_vec = np.sum(mapped_set_normals, axis=0)
+        R_len = np.linalg.norm(R_vec)
+        
+        # 4. Compute kappa with division by zero exception handling
+        if abs(n_traces - R_len) < 1e-9:
+            kappa_est = 500.0
+        else:
+            kappa_est = (n_traces - 1) / (n_traces - R_len)
 
         error_pct = abs(p32_est - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
         error_pct_constrained = abs(p32_est_constrained - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
@@ -425,6 +446,8 @@ def main():
         print(f"    - Baseline P32     : {p32_est:.4f} m2/m3  (Error: {error_pct:.2f} %)")
         print(f"    - Constrained P32  : {p32_est_constrained:.4f} m2/m3  (Error: {error_pct_constrained:.2f} %)")
         print(f"    - True P32 Density : {p32_true:.4f} m2/m3")
+        print(f"    - Resultant Vector |R|: {R_len:.4f}")
+        print(f"    - Est Fisher Kappa : {kappa_est:.4f}")
 
         set_results[sid] = {
             'n_traces': n_traces,
@@ -449,7 +472,9 @@ def main():
             'p32_est_constrained': p32_est_constrained,
             'p32_true': p32_true,
             'error_pct': error_pct,
-            'error_pct_constrained': error_pct_constrained
+            'error_pct_constrained': error_pct_constrained,
+            'R_len': R_len,
+            'kappa_est': kappa_est
         }
 
     # Print final geostatistical summary table
@@ -462,6 +487,20 @@ def main():
         offset_str = f"{r['d1']:.1f}/{r['d2']:.1f}"
         print(f" Set{sid:<2} | {r['n_traces']:<6} | {r['dist_name']:<10} | {offset_str:<9} | {r['rmse_unbiased']:<9.5f} | {r['p21']:<6.4f} | {r['p32_est']:<9.4f} | {r['p32_est_constrained']:<10.4f} | {r['p32_true']:<9.4f} | {r['error_pct']:<11.2f} | {r['error_pct_constrained']:<11.2f}")
     print("=" * 115)
+
+    # Print final orientation and Fisher concentration parameter table
+    print("\n" + "=" * 80)
+    print("                 ORIENTATION & FISHER CONCENTRATION (KAPPA) REPORT")
+    print("=" * 80)
+    print(f" { 'SET' : <5} | { 'TRACES (N)' : <10} | { 'R_MAG (|R|)' : <12} | { 'KAPPA (Est)' : <12} | { 'KAPPA (True)' : <12} | { 'KAPPA (Design)' : <14}")
+    print("-" * 80)
+    true_kappas = {1: 13.13, 2: 19.90, 3: 10.37, 4: 10.37, 5: 23.76}
+    design_kappas = {1: 13.06, 2: 19.62, 3: 10.46, 4: 10.13, 5: 23.52}
+    for sid, r in set_results.items():
+        tk = true_kappas.get(sid, 0.0)
+        dk = design_kappas.get(sid, 0.0)
+        print(f" Set{sid:<2} | {r['n_traces']:<10} | {r['R_len']:<12.4f} | {r['kappa_est']:<12.4f} | {tk:<12.4f} | {dk:<14.4f}")
+    print("=" * 80)
 
     # 8. Render Multi-Set Inversion curves into a single high-quality grid figure
     val_plot_path = os.path.join(output_dir, "real_hekmatnejad_inversion_decoupled.png")
