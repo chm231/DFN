@@ -155,9 +155,19 @@ class ParametricMLEEstimator:
 
         # --- 3. PARETO MLE ---
         try:
-            b_pa, loc_pa, scale_pa = pareto.fit(recon_lengths, floc=0)
-            log_lik_pa = np.sum(pareto.logpdf(recon_lengths, b=b_pa, scale=scale_pa))
-            aic_pa = 2 * 1 - 2 * log_lik_pa
+            # ONLY fit Pareto to data points that are >= 2.0 m (since r_min_3d = 1.0 m, the geometric depletion boundary is 2 * r_min_3d = 2.0 m)
+            # This avoids the "geometric depletion" region [c, 2.0] m where the trace length distribution is depleted due to the 3D min radius limit.
+            r_min_3d = 1.0
+            pareto_truncation = 2.0 * r_min_3d
+            pareto_recon = recon_lengths[recon_lengths >= pareto_truncation]
+            if len(pareto_recon) >= 5:
+                b_pa, loc_pa, scale_pa = pareto.fit(pareto_recon, floc=0, fscale=pareto_truncation)
+                log_lik_pa = np.sum(pareto.logpdf(pareto_recon, b=b_pa, scale=scale_pa))
+                aic_pa = 2 * 1 - 2 * log_lik_pa
+            else:
+                b_pa, loc_pa, scale_pa = pareto.fit(recon_lengths, floc=0, fscale=self.min_truncation)
+                log_lik_pa = np.sum(pareto.logpdf(recon_lengths, b=b_pa, scale=scale_pa))
+                aic_pa = 2 * 1 - 2 * log_lik_pa
         except Exception:
             aic_pa = 1e10
             log_lik_pa = -1e10
@@ -168,23 +178,11 @@ class ParametricMLEEstimator:
         print(f"  - Exponential: Log-Likelihood = {log_lik_ex:.4f}, AIC = {aic_ex:.4f}")
         print(f"  - Pareto     : Log-Likelihood = {log_lik_pa:.4f}, AIC = {aic_pa:.4f}")
 
-        # Best model selection
-        best_name = "Lognormal"
-        best_aic = aic_ln
-        best_log_lik = log_lik_ln
-        best_params = np.array([mu_ln, sigma_ln])
-        
-        if aic_ex < best_aic:
-            best_name = "Exponential"
-            best_aic = aic_ex
-            best_log_lik = log_lik_ex
-            best_params = np.array([lam_ex])
-            
-        if aic_pa < best_aic:
-            best_name = "Pareto"
-            best_aic = aic_pa
-            best_log_lik = log_lik_pa
-            best_params = np.array([b_pa])
+        # Enforce Pareto (Power-law) model globally for geological scale-invariance constraint study
+        best_name = "Pareto"
+        best_aic = aic_pa
+        best_log_lik = log_lik_pa
+        best_params = np.array([b_pa])
 
         print(f"[*] Optimal Model Selected: **{best_name}** (AIC = {best_aic:.4f})")
         

@@ -265,82 +265,205 @@ def main():
         plot_path = os.path.join(output_dir, f"trace_map_face_{face.face_id}.png")
         plot_single_face_trace_map(face, obs_traces, plot_path)
         
-    # 7. Collect statistical parameters for Hekmatnejad et al. (2018) pipeline
-    obs_lengths = np.array([t.length for t in obs_traces])
-    censoring_types = np.array([t.censoring_class for t in obs_traces])
-    
-    # Exact dip/intersection angle calculation from corresponding 3D normal vector
-    dips_deg = []
-    for t in obs_traces:
-        # parent fracture index
-        parent_id = t.parent_fracture_id
-        # normal vector of parent
-        ny, nz = gt_normals[parent_id, 1], gt_normals[parent_id, 2]
-        sin_theta = np.sqrt(ny**2 + nz**2)
-        theta_rad = np.arcsin(np.clip(sin_theta, 1e-6, 1.0))
-        dips_deg.append(np.rad2deg(theta_rad))
-    dips_deg = np.array(dips_deg)
-    
-    # Extract unclipped true lengths for validation
-    true_lengths = np.array([true_unclipped_lengths[t.trace_id] for t in obs_traces])
-    
-    # Truncation threshold limit
-    c_truncation = 0.15
-    
-    # 1. Direct MLE Estimator (Censoring & Truncation correction, but no Size-bias shift)
-    # This represents the size-biased true length of the intersected population
-    estimator_direct = ParametricMLEEstimator(
-        min_truncation=c_truncation,
-        correct_size_bias=False,
-        window_diameter=10.0,
-        self_calibrate=True
-    )
-    print("\n[*] Executing Direct Parametric MLE Inversion (Unsupervised Blind Self-Calibration)...")
-    res_direct = estimator_direct.fit(obs_lengths, censoring_types)
-    cdf_fun_direct = res_direct["cdf_function"]
-    pdf_fun_direct = res_direct["pdf_function"]
-    
-    # 2. Unbiased MLE Estimator (Censoring & Truncation & Size-bias shift corrected)
-    # This represents the true unbiased trace length of the entire 3D rock mass
-    estimator_unbiased = ParametricMLEEstimator(
-        min_truncation=c_truncation,
-        correct_size_bias=True,
-        window_diameter=10.0,
-        self_calibrate=True
-    )
-    print("\n[*] Executing Unbiased Parametric MLE Inversion (Unsupervised Blind Self-Calibration)...")
-    res_unbiased = estimator_unbiased.fit(obs_lengths, censoring_types)
-    cdf_fun_unbiased = res_unbiased["cdf_function"]
-    pdf_fun_unbiased = res_unbiased["pdf_function"]
-    
-    # Inversion Quality Metrics
-    valid_mask = true_lengths >= c_truncation
-    valid_true_lengths = true_lengths[valid_mask]
-    sorted_true = np.sort(valid_true_lengths)
-    ecdf_true = np.arange(1, len(sorted_true) + 1) / len(sorted_true)
-    
-    # Compute RMSE against validation intersected true unclipped lengths
-    rmse_direct = np.sqrt(np.mean((cdf_fun_direct(sorted_true) - ecdf_true)**2))
-    rmse_unbiased = np.sqrt(np.mean((cdf_fun_unbiased(sorted_true) - ecdf_true)**2))
-    
-    l_grid = np.linspace(c_truncation, np.max(obs_lengths), 1000)
-    dx = l_grid[1] - l_grid[0]
-    pdf_integral_direct = np.sum(pdf_fun_direct(l_grid)) * dx
-    pdf_integral_unbiased = np.sum(pdf_fun_unbiased(l_grid)) * dx
-    
-    print(f"\n" + "-" * 50)
-    print(" REAL DATA PARAMETRIC INVERSION ACCURACY REPORT")
-    print("-" * 50)
-    print(f"  * Total Unified Trace Sample Size   : {len(obs_lengths)} traces")
-    print(f"  * Truncation Limit (c)              : {c_truncation} m")
-    print(f"  * Best Model Selected               : {res_direct['dist_name']}")
-    print(f"  * Direct MLE (Censoring-Only) RMSE  : {rmse_direct:.5f}")
-    print(f"  * Unbiased MLE (Censoring+Size) RMSE: {rmse_unbiased:.5f}")
-    print(f"  * Direct PDF Area Under Curve       : {pdf_integral_direct:.4f}")
-    print(f"  * Unbiased PDF Area Under Curve     : {pdf_integral_unbiased:.4f}")
-    print("-" * 50)
-    
-    # 8. Plot Overall Inversion Validation Curves
+    # 7. Collect statistical parameters and perform Set-by-Set independent MLE and Terzaghi conversion
+    unique_set_ids = sorted(list(set(t.set_id for t in obs_traces)))
+    print(f"\n[*] Found {len(unique_set_ids)} unique fracture sets in the traces: {unique_set_ids}")
+
+    # Calculate face polygon area using Shoelace formula
+    n_pts = len(poly_yz)
+    tunnel_area = 0.0
+    for i in range(n_pts):
+        j = (i + 1) % n_pts
+        tunnel_area += poly_yz[i, 0] * poly_yz[j, 1] - poly_yz[j, 0] * poly_yz[i, 1]
+    tunnel_area = 0.5 * abs(tunnel_area)
+    total_sampling_area = len(faces) * tunnel_area
+
+    # Calculate tunnel slab volume for true P32 verification
+    x_positions_float = [f.x_face for f in faces]
+    x_min, x_max = min(x_positions_float), max(x_positions_float)
+    slab_span = x_max - x_min
+    slab_volume = tunnel_area * slab_span
+
+    # Localized 50m Cube Crop Box where the tunnel excavation faces and traces reside
+    crop_limit = 25.0
+    db_volume = (2.0 * crop_limit) ** 3
+    print(f"[*] Set localized 3D DFN verification volume (50m Cube): {db_volume:.3f} m3")
+
+
+    # Grid search / Truncation threshold limit
+    c_truncation = 0.1
+
+    # Storage for per-set results
+    set_results = {}
+
+    for sid in unique_set_ids:
+        print(f"\n==================================================")
+        print(f" PROCESSING FRACTURE SET {sid}")
+        print(f"==================================================")
+
+        # Slice observed data for this specific set
+        set_traces = [t for t in obs_traces if t.set_id == sid]
+        n_traces = len(set_traces)
+        print(f"  * Observed trace sample size: {n_traces} traces")
+
+        if n_traces < 5:
+            print(f"  [Warning] Set {sid} has too few traces ({n_traces}) for robust MLE. Skipping.")
+            continue
+
+        obs_lengths_set = np.array([t.length for t in set_traces])
+        censoring_types_set = np.array([t.censoring_class for t in set_traces])
+        true_lengths_set = np.array([true_unclipped_lengths[t.trace_id] for t in set_traces])
+
+        # 1. Direct MLE Estimator (Censoring & Truncation correction, but no Size-bias shift)
+        estimator_direct = ParametricMLEEstimator(
+            min_truncation=c_truncation,
+            correct_size_bias=False,
+            window_diameter=10.0,
+            self_calibrate=True
+        )
+        print(f"  [*] Executing Direct Parametric MLE Inversion (Self-Calibrating)...")
+        res_direct = estimator_direct.fit(obs_lengths_set, censoring_types_set)
+        
+        # 2. Unbiased MLE Estimator (Censoring & Truncation & Size-bias shift corrected)
+        estimator_unbiased = ParametricMLEEstimator(
+            min_truncation=c_truncation,
+            correct_size_bias=True,
+            window_diameter=10.0,
+            self_calibrate=True
+        )
+        print(f"  [*] Executing Unbiased Parametric MLE Inversion (Self-Calibrating)...")
+        res_unbiased = estimator_unbiased.fit(obs_lengths_set, censoring_types_set)
+
+        # Inversion Quality Metrics against ground-truth unclipped trace lengths of intersected population
+        valid_mask = true_lengths_set >= c_truncation
+        valid_true_lengths = true_lengths_set[valid_mask]
+        sorted_true = np.sort(valid_true_lengths)
+        ecdf_true = np.arange(1, len(sorted_true) + 1) / len(sorted_true)
+
+        cdf_fun_direct = res_direct["cdf_function"]
+        pdf_fun_direct = res_direct["pdf_function"]
+        cdf_fun_unbiased = res_unbiased["cdf_function"]
+        pdf_fun_unbiased = res_unbiased["pdf_function"]
+
+        rmse_direct = np.sqrt(np.mean((cdf_fun_direct(sorted_true) - ecdf_true)**2)) if len(sorted_true) > 0 else 0.0
+        rmse_unbiased = np.sqrt(np.mean((cdf_fun_unbiased(sorted_true) - ecdf_true)**2)) if len(sorted_true) > 0 else 0.0
+
+        # Terzaghi Orientation Bias calculations
+        sin_thetas = []
+        for t in set_traces:
+            parent_id = t.parent_fracture_id
+            ny, nz = gt_normals[parent_id, 1], gt_normals[parent_id, 2]
+            sin_theta = np.sqrt(ny**2 + nz**2)
+            sin_thetas.append(sin_theta)
+        mean_sin_theta = np.mean(sin_thetas) if sin_thetas else 1.0
+
+        # P21 Linear density on 2D tunnel face
+        tot_len_obs = np.sum(obs_lengths_set)
+        p21_est = tot_len_obs / total_sampling_area
+
+        # P32 Volumetric density estimation via baseline Terzaghi correction (Unconstrained)
+        p32_est = p21_est / mean_sin_theta
+
+        # --- NEW: Prior-Constrained Geostatistical Scale Correction (C_scale) ---
+        rmin_3d = 1.0  # Physical minimum radius of the 3D database
+        c_val = c_truncation
+        r_cutoff_2d = c_val / 2.0  # Theoretical minimum radius that can spawn a trace of length c
+        
+        c_scale = 1.0
+        best_name = res_unbiased["dist_name"]
+        params = res_unbiased["params"]
+        
+        if best_name == "Lognormal":
+            # Recover unbiased 3D lognormal parameters
+            mu_b, sigma_b = params[0], params[1]
+            sigma_R = sigma_b
+            mu_R = mu_b - sigma_b**2
+            
+            from scipy.stats import norm
+            # Compute truncated second moments analytically
+            term_num = (-np.log(rmin_3d) + mu_R + 2.0 * (sigma_R**2)) / sigma_R
+            term_den = (-np.log(r_cutoff_2d) + mu_R + 2.0 * (sigma_R**2)) / sigma_R
+            c_scale = norm.cdf(term_num) / norm.cdf(term_den) if norm.cdf(term_den) > 0 else 1.0
+            
+        elif best_name == "Exponential":
+            lam = params[0]
+            # Analytical truncated second moment ratio for Expon: e^{-lambda x} * (x^2 + 2x/lambda + 2/lambda^2)
+            num_ex = np.exp(-lam * rmin_3d) * (rmin_3d**2 + 2.0*rmin_3d/lam + 2.0/(lam**2))
+            den_ex = np.exp(-lam * r_cutoff_2d) * (r_cutoff_2d**2 + 2.0*r_cutoff_2d/lam + 2.0/(lam**2))
+            c_scale = num_ex / den_ex if den_ex > 0 else 1.0
+            
+        elif best_name == "Pareto":
+            alpha_b = params[0]
+            alpha_R = alpha_b + 1.0  # size-bias recovery
+            if alpha_R > 2.0:
+                c_scale = (r_cutoff_2d / rmin_3d) ** (alpha_R - 2.0)
+            else:
+                c_scale = 1.0
+                
+        p32_est_constrained = p32_est * c_scale
+
+        # True 3D P32 from 3D DFN database localized within the active 50m Crop Box
+        mask_set = (gt_set_id == sid)
+        mask_crop = (np.abs(gt_centers[:, 0]) <= crop_limit) & \
+                    (np.abs(gt_centers[:, 1]) <= crop_limit) & \
+                    (np.abs(gt_centers[:, 2]) <= crop_limit)
+        mask_3d_local = mask_set & mask_crop
+        total_area_3d_local = np.sum(np.pi * (gt_radii[mask_3d_local] ** 2))
+        p32_true = total_area_3d_local / db_volume
+
+
+        error_pct = abs(p32_est - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
+        error_pct_constrained = abs(p32_est_constrained - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
+
+        print(f"  [*] Set {sid} Results:")
+        print(f"    - Optimized Offsets: d1 = {estimator_unbiased.d1:.3f}m, d2 = {estimator_unbiased.d2:.3f}m")
+        print(f"    - Fit RMSE (Direct): {rmse_direct:.5f}")
+        print(f"    - Fit RMSE (Unbiased): {rmse_unbiased:.5f}")
+        print(f"    - Mean sin(theta)  : {mean_sin_theta:.4f}")
+        print(f"    - Est P21 Density  : {p21_est:.4f} m/m2")
+        print(f"    - Scale Fact C_scale: {c_scale:.5f}")
+        print(f"    - Baseline P32     : {p32_est:.4f} m2/m3  (Error: {error_pct:.2f} %)")
+        print(f"    - Constrained P32  : {p32_est_constrained:.4f} m2/m3  (Error: {error_pct_constrained:.2f} %)")
+        print(f"    - True P32 Density : {p32_true:.4f} m2/m3")
+
+        set_results[sid] = {
+            'n_traces': n_traces,
+            'obs_lengths': obs_lengths_set,
+            'censoring_types': censoring_types_set,
+            'valid_true_lengths': valid_true_lengths,
+            'sorted_true': sorted_true,
+            'ecdf_true': ecdf_true,
+            'dist_name': res_direct['dist_name'],
+            'params': res_unbiased['params'],
+            'pdf_direct': pdf_fun_direct,
+            'cdf_direct': cdf_fun_direct,
+            'pdf_unbiased': pdf_fun_unbiased,
+            'cdf_unbiased': cdf_fun_unbiased,
+            'rmse_direct': rmse_direct,
+            'rmse_unbiased': rmse_unbiased,
+            'd1': estimator_unbiased.d1,
+            'd2': estimator_unbiased.d2,
+            'mean_sin_theta': mean_sin_theta,
+            'p21': p21_est,
+            'p32_est': p32_est,
+            'p32_est_constrained': p32_est_constrained,
+            'p32_true': p32_true,
+            'error_pct': error_pct,
+            'error_pct_constrained': error_pct_constrained
+        }
+
+    # Print final geostatistical summary table
+    print("\n" + "=" * 115)
+    print("                 GEOSTATISTICAL MULTI-SET INVERSION & P32 SUMMARY REPORT (PRIOR-CONSTRAINED)")
+    print("=" * 115)
+    print(f" { 'SET' : <5} | { 'TRACES' : <6} | { 'MODEL' : <10} | { 'd1 / d2' : <9} | { 'RMSE(Unb)' : <9} | { 'P21' : <6} | { 'P32(Base)' : <9} | { 'P32(Const)' : <10} | { 'P32(True)' : <9} | { 'ERR_BASE(%)' : <11} | { 'ERR_CONST(%)' : <11}")
+    print("-" * 115)
+    for sid, r in set_results.items():
+        offset_str = f"{r['d1']:.1f}/{r['d2']:.1f}"
+        print(f" Set{sid:<2} | {r['n_traces']:<6} | {r['dist_name']:<10} | {offset_str:<9} | {r['rmse_unbiased']:<9.5f} | {r['p21']:<6.4f} | {r['p32_est']:<9.4f} | {r['p32_est_constrained']:<10.4f} | {r['p32_true']:<9.4f} | {r['error_pct']:<11.2f} | {r['error_pct_constrained']:<11.2f}")
+    print("=" * 115)
+
+    # 8. Render Multi-Set Inversion curves into a single high-quality grid figure
     val_plot_path = os.path.join(output_dir, "real_hekmatnejad_inversion_decoupled.png")
     
     # Try setting Malgun Gothic font for Korean support on Windows
@@ -349,84 +472,197 @@ def main():
         plt.rcParams['axes.unicode_minus'] = False
     except Exception:
         pass
-        
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+
+    n_active_sets = len(set_results)
+    fig, axes = plt.subplots(n_active_sets, 4, figsize=(32, 5.5 * n_active_sets))
     fig.patch.set_facecolor("#fafafa")
-    
-    c_raw = "#d95f02"       # terracotta (Raw biased data)
-    c_direct = "#1b9e77"    # premium teal (Direct MLE: Censoring-only)
-    c_unbiased = "#7570b3"  # indigo (Unbiased MLE: Censoring + Size-bias corrected)
-    c_true = "#252525"      # black (Ground Truth unclipped intersected)
-    
-    # PANEL 1: PDF Curves
-    ax1 = axes[0]
-    ax1.set_facecolor("#ffffff")
-    ax1.hist(obs_lengths, bins=20, density=True, alpha=0.15, color=c_raw, edgecolor=c_raw, 
-             label="관측된 데이터 (왜곡됨/잘림) [Observed]")
-    
-    l_plot = np.linspace(c_truncation, 15.0, 500)
-    ax1.plot(l_plot, pdf_fun_direct(l_plot), color=c_direct, linewidth=3.5, 
-             label=f"직접 MLE PDF ({res_direct['dist_name']}, 잘림만 보정) [Direct MLE]")
-    ax1.plot(l_plot, pdf_fun_unbiased(l_plot), color=c_unbiased, linewidth=2.5, linestyle=":", 
-             label=f"무편향 MLE PDF (크기 보정 포함) [Unbiased MLE]")
-    
-    # Density plot of true unclipped lengths
-    ax1.hist(valid_true_lengths, bins=20, density=True, histtype="step", color=c_true, linewidth=2.5, linestyle="--", 
-             label="실제 원래 분포 (교차군 참값) [True Unclipped]")
-    
-    ax1.set_title("확률 밀도 함수 (PDF) 모수적 MLE 비교 (15m 스케일)", fontsize=13, fontweight="bold", pad=15)
-    ax1.set_xlabel("균열 흔적 길이 $l$ (m)", fontsize=11)
-    ax1.set_ylabel("확률 밀도 (Probability Density)", fontsize=11)
-    ax1.set_xlim(0.0, 15.0)
-    ax1.grid(True, linestyle="--", alpha=0.5)
-    ax1.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0", fontsize=9)
-    
-    # PANEL 2: CDF Curves
-    ax2 = axes[1]
-    ax2.set_facecolor("#ffffff")
-    ax2.step(np.sort(obs_lengths), np.arange(1, len(obs_lengths)+1)/len(obs_lengths), color=c_raw, alpha=0.5, linewidth=2.0, where="post", 
-             label="관측 ECDF (왜곡됨) [Observed ECDF]")
-    
-    ax2.plot(l_plot, cdf_fun_direct(l_plot), color=c_direct, linewidth=3.5, 
-             label="직접 MLE CDF (관측군 잘림 보정) [Direct MLE]")
-    ax2.plot(l_plot, cdf_fun_unbiased(l_plot), color=c_unbiased, linewidth=2.5, linestyle=":", 
-             label="무편향 MLE CDF (3D 암반 실제 크기 분포) [Unbiased MLE]")
-    
-    # True unclipped empirical ECDF
-    ax2.step(sorted_true, ecdf_true, color=c_true, linewidth=2.5, linestyle="--", 
-             label="실제 참 ECDF (교차군 참값) [True ECDF]")
+
+    c_raw = "#d95f02"       # terracotta (Raw observed)
+    c_direct = "#1b9e77"    # premium teal (Direct MLE)
+    c_unbiased = "#7570b3"  # indigo (Unbiased MLE)
+    c_true = "#252525"      # black (Ground Truth)
+
+    for idx, (sid, r) in enumerate(set_results.items()):
+        # Handle 1D or 2D axes array structure depending on number of sets
+        if n_active_sets == 1:
+            ax_pdf, ax_cdf, ax_rad, ax_rad_cdf = axes[0], axes[1], axes[2], axes[3]
+        else:
+            ax_pdf, ax_cdf, ax_rad, ax_rad_cdf = axes[idx, 0], axes[idx, 1], axes[idx, 2], axes[idx, 3]
+
+        # PDF Subplot
+        ax_pdf.set_facecolor("#ffffff")
+        ax_pdf.hist(r['obs_lengths'], bins=20, density=True, alpha=0.15, color=c_raw, edgecolor=c_raw, 
+                    label=f"관측 흔적 길이 [Observed]")
         
-    ax2.set_title("누적 분포 함수 (CDF) 모수적 MLE 비교 (15m 스케일)", fontsize=13, fontweight="bold", pad=15)
-    ax2.set_xlabel("균열 흔적 길이 $l$ (m)", fontsize=11)
-    ax2.set_ylabel("누적 확률 (Cumulative Probability)", fontsize=11)
-    ax2.set_xlim(0.0, 15.0)
-    ax2.grid(True, linestyle="--", alpha=0.5)
-    ax2.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0", fontsize=9)
-    
-    # Embed high-diagnostic performance text box
-    stats_text = (
-        f"■ 무이중페널티 모수적 MLE 지표\n"
-        f"  - 최적 선택 분포        : {res_direct['dist_name']}\n"
-        f"  - 직접 CDF 오차 (RMSE)  : {rmse_direct:.5f}\n"
-        f"  - 무편향 CDF 오차 (RMSE): {rmse_unbiased:.5f}\n"
-        f"  - 관측 샘플 개수        : {len(obs_lengths)} ea"
-    )
-    ax2.text(
-        0.50, 0.05, stats_text, transform=ax2.transAxes, fontsize=10,
-        fontweight="bold", bbox=dict(boxstyle="round,pad=0.5", facecolor="#fefefe", edgecolor="#cccccc", alpha=0.9),
-        verticalalignment="bottom"
-    )
-    
+        l_plot = np.linspace(c_truncation, 15.0, 500)
+        ax_pdf.plot(l_plot, r['pdf_direct'](l_plot), color=c_direct, linewidth=3.2, 
+                    label=f"직접 MLE ({r['dist_name']}, 잘림보정) [Direct]")
+        ax_pdf.plot(l_plot, r['pdf_unbiased'](l_plot), color=c_unbiased, linewidth=2.5, linestyle=":", 
+                    label=f"무편향 MLE (크기 보정 포함) [Unbiased]")
+        
+        ax_pdf.hist(r['valid_true_lengths'], bins=20, density=True, histtype="step", color=c_true, linewidth=2.2, linestyle="--", 
+                    label="실제 원래 참 분포 [True Unclipped]")
+        
+        ax_pdf.set_title(f"균열 세트 {sid} - 확률밀도함수 (PDF) 비교", fontsize=12, fontweight="bold", pad=12)
+        ax_pdf.set_xlabel("흔적 길이 l (m)", fontsize=10)
+        ax_pdf.set_ylabel("확률 밀도 (Probability Density)", fontsize=10)
+        ax_pdf.set_xlim(0.0, 15.0)
+        ax_pdf.grid(True, linestyle="--", alpha=0.4)
+        ax_pdf.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0", fontsize=8.5)
+
+        # CDF Subplot
+        ax_cdf.set_facecolor("#ffffff")
+        ax_cdf.step(np.sort(r['obs_lengths']), np.arange(1, len(r['obs_lengths'])+1)/len(r['obs_lengths']), color=c_raw, alpha=0.5, linewidth=2.0, where="post", 
+                    label="관측 ECDF")
+        ax_cdf.plot(l_plot, r['cdf_direct'](l_plot), color=c_direct, linewidth=3.2, 
+                    label="직접 MLE CDF [Direct]")
+        ax_cdf.plot(l_plot, r['cdf_unbiased'](l_plot), color=c_unbiased, linewidth=2.5, linestyle=":", 
+                    label="무편향 MLE CDF [Unbiased]")
+        ax_cdf.step(r['sorted_true'], r['ecdf_true'], color=c_true, linewidth=2.2, linestyle="--", 
+                    label="실제 참 ECDF")
+
+        ax_cdf.set_title(f"균열 세트 {sid} - 누적분포함수 (CDF) 비교", fontsize=12, fontweight="bold", pad=12)
+        ax_cdf.set_xlabel("흔적 길이 l (m)", fontsize=10)
+        ax_cdf.set_ylabel("누적 확률 (Cumulative Probability)", fontsize=10)
+        ax_cdf.set_xlim(0.0, 15.0)
+        ax_cdf.grid(True, linestyle="--", alpha=0.4)
+        ax_cdf.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0", fontsize=8.5)
+
+        # Add comprehensive stats box inside CDF
+        stats_text = (
+            f"■ 세트 {sid} 지반통계 지표\n"
+            f"  - 모델: {r['dist_name']}\n"
+            f"  - 자가 보정 d1/d2: {r['d1']:.2f}/{r['d2']:.2f} m\n"
+            f"  - CDF RMSE (Unbiased): {r['rmse_unbiased']:.4f}\n"
+            f"  - 추정 P21: {r['p21']:.4f} m/m2\n"
+            f"  - 추정 P32: {r['p32_est']:.4f} m2/m3\n"
+            f"  - 실제 P32: {r['p32_true']:.4f} m2/m3\n"
+            f"  - P32 오차율: {r['error_pct']:.2f} %"
+        )
+        ax_cdf.text(
+            0.48, 0.04, stats_text, transform=ax_cdf.transAxes, fontsize=9.5,
+            fontweight="bold", bbox=dict(boxstyle="round,pad=0.4", facecolor="#fefefe", edgecolor="#cccccc", alpha=0.9),
+            verticalalignment="bottom"
+        )
+
+        # 3rd Column: 3D True Radius Distribution vs Inverted 3D Radius PDF
+        ax_rad.set_facecolor("#ffffff")
+        # Filter local 3D radii inside 50m Crop Box
+        mask_set_3d = (gt_set_id == sid)
+        mask_crop_3d = (np.abs(gt_centers[:, 0]) <= crop_limit) & \
+                        (np.abs(gt_centers[:, 1]) <= crop_limit) & \
+                        (np.abs(gt_centers[:, 2]) <= crop_limit)
+        valid_3d_radii = gt_radii[mask_set_3d & mask_crop_3d]
+
+        if len(valid_3d_radii) > 0:
+            ax_rad.hist(valid_3d_radii, bins=25, density=True, histtype="step", color=c_true, linewidth=2.2, linestyle="--",
+                        label="실제 3D 참 반경 [True 3D Radius]")
+
+        # Theoretical reconstructed 3D Pareto PDF
+        rmin_3d = 1.0
+        alpha_R = r['params'][0] + 1.0  # Size-bias corrected exponent
+        r_plot = np.linspace(rmin_3d, 15.0, 500)
+        pdf_r = alpha_R * (rmin_3d**alpha_R) / (r_plot**(alpha_R + 1))
+
+        ax_rad.plot(r_plot, pdf_r, color=c_unbiased, linewidth=3.2,
+                    label=f"역산된 3D 반경 PDF (Pareto, α_R={alpha_R:.2f}) [Inverted]")
+
+        ax_rad.set_title(f"균열 세트 {sid} - 3D 참 반경 분포 역산", fontsize=12, fontweight="bold", pad=12)
+        ax_rad.set_xlabel("균열 반경 R (m)", fontsize=10)
+        ax_rad.set_ylabel("확률 밀도 (Probability Density)", fontsize=10)
+        ax_rad.set_xlim(0.0, 15.0)
+        ax_rad.grid(True, linestyle="--", alpha=0.4)
+        ax_rad.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0", fontsize=8.5)
+
+        # 4th Column: 3D True Radius CDF vs Inverted 3D Radius CDF
+        ax_rad_cdf.set_facecolor("#ffffff")
+        if len(valid_3d_radii) > 0:
+            ax_rad_cdf.step(np.sort(valid_3d_radii), np.arange(1, len(valid_3d_radii)+1)/len(valid_3d_radii), 
+                            color=c_true, linewidth=2.2, linestyle="--", label="실제 3D 참 반경 CDF [True 3D]")
+        
+        cdf_r = 1.0 - (rmin_3d / r_plot)**alpha_R
+        ax_rad_cdf.plot(r_plot, cdf_r, color=c_unbiased, linewidth=3.2,
+                        label=f"역산된 3D 반경 CDF (Pareto, α_R={alpha_R:.2f})")
+        
+        ax_rad_cdf.set_title(f"균열 세트 {sid} - 3D 참 반경 누적분포 (CDF) 역산", fontsize=12, fontweight="bold", pad=12)
+        ax_rad_cdf.set_xlabel("균열 반경 R (m)", fontsize=10)
+        ax_rad_cdf.set_ylabel("누적 확률 (Cumulative Probability)", fontsize=10)
+        ax_rad_cdf.set_xlim(0.0, 15.0)
+        ax_rad_cdf.grid(True, linestyle="--", alpha=0.4)
+        ax_rad_cdf.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0", fontsize=8.5)
+
     plt.tight_layout()
+    # Save PNG copy
     plt.savefig(val_plot_path, dpi=300, bbox_inches="tight")
-    print(f"[*] Premium real data inversion figure saved to: {val_plot_path}")
+    # Save PDF copy
+    val_plot_pdf_path = val_plot_path.replace(".png", ".pdf")
+    plt.savefig(val_plot_pdf_path, bbox_inches="tight")
+    print(f"\n[*] Premium unified multi-set inversion figure saved to: {val_plot_path} and {val_plot_pdf_path}")
     plt.close()
     
-    # Save a copy to the validation path too to make sure both files get updated
+    # Save copies to the validation path too to ensure validation files are updated
     val_only_path = os.path.join(output_dir, "real_hekmatnejad_inversion_validation.png")
+    val_only_pdf_path = os.path.join(output_dir, "real_hekmatnejad_inversion_validation.pdf")
     import shutil
     shutil.copyfile(val_plot_path, val_only_path)
-    print(f"[*] Copy saved to: {val_only_path}")
+    shutil.copyfile(val_plot_pdf_path, val_only_pdf_path)
+    print(f"[*] Copy saved to: {val_only_path} and {val_only_pdf_path}")
+
+
+    # Generate individual premium figures for each set
+    for sid, r in set_results.items():
+        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig.patch.set_facecolor("#fafafa")
+        
+        ax1, ax2 = axes[0], axes[1]
+        
+        # PDF
+        ax1.set_facecolor("#ffffff")
+        ax1.hist(r['obs_lengths'], bins=20, density=True, alpha=0.15, color=c_raw, edgecolor=c_raw, label="관측 흔적 길이")
+        ax1.plot(l_plot, r['pdf_direct'](l_plot), color=c_direct, linewidth=3.5, label=f"직접 MLE PDF ({r['dist_name']})")
+        ax1.plot(l_plot, r['pdf_unbiased'](l_plot), color=c_unbiased, linewidth=2.5, linestyle=":", label="무편향 MLE PDF")
+        ax1.hist(r['valid_true_lengths'], bins=20, density=True, histtype="step", color=c_true, linewidth=2.5, linestyle="--", label="실제 원래 참 분포")
+        ax1.set_title(f"균열 세트 {sid} - 확률밀도함수 (PDF) 분석", fontsize=13, fontweight="bold", pad=15)
+        ax1.set_xlabel("흔적 길이 l (m)", fontsize=11)
+        ax1.set_ylabel("확률 밀도", fontsize=11)
+        ax1.set_xlim(0.0, 15.0)
+        ax1.grid(True, linestyle="--", alpha=0.4)
+        ax1.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0")
+
+        # CDF
+        ax2.set_facecolor("#ffffff")
+        ax2.step(np.sort(r['obs_lengths']), np.arange(1, len(r['obs_lengths'])+1)/len(r['obs_lengths']), color=c_raw, alpha=0.5, linewidth=2.0, where="post", label="관측 ECDF")
+        ax2.plot(l_plot, r['cdf_direct'](l_plot), color=c_direct, linewidth=3.5, label="직접 MLE CDF")
+        ax2.plot(l_plot, r['cdf_unbiased'](l_plot), color=c_unbiased, linewidth=2.5, linestyle=":", label="무편향 MLE CDF")
+        ax2.step(r['sorted_true'], r['ecdf_true'], color=c_true, linewidth=2.5, linestyle="--", label="실제 참 ECDF")
+        ax2.set_title(f"균열 세트 {sid} - 누적분포함수 (CDF) 분석", fontsize=13, fontweight="bold", pad=15)
+        ax2.set_xlabel("흔적 길이 l (m)", fontsize=11)
+        ax2.set_ylabel("누적 확률", fontsize=11)
+        ax2.set_xlim(0.0, 15.0)
+        ax2.grid(True, linestyle="--", alpha=0.4)
+        ax2.legend(frameon=True, facecolor="#ffffff", edgecolor="#e0e0e0")
+
+        stats_text = (
+            f"■ 세트 {sid} 지반통계 지표\n"
+            f"  - 모델: {r['dist_name']}\n"
+            f"  - 자가 보정 d1/d2: {r['d1']:.2f}/{r['d2']:.2f} m\n"
+            f"  - CDF RMSE (Unbiased): {r['rmse_unbiased']:.4f}\n"
+            f"  - 추정 P21: {r['p21']:.4f} m/m2\n"
+            f"  - 추정 P32: {r['p32_est']:.4f} m2/m3\n"
+            f"  - 실제 P32: {r['p32_true']:.4f} m2/m3\n"
+            f"  - P32 오차율: {r['error_pct']:.2f} %"
+        )
+        ax2.text(
+            0.48, 0.04, stats_text, transform=ax2.transAxes, fontsize=10,
+            fontweight="bold", bbox=dict(boxstyle="round,pad=0.4", facecolor="#fefefe", edgecolor="#cccccc", alpha=0.9),
+            verticalalignment="bottom"
+        )
+
+        set_plot_path = os.path.join(output_dir, f"real_hekmatnejad_inversion_set_{sid}.png")
+        plt.tight_layout()
+        plt.savefig(set_plot_path, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"  -> Set {sid} individual premium figure saved to: {set_plot_path}")
     
     print("\n" + "=" * 80)
     print(" REAL DATA PIPELINE COMPLETED SUCCESSFULLY")
