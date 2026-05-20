@@ -200,9 +200,19 @@ def estimate_observation_probability_mc(
     seed: int = 42
 ) -> np.ndarray:
     """
-    Deprecated: Replaced by closed-form circular window probability for extreme efficiency.
-    Returns the exact theoretical observation probability matrix for a circular window of diameter D.
+    [DEPRECATED] Leftover from the legacy Monte Carlo & IPW pipeline.
+    
+    This function is NO LONGER used in the active Unsupervised Parametric MLE 
+    pipeline, as the ParametricMLEEstimator natively integrates the exact 
+    theoretical window probabilities (p0, p1, p2) directly from trace proportions.
+    
+    Retained solely for backward compatibility with external scripts.
     """
+    warnings.warn(
+        "estimate_observation_probability_mc is deprecated and unused in the MLE pipeline.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     # Auto-extract window diameter from polygon scale
     poly = np.asarray(window_polygon)
     ymin, zmin = poly.min(axis=0)
@@ -211,23 +221,18 @@ def estimate_observation_probability_mc(
 
     n_lb = len(length_bins) - 1
     n_ab = len(angle_bins) - 1
-    p_obs = np.zeros((n_lb, n_ab))
+    p_obs = np.ones((n_lb, n_ab))
 
     for i in range(n_lb):
         L = 0.5 * (length_bins[i] + length_bins[i + 1])
-        # Closed-form observation probability for circular window:
-        # Sum of being complete (p0), one-end clipped (p1), and both-end clipped (p2)
-        # However, for observation of trace length >= l_min:
-        # A true length L segment yields a trace >= l_min with high probability.
-        # If L < l_min, it is unobservable.
         if L < l_min:
-            val = 0.0
+            p_obs[i, :] = 0.0
         else:
-            # P(Observed length >= l_min) for circular window
-            # First order approximation:
-            val = 1.0 - (l_min / D) if D > l_min else 1.0
-            
-        p_obs[i, :] = val
+            # Theoretical geometric observation probability of chord length >= l_min
+            if D > l_min:
+                p_obs[i, :] = np.sqrt(1.0 - (l_min / D)**2)
+            else:
+                p_obs[i, :] = 1.0
 
     return p_obs
 
