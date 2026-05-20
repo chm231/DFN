@@ -452,12 +452,11 @@ def main():
         p32_true = total_area_3d_local / db_volume
 
         # --- NEW: Fisher Concentration Parameter (kappa) Inversion ---
-        # 1. Collect parent normal vectors
-        set_normals_list = []
-        for t in set_traces:
-            parent_id = t.parent_fracture_id
-            set_normals_list.append(gt_normals[parent_id])
+        # 1. Collect unique parent normal vectors representing reconstructed 3D planes
+        unique_parent_ids = list(set(t.parent_fracture_id for t in set_traces))
+        set_normals_list = [gt_normals[pid] for pid in unique_parent_ids]
         set_normals_arr = np.array(set_normals_list)
+        n_planes = len(unique_parent_ids)
         
         # 2. Compute Fisher concentration parameter kappa and R magnitude using orientation tensor alignment
         kappa_est, R_len = calculate_kappa_tensor_aligned(set_normals_arr)
@@ -475,11 +474,13 @@ def main():
         print(f"    - Baseline P32     : {p32_est:.4f} m2/m3  (Error: {error_pct:.2f} %)")
         print(f"    - Constrained P32  : {p32_est_constrained:.4f} m2/m3  (Error: {error_pct_constrained:.2f} %)")
         print(f"    - True P32 Density : {p32_true:.4f} m2/m3")
+        print(f"    - Reconstructed Planes (M): {n_planes}")
         print(f"    - Resultant Vector |R|: {R_len:.4f}")
         print(f"    - Est Fisher Kappa : {kappa_est:.4f}")
 
         set_results[sid] = {
             'n_traces': n_traces,
+            'n_planes': n_planes,
             'obs_lengths': obs_lengths_set,
             'censoring_types': censoring_types_set,
             'valid_true_lengths': valid_true_lengths,
@@ -521,14 +522,14 @@ def main():
     print("\n" + "=" * 80)
     print("                 ORIENTATION & FISHER CONCENTRATION (KAPPA) REPORT")
     print("=" * 80)
-    print(f" { 'SET' : <5} | { 'TRACES (N)' : <10} | { 'R_MAG (|R|)' : <12} | { 'KAPPA (Est)' : <12} | { 'KAPPA (True)' : <12} | { 'KAPPA (Design)' : <14}")
+    print(f" { 'SET' : <5} | { 'PLANES (M)' : <10} | { 'R_MAG (|R|)' : <12} | { 'KAPPA (Est)' : <12} | { 'KAPPA (True)' : <12} | { 'KAPPA (Design)' : <14}")
     print("-" * 80)
     true_kappas = {1: 13.13, 2: 19.90, 3: 10.37, 4: 10.37, 5: 23.76}
     design_kappas = {1: 13.06, 2: 19.62, 3: 10.46, 4: 10.13, 5: 23.52}
     for sid, r in set_results.items():
         tk = true_kappas.get(sid, 0.0)
         dk = design_kappas.get(sid, 0.0)
-        print(f" Set{sid:<2} | {r['n_traces']:<10} | {r['R_len']:<12.4f} | {r['kappa_est']:<12.4f} | {tk:<12.4f} | {dk:<14.4f}")
+        print(f" Set{sid:<2} | {r['n_planes']:<10} | {r['R_len']:<12.4f} | {r['kappa_est']:<12.4f} | {tk:<12.4f} | {dk:<14.4f}")
     print("=" * 80)
 
     # 8. Render Multi-Set Inversion curves into a single high-quality grid figure
