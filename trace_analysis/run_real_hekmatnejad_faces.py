@@ -23,6 +23,46 @@ from trace_reconstruction.hekmatnejad_estimation import HekmatnejadEstimator
 from trace_reconstruction.mle_estimation import ParametricMLEEstimator
 
 
+def calculate_kappa_tensor_aligned(normals):
+    """
+    Estimates the Fisher concentration parameter kappa for a set of normals
+    using dynamic orientation tensor alignment (PCA axis) on the hemisphere.
+    Returns: (kappa, R_mag)
+    """
+    N = normals.shape[0]
+    if N <= 1:
+        return 0.0, 0.0
+    
+    # 1. Force unit vector normalization with numerical safety
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    norms_safe = np.where(norms > 1e-12, norms, 1.0)
+    n = normals / norms_safe
+    zero_mask = (norms.ravel() <= 1e-12)
+    if np.any(zero_mask):
+        n[zero_mask] = np.array([0.0, 0.0, 1.0])
+    
+    # 2. Compute orientation tensor and principal axis (eigenvector of T)
+    tensor = np.einsum('ij,ik->ijk', n, n)
+    T = np.sum(tensor, axis=0) / N
+    eigenvalues, eigenvectors = np.linalg.eigh(T)
+    principal_axis = eigenvectors[:, np.argmax(eigenvalues)]
+    
+    # 3. Dynamic hemisphere alignment based on principal axis projection
+    dots = np.dot(n, principal_axis)
+    flip_mask = dots < 0
+    n = n.copy()
+    n[flip_mask] *= -1
+    
+    # 4. Resultant vector summation & Fisher Kappa computation
+    R_vector = np.sum(n, axis=0)
+    R_mag = np.linalg.norm(R_vector)
+    
+    denominator = N - R_mag
+    kappa = 1e6 if denominator < 1e-6 else (N - 1) / denominator
+        
+    return kappa, R_mag
+
+
 def extract_real_traces_with_truth(
     centers: np.ndarray,
     normals: np.ndarray,
@@ -412,39 +452,15 @@ def main():
         p32_true = total_area_3d_local / db_volume
 
         # --- NEW: Fisher Concentration Parameter (kappa) Inversion ---
-        # 1. Collect and normalize unit normal vectors of parent fractures
+        # 1. Collect parent normal vectors
         set_normals_list = []
         for t in set_traces:
             parent_id = t.parent_fracture_id
-            n = gt_normals[parent_id].copy()
-            
-            # Step 1: Force Unit Vector Normalization
-            norm_val = np.linalg.norm(n)
-            if norm_val > 1e-12:
-                n = n / norm_val
-            else:
-                n = np.array([0.0, 0.0, 1.0])
-                
-            # Step 2: Hemisphere Alignment based on Z-axis (nz >= 0)
-            if n[2] < 0:
-                n = -n
-                
-            set_normals_list.append(n)
+            set_normals_list.append(gt_normals[parent_id])
         set_normals_arr = np.array(set_normals_list)
         
-        # 3. Sum vector R and its Euclidean norm |R|
-        R_vec = np.sum(set_normals_arr, axis=0)
-        R_len = np.linalg.norm(R_vec)
-        
-        # 4. Compute kappa with division by zero exception handling and capping (denom <= 1e-6)
-        denom = n_traces - R_len
-        max_kappa = 1000.0
-        if denom <= 1e-6:
-            kappa_est = max_kappa
-        else:
-            kappa_est = (n_traces - 1) / denom
-            if kappa_est > max_kappa:
-                kappa_est = max_kappa
+        # 2. Compute Fisher concentration parameter kappa and R magnitude using orientation tensor alignment
+        kappa_est, R_len = calculate_kappa_tensor_aligned(set_normals_arr)
 
         error_pct = abs(p32_est - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
         error_pct_constrained = abs(p32_est_constrained - p32_true) / p32_true * 100 if p32_true > 0 else 0.0
