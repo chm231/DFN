@@ -30,27 +30,47 @@ def map_to_upper_hemisphere(normals: np.ndarray) -> np.ndarray:
     return mapped
 
 
-def estimate_vmf_concentration(normals: np.ndarray, mean: np.ndarray) -> float:
+def calculate_kappa_tensor_aligned(normals: np.ndarray, mean_dir: np.ndarray = None) -> float:
     """
-    Estimates the Fisher concentration parameter kappa for a set of unit vectors
-    relative to their spherical mean direction.
+    Calculates the Fisher concentration parameter K using the M.L.M. simplified formula:
+    K ≈ (M - 1) / (M - |r_n|)
+    where unit normal vectors are aligned dynamically to the dominant axis of the orientation tensor.
     """
-    if len(normals) <= 1:
+    M = len(normals)
+    if M <= 1:
         return 10.0  # Safe default concentration
-        
-    # Mean resultant length R_bar
-    cos_angles = np.dot(normals, mean)
-    R_bar = np.mean(cos_angles)
-    R_bar = np.clip(R_bar, 0.0, 0.999) # Prevent divide by zero/inf
-    
-    # Standard approximation of concentration parameter kappa (VMF)
-    if R_bar < 0.05:
-        kappa = 2.0 * R_bar
-    elif R_bar > 0.99:
-        kappa = 1.0 / (1.0 - R_bar)
+
+    # 1. Force unit vector normalization with numerical safety
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    norms_safe = np.where(norms > 1e-12, norms, 1.0)
+    n = normals / norms_safe
+    zero_mask = (norms.ravel() <= 1e-12)
+    if np.any(zero_mask):
+        n[zero_mask] = np.array([1.0, 0.0, 0.0])
+
+    # 2. Compute orientation tensor: T = (1/M) * sum(n_i * n_i^T)
+    T = np.dot(n.T, n) / M
+
+    # 3. Solve eigenvalues and eigenvectors to find the dominant axis (PCA)
+    eigenvalues, eigenvectors = np.linalg.eigh(T)
+    dominant_axis = eigenvectors[:, -1]
+
+    # 4. Dynamic hemisphere alignment: flip n_i if dot(n_i, dominant_axis) < 0
+    dots = np.dot(n, dominant_axis)
+    flip_mask = (dots < 0)
+    aligned_n = n.copy()
+    aligned_n[flip_mask] = -aligned_n[flip_mask]
+
+    # 5. Resultant vector summation & Fisher Kappa computation
+    r_n = np.sum(aligned_n, axis=0)
+    r_n_mag = np.linalg.norm(r_n)
+
+    denominator = M - r_n_mag
+    if denominator < 1e-6:
+        kappa = 500.0
     else:
-        kappa = (R_bar * (3.0 - R_bar**2)) / (1.0 - R_bar**2)
-        
+        kappa = (M - 1) / denominator
+
     return float(np.clip(kappa, 1.0, 500.0))
 
 
@@ -115,7 +135,7 @@ def cluster_reconstructed_normals_3d(
         else:
             mean_vec = np.array([1.0, 0.0, 0.0])
             
-        kappa = estimate_vmf_concentration(set_normals, mean_vec)
+        kappa = calculate_kappa_tensor_aligned(set_normals, mean_vec)
         set_stats[set_id] = (mean_vec, kappa)
         
     return best_k, set_stats
