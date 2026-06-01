@@ -45,13 +45,22 @@ class ReconstructedPlane:
     residual: float
     source_slab_indices: List[int] = field(default_factory=list)
     
-    # 정밀 복원용 (이번 단계는 Placeholder)
+    # 반경 추정 결과
     radius: float = 0.0
+    estimated_radius: float = 0.0
+    
+    # 세트 분류 결과
+    set_id: int = -1
+    
+    # 지질공학적 방향성
+    dip: float = 0.0
+    dip_direction: float = 0.0
     
     # 평가 결과
     truth_match_id: int = -1
     angle_error: float = -1.0
     dist_error: float = -1.0
+    radius_error: float = -1.0
 
 @dataclass
 class EvaluationResult:
@@ -61,4 +70,31 @@ class EvaluationResult:
     matched_count: int
     avg_angle_error: float
     avg_dist_error: float
+    avg_radius_error: float
     success_rate: float
+
+@dataclass
+class DFNSetResult:
+    """단일 균열 세트의 DFN 파라미터 추출 결과"""
+    set_id: int
+    n_planes: int
+    mean_normal: np.ndarray
+    dip: float
+    dip_direction: float
+    kappa: float
+    mean_radius: float
+    radii: np.ndarray
+    alpha_R: float            # Pareto shape parameter (Power-law exponent)
+    r_min: float              # Pareto scale parameter
+    P30: float                # 체적 개수 밀도 (1/m³)
+    P32: float                # 체적 면적 밀도 (m²/m³)
+    P32_terzaghi: float       # Terzaghi 보정 P32
+    mean_sin_theta: float     # 평균 sin(θ) (방향 편향 보정 인자)
+
+@dataclass
+class DFNParameterResult:
+    """전체 DFN 파라미터 추출 결과 (모든 세트 종합)"""
+    n_sets: int
+    domain_volume: float
+    total_reconstructed: int
+    set_results: dict = field(default_factory=dict)  # set_id -> DFNSetResult

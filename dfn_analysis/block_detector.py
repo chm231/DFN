@@ -22,7 +22,7 @@ try:
 except ImportError:
     cp = np
     HAS_GPU = False
-    print("[BlockDetector] CuPy 없음 – CPU 폴백")
+    print("[BlockDetector] CuPy 없음 - CPU 폴백")
 
 # ── Voxel state labels ────────────────────────────────────────────────────
 ROCK     = np.uint8(0)

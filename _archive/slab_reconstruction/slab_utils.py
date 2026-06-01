@@ -1,7 +1,10 @@
 import os
 import sys
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .slab_trace_bridge import SlabTrace3D
 from shapely.geometry import LineString, Polygon
 
 # Import from parent packages
