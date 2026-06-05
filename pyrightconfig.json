@@ -1,0 +1,12 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    "./trace_analysis",
+    "./dfn_analysis",
+    "./_archive/slab_reconstruction",
+    "./_archive/rough_face",
+    "./trace_analysis/slab_reconstruction",
+    "./trace_analysis/rough_face"
+  ]
+}

@@ -1,0 +1,22 @@
+# Data files (Large) - Absolutely exclude from Git
+*.h5
+*.npy
+*.mat
+*.pyc
+
+# Directories containing large datasets or results
+storage/data/
+storage/output/
+"dfn generator v1/src/main/dfn_output_*"
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local environment/IDE
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
