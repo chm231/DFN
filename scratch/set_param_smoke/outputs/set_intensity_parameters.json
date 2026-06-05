@@ -1,0 +1,22 @@
+{
+  "1": {
+    "set_id": 1,
+    "observed_P21": 0.3333333333333333,
+    "corrected_P21": 0.5833333333333334,
+    "orientation_corrected_P21": 0.8249579113843054,
+    "estimated_P32": 0.8249579113843054,
+    "estimated_P30": 0.13719105770013046,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": []
+  },
+  "2": {
+    "set_id": 2,
+    "observed_P21": 0.3333333333333333,
+    "corrected_P21": 0.6666666666666666,
+    "orientation_corrected_P21": 0.8333333333333333,
+    "estimated_P32": 0.8333333333333333,
+    "estimated_P30": 0.029473137609610244,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": []
+  }
+}

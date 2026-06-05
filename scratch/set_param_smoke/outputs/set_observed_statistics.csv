@@ -1,0 +1,3 @@
+set_id,n_traces,n_valid_traces,total_length_yz,mean_length_yz,median_length_yz,std_length_yz,min_length_yz,max_length_yz,observed_P21,censoring_type_0_count,censoring_type_1_count,censoring_type_2_count,censored_ratio,theta_yz_mean_axial,theta_yz_dispersion,observation_window_area
+1,2,2,3.0,1.5,1.5,0.5,1.0,2.0,0.3333333333333333,0,1,1,1.0,0.0,0.0,9.0
+2,1,1,3.0,3.0,3.0,0.0,3.0,3.0,0.3333333333333333,0,0,1,1.0,0.0,0.0,9.0

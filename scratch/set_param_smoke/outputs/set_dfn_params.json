@@ -1,0 +1,96 @@
+{
+  "metadata": {
+    "source_traces_csv": "scratch\\set_param_smoke\\sample_traces.csv",
+    "coordinate_system": {
+      "x": "tunnel axis",
+      "y": "horizontal transverse on tunnel face",
+      "z": "vertical on tunnel face",
+      "face_model": "X = x_face_nominal \u00b1 dx"
+    },
+    "created_by": "run_set_trace_parameter_estimation.py"
+  },
+  "sets": [
+    {
+      "set_id": 1,
+      "n_traces": 2,
+      "observation": {
+        "p21_observed": 0.3333333333333333,
+        "p21_corrected": 0.5833333333333334,
+        "censored_ratio": 1.0,
+        "length_min": 1.0,
+        "length_mean": 1.5,
+        "length_median": 1.5,
+        "length_max": 2.0
+      },
+      "orientation": {
+        "mean_normal": [
+          0.7071067811865476,
+          0.7071067811865476,
+          0.0
+        ],
+        "orientation_bias_factor": 0.7071067811865476,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "empirical",
+        "params": [],
+        "mean": 1.3125,
+        "std": 0.4375,
+        "r_min": 0.875,
+        "r_max": 1.75
+      },
+      "intensity": {
+        "P21": 0.8249579113843054,
+        "P30": 0.13719105770013046,
+        "P32": 0.8249579113843054,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    },
+    {
+      "set_id": 2,
+      "n_traces": 1,
+      "observation": {
+        "p21_observed": 0.3333333333333333,
+        "p21_corrected": 0.6666666666666666,
+        "censored_ratio": 1.0,
+        "length_min": 3.0,
+        "length_mean": 3.0,
+        "length_median": 3.0,
+        "length_max": 3.0
+      },
+      "orientation": {
+        "mean_normal": [
+          0.6,
+          0.0,
+          0.8
+        ],
+        "orientation_bias_factor": 0.8,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "empirical",
+        "params": [],
+        "mean": 3.0,
+        "std": 0.0,
+        "r_min": 3.0,
+        "r_max": 3.0
+      },
+      "intensity": {
+        "P21": 0.8333333333333333,
+        "P30": 0.029473137609610244,
+        "P32": 0.8333333333333333,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    }
+  ]
+}
