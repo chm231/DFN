@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import sys
 import numpy as np
@@ -36,7 +37,8 @@ def clip_line_to_polygon(p0, p1, poly_yz) -> List[Tuple[np.ndarray, np.ndarray]]
         if len(coords) >= 2:
             segments.append((np.array(coords[0]), np.array(coords[-1])))
     elif intersection.geom_type == 'MultiLineString':
-        for geom in intersection.geoms:
+        geoms = getattr(intersection, 'geoms', [])
+        for geom in geoms:
             coords = list(geom.coords)
             if len(coords) >= 2:
                 segments.append((np.array(coords[0]), np.array(coords[-1])))
@@ -47,7 +49,7 @@ def extract_slab_points_from_truth(
     normals: np.ndarray, 
     radii: np.ndarray,
     slab: Slab,
-    tunnel_poly_yz: np.ndarray,
+    tunnel_poly_yz: np.ndarray | None,
     sub_slice_count: int = 5
 ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
     """
@@ -130,7 +132,7 @@ def extract_slab_segments_from_truth(
     normals: np.ndarray, 
     radii: np.ndarray,
     slab: Slab,
-    tunnel_poly_yz: np.ndarray,
+    tunnel_poly_yz: np.ndarray | None,
     sub_slice_count: int = 5
 ) -> List['SlabTrace3D']:
     """

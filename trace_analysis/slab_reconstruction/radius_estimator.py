@@ -81,7 +81,7 @@ def estimate_radius_extent(plane: ReconstructedPlane) -> float:
     # YZ extent와 full extent의 평균을 반지름으로
     diameter_est = max(yz_extent, full_extent * 0.7)
     
-    return max(diameter_est / 2.0, 0.5)
+    return float(max(diameter_est / 2.0, 0.5))
 
 
 def estimate_radii_for_planes(

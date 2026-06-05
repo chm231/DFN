@@ -14,7 +14,7 @@ def find_best_truth_match(
     recon: ReconstructedPlane, 
     truth_centers: np.ndarray, 
     truth_normals: np.ndarray,
-    truth_radii: np.ndarray = None
+    truth_radii: np.ndarray | None = None
 ) -> Tuple[int, float, float, float, float]:
     """
     단일 복원된 평면에 대해 가장 잘 맞는 원본 평면 인덱스와 오차 반환
@@ -54,7 +54,7 @@ def evaluate_reconstruction_performance(
     reconstructed_list: List[ReconstructedPlane],
     truth_centers: np.ndarray,
     truth_normals: np.ndarray,
-    truth_radii: np.ndarray = None,
+    truth_radii: np.ndarray | None = None,
     angle_threshold: float = 10.0,
     dist_threshold: float = 3.0
 ) -> EvaluationResult:
@@ -100,7 +100,7 @@ def evaluate_reconstruction_performance(
         avg_angle_error=float(np.mean(angle_errors)) if angle_errors else 0.0,
         avg_dist_error=float(np.mean(dist_errors)) if dist_errors else 0.0,
         avg_radius_error=float(np.mean(radius_errors)) if radius_errors else 0.0,
-        success_rate=float(matched_count / total_truth * 100.0) if total_truth > 0 else 0.0
+        success_rate=matched_count / total_truth * 100.0 if total_truth > 0 else 0.0
     )
 
 
@@ -108,8 +108,8 @@ def evaluate_per_set(
     reconstructed_list: List[ReconstructedPlane],
     truth_centers: np.ndarray,
     truth_normals: np.ndarray,
-    truth_radii: np.ndarray = None,
-    truth_set_ids: np.ndarray = None,
+    truth_radii: np.ndarray | None = None,
+    truth_set_ids: np.ndarray | None = None,
     angle_threshold: float = 10.0,
     dist_threshold: float = 3.0
 ) -> Dict[int, EvaluationResult]:

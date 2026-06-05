@@ -1,7 +1,10 @@
+from __future__ import annotations
 import os
 import sys
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
+if TYPE_CHECKING:
+    from .slab_trace_bridge import SlabTrace3D
 from shapely.geometry import LineString, Polygon
 
 # Import from parent packages
@@ -33,7 +36,8 @@ def clip_line_to_polygon(p0, p1, poly_yz) -> List[Tuple[np.ndarray, np.ndarray]]
         if len(coords) >= 2:
             segments.append((np.array(coords[0]), np.array(coords[-1])))
     elif intersection.geom_type == 'MultiLineString':
-        for geom in intersection.geoms:
+        geoms = getattr(intersection, 'geoms', [])
+        for geom in geoms:
             coords = list(geom.coords)
             if len(coords) >= 2:
                 segments.append((np.array(coords[0]), np.array(coords[-1])))
@@ -44,7 +48,7 @@ def extract_slab_points_from_truth(
     normals: np.ndarray, 
     radii: np.ndarray,
     slab: Slab,
-    tunnel_poly_yz: np.ndarray,
+    tunnel_poly_yz: np.ndarray | None,
     sub_slice_count: int = 5
 ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
     """
@@ -60,7 +64,10 @@ def extract_slab_points_from_truth(
     all_ids = []
     all_segs = []
     
-    x_steps = np.linspace(slab.x_min, slab.x_max, sub_slice_count)
+    if sub_slice_count == 1:
+        x_steps = [slab.x_center]
+    else:
+        x_steps = np.linspace(slab.x_min, slab.x_max, sub_slice_count)
     
     Cx = centers[:, 0]
     Nx = normals[:, 0]
@@ -127,7 +134,7 @@ def extract_slab_segments_from_truth(
     normals: np.ndarray, 
     radii: np.ndarray,
     slab: Slab,
-    tunnel_poly_yz: np.ndarray,
+    tunnel_poly_yz: np.ndarray | None,
     sub_slice_count: int = 5
 ) -> List['SlabTrace3D']:
     """
@@ -138,7 +145,10 @@ def extract_slab_segments_from_truth(
     traces_3d = []
     seg_idx = 0
     
-    x_steps = np.linspace(slab.x_min, slab.x_max, sub_slice_count)
+    if sub_slice_count == 1:
+        x_steps = [slab.x_center]
+    else:
+        x_steps = np.linspace(slab.x_min, slab.x_max, sub_slice_count)
     Cx = centers[:, 0]
     Nx = normals[:, 0]
     

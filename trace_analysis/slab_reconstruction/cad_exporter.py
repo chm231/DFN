@@ -6,7 +6,7 @@ from .slab_types import Slab
 def export_slabs_and_traces_to_cad(
     slabs: List[Slab], 
     slab_all_segments: List[List[np.ndarray]], 
-    tunnel_poly_yz: np.ndarray,
+    tunnel_poly_yz: np.ndarray | None,
     scr_path: str
 ):
     """

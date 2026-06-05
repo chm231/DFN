@@ -187,7 +187,7 @@ def extract_rough_tunnel_traces(
 def plot_rough_tunnel_3d(
     tunnel: RoughTunnel,
     traces: List[Dict[str, Any]],
-    save_path: str = None
+    save_path: str | None = None
 ):
     """
     3차원 요철 터널 벽면 메쉬와 그 위에 생성된 3D 굴곡 교선들을 PyVista로 시각화 및 내보내기합니다.

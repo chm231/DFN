@@ -26,7 +26,7 @@ if _here not in sys.path:
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 
-from trace_reconstruction.trace_types import FaceTrace, ExcavationFace, ReconstructedPlane, TraceMatch
+from trace_reconstruction_unified import FaceTrace, ExcavationFace, ReconstructedPlane, TraceMatch
 
 
 # ==============================================================================
@@ -194,7 +194,7 @@ def evaluate_deterministic_geometry(
     
     stability_logs = []
     
-    from trace_reconstruction.forward_simulator import intersect_disc_with_face
+    from trace_reconstruction_unified import intersect_disc_with_face
     
     for dp, track in zip(det_planes, tracks):
         # 1. Majority vote for parent fracture ID
@@ -289,7 +289,7 @@ def evaluate_unobserved_face_prediction(
     extrapolating them to Face 3 (x_face=6.0m), and comparing the predicted traces
     with actual observations on Face 3.
     """
-    from trace_reconstruction.forward_simulator import intersect_disc_with_face
+    from trace_reconstruction_unified import intersect_disc_with_face
     
     # 1. Filter planes reconstructed from Face 1 and Face 2 (i.e. x = 0m, 3m)
     # They should not contain Face 3 (x=6m) in their source tracks

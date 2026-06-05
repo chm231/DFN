@@ -58,8 +58,8 @@ def fit_pareto_mle(radii: np.ndarray) -> Tuple[float, float]:
 
 def compute_domain_volume(
     slab_x_range: Tuple[float, float],
-    tunnel_poly_yz: np.ndarray = None,
-    tunnel_area: float = None
+    tunnel_poly_yz: np.ndarray | None = None,
+    tunnel_area: float | None = None
 ) -> float:
     """
     분석 도메인의 체적을 계산합니다.
@@ -91,8 +91,8 @@ def extract_dfn_parameters(
     planes: List[ReconstructedPlane],
     set_stats: Dict[int, Tuple[np.ndarray, float]],
     slab_x_range: Tuple[float, float],
-    tunnel_poly_yz: np.ndarray = None,
-    tunnel_area: float = None
+    tunnel_poly_yz: np.ndarray | None = None,
+    tunnel_area: float | None = None
 ) -> DFNParameterResult:
     """
     복원된 평면들로부터 DFN 통계 파라미터를 추출합니다.
@@ -185,10 +185,10 @@ def extract_dfn_parameters(
 
 def format_dfn_summary_table(
     result: DFNParameterResult,
-    gt_centers: np.ndarray = None,
-    gt_normals: np.ndarray = None,
-    gt_radii: np.ndarray = None,
-    gt_set_ids: np.ndarray = None,
+    gt_centers: np.ndarray | None = None,
+    gt_normals: np.ndarray | None = None,
+    gt_radii: np.ndarray | None = None,
+    gt_set_ids: np.ndarray | None = None,
     crop_limit: float = 25.0
 ) -> str:
     """
@@ -220,7 +220,7 @@ def format_dfn_summary_table(
     
     # Ground Truth P32 계산 (제공된 경우)
     gt_p32_by_set = {}
-    if has_gt:
+    if has_gt and gt_centers is not None and gt_radii is not None and gt_set_ids is not None:
         db_volume = (2.0 * crop_limit) ** 3
         unique_sets = sorted(set(gt_set_ids.astype(int)))
         for sid in unique_sets:

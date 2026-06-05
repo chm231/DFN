@@ -72,7 +72,7 @@ def calculate_fisher_kappa(normals: np.ndarray) -> Tuple[float, np.ndarray, floa
     else:
         kappa = (N - 1) / denominator
     
-    return kappa, mean_normal, R_mag
+    return float(kappa), mean_normal, float(R_mag)
 
 
 def normal_to_dip_dipdirection(normal: np.ndarray) -> Tuple[float, float]:

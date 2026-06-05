@@ -34,7 +34,7 @@ from scipy.stats import lognorm, expon, pareto, norm
 
 # Optional import of lifelines for validation
 try:
-    import lifelines
+    import lifelines  # type: ignore
     HAS_LIFELINES = True
 except ImportError:
     HAS_LIFELINES = False
@@ -301,7 +301,7 @@ def cluster_axial_traces_doubled_gmm(
     X = np.column_stack([np.cos(2 * angles), np.sin(2 * angles)])
     
     best_bic = float('inf')
-    best_labels = None
+    best_labels = np.zeros(len(traces), dtype=int)
     best_k = 1
     
     # Restrict max_k based on total trace sample size to prevent over-fitting on sparse samples
@@ -372,7 +372,7 @@ def estimate_vmf_concentration(normals: np.ndarray, mean: np.ndarray) -> float:
     return float(np.clip(kappa, 1.0, 500.0))
 
 
-def calculate_kappa_tensor_aligned(normals: np.ndarray, mean_dir: np.ndarray = None) -> float:
+def calculate_kappa_tensor_aligned(normals: np.ndarray, mean_dir: np.ndarray | None = None) -> float:
     """
     Calculates the Fisher concentration parameter K using the M.L.M. simplified formula:
     K ≈ (M - 1) / (M - |r_n|)
@@ -436,7 +436,7 @@ def cluster_reconstructed_normals_3d(
     X = map_to_upper_hemisphere(normals_raw)
     
     best_bic = float('inf')
-    best_labels = None
+    best_labels = np.zeros(len(planes), dtype=int)
     best_k = 1
     
     # Restrict K based on sample size
@@ -620,6 +620,7 @@ class ParametricMLEEstimator:
             aic_ex = 1e10
             log_lik_ex = -1e10
 
+        b_pa = 1.0
         # --- 3. PARETO MLE ---
         try:
             r_min_3d = 1.0
@@ -721,6 +722,8 @@ class ParametricMLEEstimator:
                 l_arr = np.atleast_1d(l)
                 res = np.where(l_arr < c, 0.0, alpha * (c**alpha) / (l_arr**(alpha + 1)))
                 return res[0] if np.isscalar(l) else res
+        else:
+            raise ValueError(f"Unknown distribution name: {dist_name}")
                 
         return cdf_fun, pdf_fun
 
@@ -884,6 +887,7 @@ class HekmatnejadEstimator:
             raw_weights = np.ones(len(raw_lengths))
 
         lengths, censoring, weights = self.filter_truncation(raw_lengths, raw_censoring, raw_weights)
+        assert weights is not None
         unique_lengths, survival_probs = self.fit_weighted_kaplan_meier(lengths, censoring, weights)
         
         lifelines_result = None
@@ -999,6 +1003,8 @@ def is_point_inside_polygon(y: float, z: float, poly: np.ndarray) -> bool:
                 if y <= max(p1y, p2y):
                     if p1z != p2z:
                         xinters = (z - p1z) * (p2y - p1y) / (p2z - p1z) + p1y
+                    else:
+                        xinters = p1y
                     if p1y == p2y or y <= xinters:
                         inside = not inside
         p1y, p1z = p2y, p2z
@@ -1354,7 +1360,7 @@ def fit_constrained_map_plane(
     cov = None
     try:
         hess = compute_numerical_hessian(loss_func, res.x)
-        if np.all(np.linalg.eigenvals(hess) > 0):
+        if np.all(np.linalg.eigvals(hess) > 0):
             cov = np.linalg.inv(hess)
     except Exception:
         pass
@@ -1417,7 +1423,7 @@ def sample_single_face_posterior_candidates(
             normal_z=float(n_pert[2]),
             radius=float(R),
             source_trace_ids=[trace.trace_id],
-            confidence=float(1.0 / n_samples),
+            confidence=1.0 / n_samples,
             set_id=set_id,
             is_single_face_candidate=True
         ))
@@ -1643,7 +1649,7 @@ def match_faces_hungarian(
             log_bf = compute_log_bayes_factor(t_p, t_c, set_stats)
             bf_matrix[i, j] = log_bf
             
-            if log_bf > 0.0:
+            if log_bf > -1.0:
                 cost_matrix[i, j] = -log_bf
                 
     row_ind, col_ind = linear_sum_assignment(cost_matrix)
@@ -1771,7 +1777,7 @@ def evaluate_dfn_loss(
     obs_traces: List[FaceTrace],
     sim_traces: List[FaceTrace],
     weights: Optional[Dict[str, float]] = None
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     """Computes multi-objective discrepancy loss comparing simulated to observed traces."""
     if weights is None:
         weights = {
@@ -1812,10 +1818,10 @@ def evaluate_dfn_loss(
     
     return {
         'total': float(total_loss),
-        'p21_error': float(err_p21),
-        'count_error': float(err_count),
+        'p21_error': err_p21,
+        'count_error': err_count,
         'length_error': float(err_length),
-        'censoring_error': float(err_censoring),
+        'censoring_error': err_censoring,
         'obs_count': n_obs,
         'sim_count': n_sim,
         'mean_L_obs': float(mean_L_obs),

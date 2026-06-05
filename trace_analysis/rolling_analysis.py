@@ -10,10 +10,8 @@ sys.path.insert(0, _here)
 sys.path.insert(0, _parent)
 
 from load_tunnel_dat import load_tunnel_polygon_from_dat
-from trace_reconstruction.trace_types import ExcavationFace
+from trace_reconstruction_unified import ExcavationFace, classify_censoring, ParametricMLEEstimator
 from run_real_hekmatnejad_faces import extract_real_traces_with_truth
-from trace_reconstruction.trace_preprocessor import classify_censoring
-from trace_reconstruction.mle_estimation import ParametricMLEEstimator
 
 def main():
     hdf5_path = os.path.join(_parent, "storage", "data", "dfn_export_for_python.h5")

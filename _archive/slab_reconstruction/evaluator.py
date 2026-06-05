@@ -72,5 +72,5 @@ def evaluate_reconstruction_performance(
         matched_count=matched_count,
         avg_angle_error=float(np.mean(angle_errors)) if angle_errors else 0.0,
         avg_dist_error=float(np.mean(dist_errors)) if dist_errors else 0.0,
-        success_rate=float(matched_count / total_truth * 100.0) if total_truth > 0 else 0.0
+        success_rate=matched_count / total_truth * 100.0 if total_truth > 0 else 0.0
     )

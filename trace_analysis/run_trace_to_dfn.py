@@ -18,14 +18,14 @@ sys.path.insert(0, _here)
 sys.path.insert(0, _parent)
 
 from load_tunnel_dat import load_tunnel_polygon_from_dat
-from trace_reconstruction.trace_types import ExcavationFace, FaceTrace, ReconstructedPlane, StochasticFracture
-from trace_reconstruction.trace_preprocessor import classify_censoring, cluster_axial_traces_doubled_gmm
-from trace_reconstruction.two_stage_clustering import cluster_reconstructed_normals_3d
-from trace_reconstruction.face_association import match_faces_hungarian, apply_absence_penalization
-from trace_reconstruction.constrained_map_fitter import fit_constrained_map_plane, sample_single_face_posterior_candidates
-from trace_reconstruction.residual_dfn_generator import compute_residual_statistics_and_priors
-from trace_reconstruction.manifold_glide_optimizer import run_manifold_glide_sa, evaluate_dfn_loss
-from trace_reconstruction.dfn_exporter import export_dfn_to_hdf5
+from trace_reconstruction_unified import (
+    ExcavationFace, FaceTrace, ReconstructedPlane, StochasticFracture,
+    classify_censoring, cluster_axial_traces_doubled_gmm,
+    cluster_reconstructed_normals_3d, match_faces_hungarian, apply_absence_penalization,
+    fit_constrained_map_plane, sample_single_face_posterior_candidates,
+    compute_residual_statistics_and_priors, run_manifold_glide_sa, evaluate_dfn_loss,
+    export_dfn_to_hdf5
+)
 
 
 def extract_observed_traces_from_truth(
@@ -39,7 +39,7 @@ def extract_observed_traces_from_truth(
     Extracts observed 2D traces on tunnel excavation faces from a 3D ground-truth DFN.
     Utilizes our high-fidelity analytical disc-to-face intersection model.
     """
-    from trace_reconstruction.forward_simulator import intersect_disc_with_face
+    from trace_reconstruction_unified import intersect_disc_with_face
     
     obs_traces = []
     tid = 1

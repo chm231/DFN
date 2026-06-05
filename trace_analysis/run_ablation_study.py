@@ -26,9 +26,11 @@ if _parent not in sys.path:
     sys.path.insert(0, _parent)
 
 from load_tunnel_dat import load_tunnel_polygon_from_dat
-from trace_reconstruction.trace_types import ExcavationFace, FaceTrace, TraceMatch
-from trace_reconstruction.trace_preprocessor import classify_censoring
-from trace_reconstruction.face_association import match_faces_hungarian, apply_absence_penalization, get_candidate_plane_normal
+from trace_reconstruction_unified import (
+    ExcavationFace, FaceTrace, TraceMatch,
+    classify_censoring,
+    match_faces_hungarian, apply_absence_penalization, get_candidate_plane_normal
+)
 from reconstruction_validator import evaluate_trace_matching
 
 
@@ -178,7 +180,7 @@ def run_ablation_study(
                 # Since match_faces_hungarian has hardcoded compute_log_bayes_factor,
                 # we'll implement a custom hungarian solver block matching the ablated logic
                 from scipy.optimize import linear_sum_assignment
-                from trace_reconstruction.face_association import check_physical_gate
+                from trace_reconstruction_unified import check_physical_gate
                 
                 matches = []
                 if len(traces_f0) == 0 or len(traces_f1) == 0:

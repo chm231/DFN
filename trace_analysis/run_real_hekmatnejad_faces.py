@@ -17,10 +17,10 @@ sys.path.insert(0, _here)
 sys.path.insert(0, _parent)
 
 from load_tunnel_dat import load_tunnel_polygon_from_dat
-from trace_reconstruction.trace_types import ExcavationFace, FaceTrace
-from trace_reconstruction.trace_preprocessor import classify_censoring
-from trace_reconstruction.hekmatnejad_estimation import HekmatnejadEstimator
-from trace_reconstruction.mle_estimation import ParametricMLEEstimator
+from trace_reconstruction_unified import (
+    ExcavationFace, FaceTrace,
+    classify_censoring, HekmatnejadEstimator, ParametricMLEEstimator
+)
 
 
 def calculate_kappa_tensor_aligned(normals):
@@ -74,7 +74,7 @@ def extract_real_traces_with_truth(
     Extracts observed traces on consecutive excavation faces from the real 3D DFN database,
     storing the actual unclipped length (L_full = 2*sqrt(R^2 - d^2)) as the ground truth.
     """
-    from trace_reconstruction.forward_simulator import clip_line_segment_to_polygon
+    from trace_reconstruction_unified import clip_line_segment_to_polygon
     
     obs_traces = []
     true_unclipped_lengths = {} # trace_id -> unclipped length L_full
@@ -273,7 +273,7 @@ def main():
     for i, x_pos in enumerate(x_positions):
         faces.append(ExcavationFace(
             face_id=i + 1,
-            x_face=float(x_pos),
+            x_face=x_pos,
             tunnel_polygon_yz=poly_yz,
             advance_step=3.0 if i > 0 else 0.0
         ))

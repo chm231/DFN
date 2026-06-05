@@ -14,7 +14,7 @@ _parent = os.path.dirname(_here)
 sys.path.insert(0, _here)
 sys.path.insert(0, _parent)
 
-from trace_reconstruction.hekmatnejad_estimation import HekmatnejadEstimator, plot_length_distributions
+from trace_reconstruction_unified import HekmatnejadEstimator
 
 
 def generate_synthetic_biased_traces(

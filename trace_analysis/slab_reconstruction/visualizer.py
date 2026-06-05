@@ -12,12 +12,12 @@ except ImportError:
 
 def plot_reconstruction_3d_pyvista(
     reconstructed_list: List[ReconstructedPlane],
-    truth_centers: np.ndarray = None,
-    truth_normals: np.ndarray = None,
-    truth_radii: np.ndarray = None,
-    tunnel_poly_yz: np.ndarray = None,
+    truth_centers: np.ndarray | None = None,
+    truth_normals: np.ndarray | None = None,
+    truth_radii: np.ndarray | None = None,
+    tunnel_poly_yz: np.ndarray | None = None,
     x_range: Tuple[float, float] = (-25, 25),
-    save_path: str = None
+    save_path: str | None = None
 ):
     """
     원본 DFN과 복원된 평면을 PyVista로 3D 중첩 시각화

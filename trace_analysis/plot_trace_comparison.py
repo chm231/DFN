@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List
-from trace_reconstruction.trace_types import FaceTrace, ExcavationFace
+from trace_reconstruction_unified import FaceTrace, ExcavationFace
 
 
 def plot_side_by_side_trace_comparison(
