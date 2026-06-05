@@ -48,10 +48,10 @@ class RoughFace:
         sigma = self.correlation_length / self.resolution
         smoothed = ndimage.gaussian_filter(noise, sigma=sigma)
         
-        # 3. 진폭(Amplitude) 조절 및 정규화 [0, amplitude]
+        # 3. 진폭(Amplitude) 조절 및 정규화 [-amplitude, amplitude]
         s_min, s_max = smoothed.min(), smoothed.max()
         if s_max - s_min > 1e-9:
-            normalized = (smoothed - s_min) / (s_max - s_min) * self.amplitude
+            normalized = ((smoothed - s_min) / (s_max - s_min) - 0.5) * 2.0 * self.amplitude
         else:
             normalized = smoothed * 0.0
             
