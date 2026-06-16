@@ -1,4 +1,12 @@
-"""Run set-wise trace QC, correction, radius estimation, and intensity estimation."""
+"""Run set-wise trace QC, correction, and fixed-bound TPL radius estimation.
+
+This pipeline assumes per-joint-set fracture radius follows:
+
+    R ~ TPL(alpha, 1 m, 250 m)
+
+where ``alpha`` is the PDF exponent and observed trace length is a chord length,
+not a direct radius sample.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +34,8 @@ from trace_analysis.trace_qc import build_trace_qc_dataframe
 
 
 def _to_jsonable(value):
+    if hasattr(value, "to_record"):
+        return _to_jsonable(value.to_record())
     if isinstance(value, dict):
         return {key: _to_jsonable(val) for key, val in value.items()}
     if isinstance(value, list):
@@ -81,6 +91,8 @@ def _build_set_dfn_params(
                     "confidence": "baseline",
                     "warnings": correction.get("warnings", []),
                 },
+                "alpha_pdf_exponent": radius.get("alpha_pdf_exponent"),
+                "rho": radius.get("rho"),
             }
         )
     return {
@@ -93,6 +105,12 @@ def _build_set_dfn_params(
                 "face_model": "X = x_face_nominal ± dx",
             },
             "created_by": "run_set_trace_parameter_estimation.py",
+            "model_assumptions": {
+                "radius_model": "R ~ TPL(alpha, 1 m, 250 m)",
+                "alpha_definition": "PDF exponent",
+                "trace_model": "Observed trace length is a chord length from a 3D circular fracture disc intersecting the observation plane.",
+                "detection_limit_note": "detection_limit is a trace detection threshold and is distinct from r_min = 1 m.",
+            },
         },
         "sets": sets,
     }
@@ -120,6 +138,8 @@ def _write_run_summary(
         lines.append(f"  trace count = {int(row['n_traces'])}")
         lines.append(f"  P21 observed = {row['observed_P21']}")
         lines.append(f"  radius distribution = {radius.get('radius_distribution', {}).get('type')}")
+        lines.append(f"  alpha PDF exponent = {radius.get('alpha_pdf_exponent')}")
+        lines.append(f"  rho = {radius.get('rho')}")
         lines.append(f"  P30 = {intensity.get('estimated_P30')}")
         lines.append(f"  P32 = {intensity.get('estimated_P32')}")
         lines.append(f"  censoring ratio = {row['censored_ratio']}")
@@ -160,6 +180,15 @@ def _write_validation_summary(qc_df: pd.DataFrame, output_path: str) -> None:
     summary.to_csv(output_path, index=False)
 
 
+def _build_radius_result_table(radius_distributions: Dict[int, Dict[str, object]]) -> pd.DataFrame:
+    records = []
+    for _, radius_info in sorted(radius_distributions.items()):
+        fit_result = radius_info.get("fit_result")
+        if fit_result is not None and hasattr(fit_result, "to_record"):
+            records.append(fit_result.to_record())
+    return pd.DataFrame.from_records(records)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Estimate set-wise DFN parameters from measured traces.")
     parser.add_argument("--traces-csv", required=True, help="Input measured traces CSV.")
@@ -183,6 +212,12 @@ def main() -> None:
         type=float,
         default=0.05,
         help="Boundary tolerance for censoring classification in Y-Z.",
+    )
+    parser.add_argument(
+        "--detection-limit",
+        type=float,
+        default=None,
+        help="Trace detection limit in meters used in the ideal trace likelihood. Distinct from r_min = 1 m.",
     )
     args = parser.parse_args()
 
@@ -215,7 +250,27 @@ def main() -> None:
         qc_df=qc_df,
         min_trace_length=args.min_trace_length,
     )
-    radius_distributions = estimate_radius_distributions(corrected_df)
+    detection_limit_m = args.detection_limit
+    if detection_limit_m is None:
+        if args.min_trace_length > 0.0:
+            detection_limit_m = float(args.min_trace_length)
+        else:
+            raise ValueError(
+                "detection_limit must be provided explicitly, or --min-trace-length must be positive so it can be used as the detection limit."
+            )
+    if "censoring_class" in corrected_df.columns:
+        corrected_df["censor_label"] = corrected_df["censoring_class"].map(
+            {0: "complete", 1: "one_end", 2: "two_end"}
+        )
+    else:
+        corrected_df["censor_label"] = "complete"
+    radius_distributions = estimate_radius_distributions(
+        corrected_df,
+        joint_set_col="set_id",
+        length_col="length_yz",
+        censor_col="censor_label",
+        detection_limit_m=detection_limit_m,
+    )
     intensity_parameters = estimate_intensity_parameters(
         corrected_df=corrected_df,
         set_stats_df=set_stats_df,
@@ -233,6 +288,7 @@ def main() -> None:
     qc_path = os.path.join(args.output_dir, "trace_qc.csv")
     stats_path = os.path.join(args.output_dir, "set_observed_statistics.csv")
     corrected_path = os.path.join(args.output_dir, "set_corrected_trace_distribution.csv")
+    radius_table_path = os.path.join(args.output_dir, "set_radius_distribution_table.csv")
     radius_path = os.path.join(args.output_dir, "set_radius_distribution.json")
     intensity_path = os.path.join(args.output_dir, "set_intensity_parameters.json")
     params_path = os.path.join(args.output_dir, "set_dfn_params.json")
@@ -241,6 +297,7 @@ def main() -> None:
     qc_df.to_csv(qc_path, index=False)
     set_stats_df.to_csv(stats_path, index=False)
     corrected_df.to_csv(corrected_path, index=False)
+    _build_radius_result_table(radius_distributions).to_csv(radius_table_path, index=False)
     with open(radius_path, "w", encoding="utf-8") as handle:
         json.dump(_to_jsonable(radius_distributions), handle, indent=2)
     with open(intensity_path, "w", encoding="utf-8") as handle:

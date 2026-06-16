@@ -32,17 +32,32 @@ def compute_set_observed_statistics(
     qc_df: pd.DataFrame,
     tunnel_polygon_yz: np.ndarray | None,
 ) -> pd.DataFrame:
-    """Aggregate set-wise observed trace statistics using Y-Z trace representation."""
+    """Aggregate set-wise observed trace statistics using Y-Z trace representation.
+
+    The observation window for set-wise intensity is the union of all analyzed
+    excavation faces, not a single face. We therefore normalize by
+
+        face_polygon_area * n_analyzed_faces
+
+    so that total trace length collected across multiple faces is not divided by
+    only one face area.
+    """
     area = np.nan
     if tunnel_polygon_yz is not None:
         area = polygon_area(tunnel_polygon_yz)
+    n_faces = int(qc_df["face_id"].nunique()) if "face_id" in qc_df.columns else 1
+    total_observation_area = float(area * n_faces) if np.isfinite(area) else np.nan
 
     records = []
     for set_id, group in qc_df.groupby("set_id", sort=True):
         valid_group = group[group["valid_length"]]
         theta_mean, theta_dispersion = _axial_mean_and_dispersion(valid_group["theta_yz_deg"])
         total_length = float(valid_group["length_yz"].sum())
-        observed_p21 = float(total_length / area) if np.isfinite(area) and area > 0 else np.nan
+        observed_p21 = (
+            float(total_length / total_observation_area)
+            if np.isfinite(total_observation_area) and total_observation_area > 0
+            else np.nan
+        )
         type0_count = int((group["censoring_class"] == 0).sum()) if "censoring_class" in group else 0
         type1_count = int((group["censoring_class"] == 1).sum()) if "censoring_class" in group else 0
         type2_count = int((group["censoring_class"] == 2).sum()) if "censoring_class" in group else 0
@@ -65,7 +80,9 @@ def compute_set_observed_statistics(
                 "censored_ratio": float((type1_count + type2_count) / max(n_traces, 1)),
                 "theta_yz_mean_axial": theta_mean,
                 "theta_yz_dispersion": theta_dispersion,
-                "observation_window_area": area,
+                "single_face_area": area,
+                "observation_window_face_count": n_faces,
+                "observation_window_area": total_observation_area,
             }
         )
     return pd.DataFrame.from_records(records)

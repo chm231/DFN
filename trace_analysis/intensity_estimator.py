@@ -1,4 +1,4 @@
-"""Estimate P21, P30, and P32 from corrected traces and radius distributions."""
+"""Estimate P21, P30, and P32 from trace observations and fitted radius distributions."""
 
 from __future__ import annotations
 
@@ -11,22 +11,28 @@ import pandas as pd
 def _expected_radius_square(radius_info: Dict[str, object]) -> float:
     distribution = radius_info["radius_distribution"]
     dist_type = distribution["type"]
-    params = distribution["params"]
-    mean = float(distribution["mean"])
-    std = float(distribution["std"])
-    if dist_type == "lognormal" and len(params) >= 2:
-        mu, sigma = float(params[0]), float(params[1])
-        return float(np.exp(2.0 * mu + 2.0 * sigma**2))
-    if dist_type == "exponential" and len(params) >= 1:
-        scale = float(params[0])
-        return float(2.0 * scale**2)
-    if dist_type == "pareto" and len(params) >= 2:
-        alpha = float(params[0])
-        scale = float(params[1])
-        if alpha <= 2.0:
+    mean = float(distribution.get("mean", np.nan))
+    std = float(distribution.get("std", np.nan))
+    if dist_type == "fixed_bound_truncated_power_law":
+        fit_result = radius_info.get("fit_result")
+        if fit_result is None:
             return np.nan
-        return float(alpha * scale**2 / ((alpha - 1.0) * (alpha - 2.0)))
-    return float(std**2 + mean**2)
+        alpha = float(fit_result.alpha_pdf_exponent)
+        r_min = float(fit_result.r_min_m)
+        r_max = float(fit_result.r_max_m)
+        if abs(alpha - 3.0) <= 1e-8:
+            c_r = 1.0 / ((1.0 / r_min) - (1.0 / r_max))
+            return float(c_r * np.log(r_max / r_min))
+        c_r = (
+            1.0 / np.log(r_max / r_min)
+            if abs(alpha - 1.0) <= 1e-8
+            else (1.0 - alpha) / (r_max ** (1.0 - alpha) - r_min ** (1.0 - alpha))
+        )
+        exponent = 3.0 - alpha
+        return float(c_r * (r_max**exponent - r_min**exponent) / exponent)
+    if np.isfinite(std):
+        return float(std**2 + mean**2)
+    return mean**2 if np.isfinite(mean) else np.nan
 
 
 def estimate_intensity_parameters(

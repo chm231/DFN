@@ -48,3 +48,18 @@ $env:PYTHONPATH = "."
 1. **코드 상속**: `trace_analysis`는 핵심 연산을 위해 `dfn_analysis` 내부의 Core 모듈들을 참조합니다.
 2. **데이터 격리**: 모든 원본 데이터는 `storage/data`에 위치하며, 소스 코드 내부에서는 상대 경로를 통해 접근합니다.
 3. **GPU 활용**: `cupy` 환경이 설정된 경우 Voxel 연산 시 GPU 가속이 자동으로 적용됩니다.
+---
+
+## Fixed-Bound TPL Radius Estimation
+
+본 기능은 절리군별 반지름 `R`이 fixed-bound truncated power-law 분포를 따른다고 가정합니다.
+
+`R ~ TPL(alpha, 1 m, 250 m)`
+
+여기서 `alpha`는 **PDF exponent** 이며, `p_R(r) ∝ r^(-alpha)` 로 정의합니다.
+
+trace length는 절리 반지름이 아니라 3D disk 절리와 막장면 관측면의 교차로 생기는 chord length입니다.
+따라서 observed trace length를 직접 radius sample로 사용하지 않습니다.
+
+본 모델에서 가능한 최대 true trace length는 `D_max = 500 m` 입니다.
+`detection_limit`은 trace 검출한계이며, `r_min = 1 m`와 다릅니다.

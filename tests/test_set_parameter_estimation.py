@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 
 def test_set_parameter_estimation_runner_creates_outputs(tmp_path):
@@ -94,6 +95,8 @@ def test_set_parameter_estimation_runner_creates_outputs(tmp_path):
         "nominal",
         "--min-trace-length",
         "0.1",
+        "--detection-limit",
+        "0.1",
         "--boundary-tol",
         "0.05",
     ]
@@ -102,11 +105,17 @@ def test_set_parameter_estimation_runner_creates_outputs(tmp_path):
     assert (output_dir / "trace_qc.csv").exists()
     assert (output_dir / "set_observed_statistics.csv").exists()
     assert (output_dir / "set_corrected_trace_distribution.csv").exists()
+    assert (output_dir / "set_radius_distribution_table.csv").exists()
     assert (output_dir / "set_radius_distribution.json").exists()
     assert (output_dir / "set_intensity_parameters.json").exists()
     assert (output_dir / "set_dfn_params.json").exists()
     assert (output_dir / "run_summary.md").exists()
     assert (output_dir / "validation_parent_fracture_summary.csv").exists()
+
+    stats_df = pd.read_csv(output_dir / "set_observed_statistics.csv").sort_values("set_id").reset_index(drop=True)
+    assert stats_df.loc[0, "observation_window_face_count"] == 2
+    assert stats_df.loc[0, "observed_P21"] == pytest.approx(3.0 / 18.0)
+    assert stats_df.loc[1, "observed_P21"] == pytest.approx(3.0 / 18.0)
 
     with open(output_dir / "set_dfn_params.json", "r", encoding="utf-8") as handle:
         payload = json.load(handle)
