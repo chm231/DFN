@@ -1,0 +1,277 @@
+{
+  "1": {
+    "set_id": 1,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 3.7849458568881738,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 1.5601595641707144,
+      "R50_m": 1.2826017665393024,
+      "R80_m": 1.782302477040437,
+      "R90_m": 2.285983616617548,
+      "R95_m": 2.9320046367719788
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 3.7849458568881738,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 3.782222222222223,
+      "coarse_grid_loglik_best": -39.52171222954222,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 1,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 3.7849458568881738,
+      "rho": null,
+      "n_traces": 41,
+      "detection_limit_m": 0.1,
+      "R50_m": 1.2826017665393024,
+      "R80_m": 1.782302477040437,
+      "R90_m": 2.285983616617548,
+      "R95_m": 2.9320046367719788,
+      "expected_R_m": 1.5601595641707144,
+      "loglik": -39.521693079546736,
+      "warnings": ""
+    }
+  },
+  "2": {
+    "set_id": 2,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 3.2941690836988085,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 1.7713048297954967,
+      "R50_m": 1.3527410348711904,
+      "R80_m": 2.01683334982976,
+      "R90_m": 2.7282382350215073,
+      "R95_m": 3.690554166622092
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 3.2941690836988085,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 3.306984126984127,
+      "coarse_grid_loglik_best": -51.21607525615523,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 2,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 3.2941690836988085,
+      "rho": null,
+      "n_traces": 54,
+      "detection_limit_m": 0.1,
+      "R50_m": 1.3527410348711904,
+      "R80_m": 2.01683334982976,
+      "R90_m": 2.7282382350215073,
+      "R95_m": 3.690554166622092,
+      "expected_R_m": 1.7713048297954967,
+      "loglik": -51.21513141969899,
+      "warnings": ""
+    }
+  },
+  "3": {
+    "set_id": 3,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 3.2224193146528775,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 1.8159287143797427,
+      "R50_m": 1.3659995899937583,
+      "R80_m": 2.0630271579141928,
+      "R90_m": 2.8180704865622297,
+      "R95_m": 3.849410090174271
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 3.2224193146528775,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 3.227777777777778,
+      "coarse_grid_loglik_best": -100.67535733430981,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 3,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 3.2224193146528775,
+      "rho": null,
+      "n_traces": 89,
+      "detection_limit_m": 0.1,
+      "R50_m": 1.3659995899937583,
+      "R80_m": 2.0630271579141928,
+      "R90_m": 2.8180704865622297,
+      "R95_m": 3.849410090174271,
+      "expected_R_m": 1.8159287143797427,
+      "loglik": -100.67499336068543,
+      "warnings": ""
+    }
+  },
+  "4": {
+    "set_id": 4,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 1.6586877682767251,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 11.066530771007526,
+      "R50_m": 2.753448299889165,
+      "R80_m": 9.888377768778128,
+      "R90_m": 23.87464711113681,
+      "R95_m": 51.0154258263029
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 1.6586877682767251,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 1.6436507936507936,
+      "coarse_grid_loglik_best": -47.68512970530537,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 4,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 1.6586877682767251,
+      "rho": null,
+      "n_traces": 114,
+      "detection_limit_m": 0.1,
+      "R50_m": 2.753448299889165,
+      "R80_m": 9.888377768778128,
+      "R90_m": 23.87464711113681,
+      "R95_m": 51.0154258263029,
+      "expected_R_m": 11.066530771007526,
+      "loglik": -47.67589146618509,
+      "warnings": ""
+    }
+  },
+  "5": {
+    "set_id": 5,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 3.6434843137595934,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 1.6082798430637946,
+      "R50_m": 1.2997988326571424,
+      "R80_m": 1.8382818043649765,
+      "R90_m": 2.3893948866738555,
+      "R95_m": 3.105727839278891
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 3.6434843137595934,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 3.6238095238095243,
+      "coarse_grid_loglik_best": -22.74860239394567,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 5,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 3.6434843137595934,
+      "rho": null,
+      "n_traces": 28,
+      "detection_limit_m": 0.1,
+      "R50_m": 1.2997988326571424,
+      "R80_m": 1.8382818043649765,
+      "R90_m": 2.3893948866738555,
+      "R95_m": 3.105727839278891,
+      "expected_R_m": 1.6082798430637946,
+      "loglik": -22.747862701860264,
+      "warnings": ""
+    }
+  }
+}

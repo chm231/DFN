@@ -1,0 +1,116 @@
+{
+  "1": {
+    "set_id": 1,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 1.0104878861629343,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 44.25729771812284,
+      "R50_m": 15.191994845474238,
+      "R80_m": 80.744762869369,
+      "R90_m": 141.8404062222335,
+      "R95_m": 188.22924607950912
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 1.0104878861629343,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [
+      "Trace sample size is very small; alpha estimate may be unstable."
+    ],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 1.01,
+      "coarse_grid_loglik_best": -0.0028919442749211852,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 1,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 1.0104878861629343,
+      "rho": null,
+      "n_traces": 2,
+      "detection_limit_m": 0.1,
+      "R50_m": 15.191994845474238,
+      "R80_m": 80.744762869369,
+      "R90_m": 141.8404062222335,
+      "R95_m": 188.22924607950912,
+      "expected_R_m": 44.25729771812284,
+      "loglik": -0.002897092561367512,
+      "warnings": "Trace sample size is very small; alpha estimate may be unstable."
+    }
+  },
+  "2": {
+    "set_id": 2,
+    "radius_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "alpha_pdf_exponent": 1.0105476964822893,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "mean": 44.25253243323069,
+      "R50_m": 15.188534046152355,
+      "R80_m": 80.73271139188745,
+      "R90_m": 141.82840326419299,
+      "R95_m": 188.22080583392824
+    },
+    "diameter_distribution": {
+      "type": "fixed_bound_truncated_power_law",
+      "d_min_m": 2.0,
+      "d_max_m": 500.0
+    },
+    "alpha_pdf_exponent": 1.0105476964822893,
+    "rho": null,
+    "method": "ideal_infinite_plane_trace_likelihood",
+    "warnings": [
+      "Trace sample size is very small; alpha estimate may be unstable."
+    ],
+    "diagnostics": {
+      "pdf_floor_count": 0,
+      "survival_floor_count": 0,
+      "detection_survival_floor_count": 0,
+      "coarse_grid_alpha_best": 1.01,
+      "coarse_grid_loglik_best": -0.012013101983303805,
+      "profile_grid_warnings": {
+        "pdf_floor_count": 0,
+        "survival_floor_count": 0,
+        "detection_survival_floor_count": 0
+      },
+      "trace_pdf_model": "ideal_infinite_plane",
+      "alpha_parameterization": "PDF exponent"
+    },
+    "fit_result": {
+      "joint_set": 2,
+      "r_min_m": 1.0,
+      "r_max_m": 250.0,
+      "d_min_m": 2.0,
+      "d_max_m": 500.0,
+      "alpha_pdf_exponent": 1.0105476964822893,
+      "rho": null,
+      "n_traces": 3,
+      "detection_limit_m": 0.1,
+      "R50_m": 15.188534046152355,
+      "R80_m": 80.73271139188745,
+      "R90_m": 141.82840326419299,
+      "R95_m": 188.22080583392824,
+      "expected_R_m": 44.25253243323069,
+      "loglik": -0.012037306954301353,
+      "warnings": "Trace sample size is very small; alpha estimate may be unstable."
+    }
+  }
+}

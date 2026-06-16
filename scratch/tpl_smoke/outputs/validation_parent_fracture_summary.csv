@@ -1,0 +1,3 @@
+set_id,n_parent_fractures,trace_segment_count,segments_per_parent_mean
+1,2,2,1.0
+2,3,3,1.0

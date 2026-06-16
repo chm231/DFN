@@ -1,0 +1,250 @@
+{
+  "metadata": {
+    "source_traces_csv": "scratch\\real_tpl_estimation\\real_traces.csv",
+    "coordinate_system": {
+      "x": "tunnel axis",
+      "y": "horizontal transverse on tunnel face",
+      "z": "vertical on tunnel face",
+      "face_model": "X = x_face_nominal \u00b1 dx"
+    },
+    "created_by": "run_set_trace_parameter_estimation.py",
+    "model_assumptions": {
+      "radius_model": "R ~ TPL(alpha, 1 m, 250 m)",
+      "alpha_definition": "PDF exponent",
+      "trace_model": "Observed trace length is a chord length from a 3D circular fracture disc intersecting the observation plane.",
+      "detection_limit_note": "detection_limit is a trace detection threshold and is distinct from r_min = 1 m."
+    }
+  },
+  "sets": [
+    {
+      "set_id": 1,
+      "n_traces": 41,
+      "observation": {
+        "p21_observed": 0.2381269738502177,
+        "p21_corrected": 0.33008875431872997,
+        "censored_ratio": 0.5365853658536586,
+        "length_min": 0.2761522030435577,
+        "length_mean": 1.7174558697543714,
+        "length_median": 1.3637687807348597,
+        "length_max": 4.681857085984008
+      },
+      "orientation": {
+        "mean_normal": [
+          -0.37194323177552424,
+          0.9250616371673743,
+          -0.07693633587321265
+        ],
+        "orientation_bias_factor": 0.9282554779457963,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "fixed_bound_truncated_power_law",
+        "alpha_pdf_exponent": 3.7849458568881738,
+        "r_min_m": 1.0,
+        "r_max_m": 250.0,
+        "mean": 1.5601595641707144,
+        "R50_m": 1.2826017665393024,
+        "R80_m": 1.782302477040437,
+        "R90_m": 2.285983616617548,
+        "R95_m": 2.9320046367719788
+      },
+      "intensity": {
+        "P21": 0.3556011918714525,
+        "P30": 0.03232729432369728,
+        "P32": 0.3556011918714525,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      },
+      "alpha_pdf_exponent": 3.7849458568881738,
+      "rho": null
+    },
+    {
+      "set_id": 2,
+      "n_traces": 54,
+      "observation": {
+        "p21_observed": 0.3819026971546143,
+        "p21_corrected": 0.493328752899965,
+        "censored_ratio": 0.5555555555555556,
+        "length_min": 0.12232763779698103,
+        "length_mean": 2.091316751313044,
+        "length_median": 1.8604922312249603,
+        "length_max": 7.467144400712179
+      },
+      "orientation": {
+        "mean_normal": [
+          0.9448331782004178,
+          -0.32698918874522326,
+          0.019192076892256806
+        ],
+        "orientation_bias_factor": 0.32755192774840686,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "fixed_bound_truncated_power_law",
+        "alpha_pdf_exponent": 3.2941690836988085,
+        "r_min_m": 1.0,
+        "r_max_m": 250.0,
+        "mean": 1.7713048297954967,
+        "R50_m": 1.3527410348711904,
+        "R80_m": 2.01683334982976,
+        "R90_m": 2.7282382350215073,
+        "R95_m": 3.690554166622092
+      },
+      "intensity": {
+        "P21": 1.5061085315269205,
+        "P30": 0.07655859533343566,
+        "P32": 1.5061085315269205,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      },
+      "alpha_pdf_exponent": 3.2941690836988085,
+      "rho": null
+    },
+    {
+      "set_id": 3,
+      "n_traces": 89,
+      "observation": {
+        "p21_observed": 0.7209735386211577,
+        "p21_corrected": 0.9023306974696536,
+        "censored_ratio": 0.5056179775280899,
+        "length_min": 0.17802477003640957,
+        "length_mean": 2.3954668719918453,
+        "length_median": 1.8505411767879945,
+        "length_max": 8.093223476349984
+      },
+      "orientation": {
+        "mean_normal": [
+          -0.4942533749567648,
+          -0.8685012608268855,
+          -0.03767175713924054
+        ],
+        "orientation_bias_factor": 0.8693178942963544,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "fixed_bound_truncated_power_law",
+        "alpha_pdf_exponent": 3.2224193146528775,
+        "r_min_m": 1.0,
+        "r_max_m": 250.0,
+        "mean": 1.8159287143797427,
+        "R50_m": 1.3659995899937583,
+        "R80_m": 2.0630271579141928,
+        "R90_m": 2.8180704865622297,
+        "R95_m": 3.849410090174271
+      },
+      "intensity": {
+        "P21": 1.0379755247072424,
+        "P30": 0.04675982613460479,
+        "P32": 1.0379755247072424,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      },
+      "alpha_pdf_exponent": 3.2224193146528775,
+      "rho": null
+    },
+    {
+      "set_id": 4,
+      "n_traces": 114,
+      "observation": {
+        "p21_observed": 1.8307773011361084,
+        "p21_corrected": 2.590436740547106,
+        "censored_ratio": 0.9122807017543859,
+        "length_min": 0.1084063229442169,
+        "length_mean": 4.748883529598173,
+        "length_median": 4.40977834586192,
+        "length_max": 11.0718046870268
+      },
+      "orientation": {
+        "mean_normal": [
+          0.07541184573007373,
+          0.4946752001686174,
+          -0.8657999190700597
+        ],
+        "orientation_bias_factor": 0.9971524725555183,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "fixed_bound_truncated_power_law",
+        "alpha_pdf_exponent": 1.6586877682767251,
+        "r_min_m": 1.0,
+        "r_max_m": 250.0,
+        "mean": 11.066530771007526,
+        "R50_m": 2.753448299889165,
+        "R80_m": 9.888377768778128,
+        "R90_m": 23.87464711113681,
+        "R95_m": 51.0154258263029
+      },
+      "intensity": {
+        "P21": 2.5978341445699806,
+        "P30": 0.0009967811485948172,
+        "P32": 2.5978341445699806,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      },
+      "alpha_pdf_exponent": 1.6586877682767251,
+      "rho": null
+    },
+    {
+      "set_id": 5,
+      "n_traces": 28,
+      "observation": {
+        "p21_observed": 0.18912107357425262,
+        "p21_corrected": 0.24082828161893519,
+        "censored_ratio": 0.5357142857142857,
+        "length_min": 0.2328850040357834,
+        "length_mean": 1.9972974319956658,
+        "length_median": 1.9579093475025604,
+        "length_max": 6.120959686256734
+      },
+      "orientation": {
+        "mean_normal": [
+          -0.8153307767292851,
+          -0.401621839062073,
+          -0.41705589901884726
+        ],
+        "orientation_bias_factor": 0.5789954442981573,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "fixed_bound_truncated_power_law",
+        "alpha_pdf_exponent": 3.6434843137595934,
+        "r_min_m": 1.0,
+        "r_max_m": 250.0,
+        "mean": 1.6082798430637946,
+        "R50_m": 1.2997988326571424,
+        "R80_m": 1.8382818043649765,
+        "R90_m": 2.3893948866738555,
+        "R95_m": 3.105727839278891
+      },
+      "intensity": {
+        "P21": 0.4159415829443369,
+        "P30": 0.033178976981015164,
+        "P32": 0.4159415829443369,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      },
+      "alpha_pdf_exponent": 3.6434843137595934,
+      "rho": null
+    }
+  ]
+}
