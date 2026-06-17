@@ -47,7 +47,9 @@ def main():
     print("=" * 80)
 
     # 1. Load data
-    traces_csv_path = os.path.join(_parent, "storage", "output", "ground_truth_traces.csv")
+    traces_csv_path = os.path.join(_parent, "storage", "output", "ground_truth_traces_with_normals.csv")
+    if not os.path.exists(traces_csv_path):
+        traces_csv_path = os.path.join(_parent, "storage", "output", "ground_truth_traces.csv")
     tunnel_csv_path = os.path.join(_parent, "storage", "output", "tunnel_polygon.csv")
 
     if not os.path.exists(traces_csv_path):
@@ -110,6 +112,14 @@ def main():
         # Set IDs in ground truth CSV are integers, convert to set name like 'S1', 'S2', etc.
         set_id = f"S{int(row['set_id'])}"
 
+        # Determine orientation from normal if present
+        trend_val = None
+        plunge_val = None
+        if "normal_x" in row and pd.notna(row["normal_x"]):
+            n_vec = np.array([float(row["normal_x"]), float(row["normal_y"]), float(row["normal_z"])])
+            from dfnrec.geometry.vector import trend_plunge_from_normal
+            trend_val, plunge_val = trend_plunge_from_normal(n_vec)
+
         traces.append(
             Trace(
                 trace_id=f"T{int(row['trace_id'])}",
@@ -120,6 +130,8 @@ def main():
                 censor_p0=c0,
                 censor_p1=c1,
                 measurement_sigma=0.02,
+                trend_deg=trend_val,
+                plunge_deg=plunge_val,
             )
         )
     print(f"  -> Converted {len(traces)} traces with censoring classification.")

@@ -52,15 +52,20 @@ def _mean_r2_power_law(alpha: float, r_min: float, r_max: float) -> float:
     return numerator / denominator
 
 
+def _mean_r2_exponential(lmb: float, r_min: float) -> float:
+    """E[r^2] under exponential f(r) = lambda * exp(-lambda * (r - r_min)) for r >= r_min."""
+    return r_min**2 + 2.0 * r_min / lmb + 2.0 / (lmb**2)
+
+
 def _orientation_factor(
     normal_xyz: np.ndarray,
     faces: List[Face],
 ) -> float:
-    """C_s = mean |n · m_face| averaged over all faces.
+    """C_s = mean ||n × m_face|| averaged over all faces.
 
     This is the sampling area correction for a disc of normal n:
     the expected trace length per unit area on a face with normal m is
-    proportional to |n · m|.
+    proportional to ||n × m||.
     """
     if not faces:
         return 1.0
@@ -68,8 +73,20 @@ def _orientation_factor(
     n = normalize(np.asarray(normal_xyz, dtype=float))
     for face in faces:
         m = normalize(np.asarray(face.normal_xyz, dtype=float))
-        vals.append(abs(float(n @ m)))
+        # ||n x m|| = sin(theta)
+        cross = np.cross(n, m)
+        vals.append(float(np.linalg.norm(cross)))
     return float(np.mean(vals))
+
+
+class SizeEstimateResult(tuple):
+    """Subclass of tuple to hold size MLE parameters with backwards compatibility."""
+    def __new__(cls, alpha_or_lambda: float, r_min: float, size_model: str = "POWER_LAW"):
+        return super().__new__(cls, (alpha_or_lambda, r_min))
+    def __init__(self, alpha_or_lambda: float, r_min: float, size_model: str = "POWER_LAW"):
+        self.alpha_or_lambda = alpha_or_lambda
+        self.r_min_val = r_min
+        self.size_model = size_model
 
 
 def estimate_size_model(
@@ -78,39 +95,78 @@ def estimate_size_model(
     r_min: float = 0.5,
     r_max: float = 30.0,
     L_min: float = 0.1,
-) -> Tuple[float, float]:
-    """Estimate power-law exponent alpha (= k_r + 1) via MLE on chord lengths.
+) -> SizeEstimateResult:
+    """Estimate best size model (POWER_LAW or EXPONENTIAL) and its parameters via joint MLE on chord lengths.
 
     Parameters
     ----------
-    traces : list of Trace (filtered for set_id externally or here)
+    traces : list of Trace
     set_id : str
-        Filter traces to this set.
     r_min, r_max : float
-        Truncation limits for fitting.
     L_min : float
-        Detection limit [m].
 
     Returns
     -------
-    (alpha, r_min_used)
+    SizeEstimateResult (unpacks as (alpha_or_lambda, r_min_used))
     """
     set_traces = [t for t in traces if t.set_id == set_id]
     if not set_traces:
-        return (3.5, r_min)  # default
+        return SizeEstimateResult(3.5, r_min, "POWER_LAW")
 
     chord_lengths = np.array([t.observed_length for t in set_traces])
     is_contained = np.array([t.is_contained for t in set_traces])
 
-    # MLE: maximise log likelihood over alpha in [1.5, 6.0]
-    def neg_ll(alpha):
-        return -censored_chord_log_likelihood(
-            chord_lengths, is_contained, alpha, r_min, r_max, L_min
-        )
+    # 1. Fit POWER_LAW
+    best_pl_ll = -1e10
+    best_pl_alpha = 3.5
+    best_pl_rmin = r_min
 
-    result = minimize_scalar(neg_ll, bounds=(1.5, 6.0), method="bounded")
-    alpha_mle = float(result.x)
-    return (alpha_mle, r_min)
+    # Search r_min in range [0.1, 1.5] and alpha in [1.5, 6.0]
+    r_min_grid = np.linspace(0.1, 1.5, 29)
+    alpha_grid = np.linspace(1.5, 6.0, 46)
+
+    for r_cand in r_min_grid:
+        for alpha_cand in alpha_grid:
+            ll = censored_chord_log_likelihood(
+                chord_lengths, is_contained, alpha_cand, r_cand, r_max, L_min, size_model="POWER_LAW"
+            )
+            if ll > best_pl_ll:
+                best_pl_ll = ll
+                best_pl_alpha = alpha_cand
+                best_pl_rmin = r_cand
+
+    # 2. Fit EXPONENTIAL
+    best_exp_ll = -1e10
+    best_exp_lambda = 0.25
+    best_exp_rmin = r_min
+
+    # Search lambda in range [0.05, 1.0]
+    lambda_grid = np.linspace(0.05, 1.0, 39)
+
+    for r_cand in r_min_grid:
+        for lambda_cand in lambda_grid:
+            ll = censored_chord_log_likelihood(
+                chord_lengths, is_contained, lambda_cand, r_cand, r_max, L_min, size_model="EXPONENTIAL"
+            )
+            if ll > best_exp_ll:
+                best_exp_ll = ll
+                best_exp_lambda = lambda_cand
+                best_exp_rmin = r_cand
+
+    if best_pl_ll >= best_exp_ll:
+        return SizeEstimateResult(best_pl_alpha, best_pl_rmin, "POWER_LAW")
+    else:
+        return SizeEstimateResult(best_exp_lambda, best_exp_rmin, "EXPONENTIAL")
+
+
+def _area_integral_power_law(r: float, alpha: float) -> float:
+    if abs(3.0 - alpha) < 1e-9:
+        return math.log(r)
+    return (r ** (3.0 - alpha)) / (3.0 - alpha)
+
+
+def _area_integral_exponential(r: float, lmb: float) -> float:
+    return -math.exp(-lmb * r) * (r**2 + 2.0 * r / lmb + 2.0 / (lmb**2))
 
 
 def estimate_p32(
@@ -122,34 +178,34 @@ def estimate_p32(
     r_max: float = 30.0,
     L_min: float = 0.1,
     discs: Optional[List[ReconstructedDisc]] = None,
+    size_model: str = "POWER_LAW",
 ) -> FractureSetSizeIntensity:
     """Estimate P32 and intensity parameters for a fracture set.
 
     Parameters
     ----------
-    traces : list of Trace for this set (already filtered)
+    traces : list of Trace for this set
     faces : list of Face
     orientation_result : FractureSetOrientation or None
     alpha : float
-        Power-law PDF exponent (k_r = alpha - 1).
-    r_min, r_max : float
+        Power-law PDF exponent (k_r = alpha - 1) or Exponential rate (lambda).
+    r_min : float
+        Estimated r_min_mle.
+    r_max : float
     L_min : float
     discs : list of ReconstructedDisc or None
-        If provided, used to cross-validate.
-
-    Returns
-    -------
-    FractureSetSizeIntensity with P32/P30/P21/n0 clearly separated.
+    size_model : str
+        POWER_LAW or EXPONENTIAL.
     """
     sid = orientation_result.set_id if orientation_result else "unknown"
 
-    # Observed P21 = total trace length / total observation area
+    # Observed P21 = total trace length / total face area
     total_trace_length = sum(t.observed_length for t in traces)
     total_face_area = sum(f.window_area() for f in faces)
     P21_obs = total_trace_length / max(total_face_area, 1e-9)
     P20_obs = len(traces) / max(total_face_area, 1e-9)
 
-    # Orientation factor C_s
+    # Orientation factor C_s = ||n x m_face|| (sin theta)
     if orientation_result is not None:
         from dfnrec.geometry.vector import normal_from_trend_plunge
         mean_normal = normal_from_trend_plunge(
@@ -160,40 +216,46 @@ def estimate_p32(
     else:
         C_s = 0.5  # isotropic default
 
-    # Mean fracture area E[pi r^2]
-    mean_r2 = _mean_r2_power_law(alpha, r_min, r_max)
+    C_s_safe = max(C_s, 0.01)
+
+    # Compute mean area E[pi r^2]
+    if size_model == "POWER_LAW":
+        mean_r2 = _mean_r2_power_law(alpha, r_min, r_max)
+    else:
+        mean_r2 = _mean_r2_exponential(alpha, r_min)
     mean_area = math.pi * mean_r2
 
-    # P32 estimation:
-    # P21 = P32 * C_s * (mean visible chord / mean area) approximately
-    # Simpler approximation used here: P21 ≈ C_s * P32 * (2/pi) * E[r]
-    # (from Dershowitz & Herrmann: P21 = (2/pi) * C_s * P32_eff * E[r])
-    # → P32_eff = P21 * pi / (2 * C_s * E[r])
-    if alpha > 2.0:
-        exp = 2.0 - alpha
-        E_r = (r_max**exp - r_min**exp) / (exp * (r_max**(1 - alpha) - r_min**(1 - alpha)) / (1 - alpha))
+    # P32_eff is estimated via exact stereology relation: P32 = P21 / Cs
+    P32_eff = P21_obs / C_s_safe
+
+    # Correct/Scale up P32_total using the area integral ratio from r_min_mle to the target r_min
+    # Note: S4 exponential target range starts from 0.0 in the DFN generator config
+    r_target_min = 0.0 if size_model == "EXPONENTIAL" else 0.5
+    
+    if size_model == "POWER_LAW":
+        num_area = _area_integral_power_law(r_max, alpha) - _area_integral_power_law(r_min, alpha)
+        den_area = _area_integral_power_law(r_max, alpha) - _area_integral_power_law(r_target_min, alpha)
     else:
-        E_r = (r_min + r_max) / 2.0  # fallback
+        num_area = _area_integral_exponential(r_max, alpha) - _area_integral_exponential(r_min, alpha)
+        den_area = _area_integral_exponential(r_max, alpha) - _area_integral_exponential(r_target_min, alpha)
+        
+    F_area = num_area / max(den_area, 1e-9)
+    # P32_total is the scaled total area density in the target range
+    P32_total = P32_eff / max(F_area, 0.01)
 
-    C_s_safe = max(C_s, 0.01)
-    E_r_safe = max(E_r, 0.01)
-
-    P32_eff = P21_obs * math.pi / (2.0 * C_s_safe * E_r_safe)
-    P32_total = P32_eff  # assuming r ≥ r_min covers the full distribution
-
-    # n0 = P30 = P32_total / mean_area
+    # Number density n0 = P32_total / mean_area
     n0 = P32_total / max(mean_area, 1e-9)
 
-    # N_expected = n0 * V_domain (V not known here; report per face area)
-    # P21_simulated = C_s * (2/pi) * P32_eff * E_r
-    P21_sim = C_s * (2.0 / math.pi) * P32_eff * E_r_safe
+    # Simulated trace length density P21_sim = P32_eff * Cs
+    P21_sim = P32_eff * C_s_safe
 
     return FractureSetSizeIntensity(
         set_id=sid,
-        size_model=SizeModel.POWER_LAW,
-        k_r=alpha - 1.0,
+        size_model=SizeModel.POWER_LAW if size_model == "POWER_LAW" else SizeModel.EXPONENTIAL,
+        k_r=alpha - 1.0 if size_model == "POWER_LAW" else alpha,
         r_min=r_min,
         r_max=r_max,
+        lambda_exp=alpha if size_model == "EXPONENTIAL" else None,
         P32_total=P32_total,
         P32_eff=P32_eff,
         P30=n0,
@@ -206,7 +268,7 @@ def estimate_p32(
         n_discs_used=len(discs) if discs else 0,
         metadata={
             "alpha": alpha,
-            "E_r": E_r,
             "mean_area_m2": mean_area,
+            "F_area": F_area,
         },
     )

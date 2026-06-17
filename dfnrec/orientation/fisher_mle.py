@@ -78,20 +78,24 @@ def estimate_fisher_orientation(
     -------
     FractureSetOrientation or None if fewer than 2 discs are available.
     """
-    # Filter discs by set_id
-    set_discs = [d for d in discs if d.set_id == set_id]
+    # Filter discs by set_id and exclude biased single-face discs
+    multi_face_discs = [d for d in discs if d.set_id == set_id and d.n_faces_observed >= 2]
+    set_discs = []
+    for d in discs:
+        if d.set_id != set_id:
+            continue
+        # If single-face disc and normal_x ≈ 0, it's highly biased due to the default cross product,
+        # but only filter it out if we have enough multi-face discs to get a reliable estimate.
+        if len(multi_face_discs) >= 3:
+            if d.n_faces_observed < 2 and abs(d.normal_xyz[0]) < 1e-6:
+                continue
+        set_discs.append(d)
+
     n = len(set_discs)
     if n < 2:
         return None
 
     normals = np.array([normalize(np.asarray(d.normal_xyz, dtype=float)) for d in set_discs])
-
-    # Axial consistency: flip normals to same hemisphere (largest component positive)
-    # Use the first normal as reference
-    ref = normals[0]
-    for k in range(1, n):
-        if np.dot(normals[k], ref) < 0:
-            normals[k] = -normals[k]
 
     # Orientation bias correction weights
     weights = np.ones(n, dtype=float)
@@ -99,21 +103,29 @@ def estimate_fisher_orientation(
         # Mean face normal (all faces ≈ same direction for tunnel)
         m_face = normalize(np.mean([np.asarray(f.normal_xyz) for f in faces], axis=0))
         for k in range(n):
-            # Correction: prob. of seeing this disc ∝ |n × m_face| = sin(angle)
+            # Correction: weight is inverse of visibility probability
+            # visibility probability ∝ |n × m_face| = sin(angle)
             cross = np.cross(normals[k], m_face)
-            weights[k] = max(np.linalg.norm(cross), 0.01)
+            weights[k] = 1.0 / max(np.linalg.norm(cross), 0.05)
 
     w_sum = weights.sum()
     weights /= w_sum
 
-    # Weighted mean resultant direction
-    mean_direction = (normals * weights[:, None]).sum(axis=0)
-    R = float(np.linalg.norm(mean_direction))
-    if R < 1e-9:
-        mean_direction = normals[0]
-    else:
-        mean_direction /= R
+    # Use Watson second-order tensor to find the mean direction of axial data
+    T = np.zeros((3, 3))
+    for k in range(n):
+        T += weights[k] * np.outer(normals[k], normals[k])
+    
+    evals, evecs = np.linalg.eigh(T)
+    mean_direction = evecs[:, 2]
 
+    # Flip all normals to same hemisphere as mean_direction
+    for k in range(n):
+        if np.dot(normals[k], mean_direction) < 0:
+            normals[k] = -normals[k]
+
+    # Weighted mean resultant length
+    R = float(np.sum(weights * np.dot(normals, mean_direction)))
     R_bar = R  # already normalised by w_sum=1
 
     kappa = _kappa_mle(R_bar)

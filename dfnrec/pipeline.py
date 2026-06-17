@@ -96,7 +96,9 @@ def run_pipeline(
         traces_of_set = [t for t in traces if t.set_id == set_id]
         discs_of_set = [d for d in observed_discs if d.set_id == set_id]
 
-        alpha, r_min_used = estimate_size_model(traces_of_set, set_id, r_min=r_min, r_max=r_max, L_min=L_min)
+        size_res = estimate_size_model(traces_of_set, set_id, r_min=r_min, r_max=r_max, L_min=L_min)
+        alpha, r_min_used = size_res
+        size_model_type = getattr(size_res, "size_model", "POWER_LAW")
         si = estimate_p32(
             traces=traces_of_set,
             faces=faces,
@@ -106,6 +108,7 @@ def run_pipeline(
             r_max=r_max,
             L_min=L_min,
             discs=discs_of_set,
+            size_model=size_model_type,
         )
         size_intensity_results[set_id] = si
 

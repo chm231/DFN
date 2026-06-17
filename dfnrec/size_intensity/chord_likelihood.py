@@ -52,60 +52,73 @@ def chord_pdf_given_r(c: float, r: float) -> float:
 
     Use simplest formula that integrates to 1: midpoint-random model.
     """
-    if c <= 0 or c >= 2 * r:
+    if c <= 0 or c >= 2.0 * r:
         return 0.0
-    # Midpoint-uniform model: midpoint uniform on disc area
-    # p(c|r) = c / (2 * r^2)  for 0 < c < 2r
-    # (Bertrand's second definition)
-    return c / (2.0 * r**2)
+    # Correct 3D chord length distribution for a disc: p(c|r) = c / (2 * r * sqrt(4*r^2 - c^2))
+    denom = 2.0 * r * math.sqrt(max(4.0 * r**2 - c**2, 1e-12))
+    return c / denom
 
 
 
 
 
 def chord_pdf_ideal(
-    c: float,
+    c: float | np.ndarray,
     alpha: float,
     r_min: float,
     r_max: float,
     L_min: float = 0.0,
-) -> float:
-    """Marginal chord PDF under a truncated power-law radius distribution.
+    size_model: str = "POWER_LAW",
+) -> float | np.ndarray:
+    """Marginal chord PDF under a truncated power-law or exponential radius distribution.
 
-    Integrates over r:
-      p(c) = ∫_{r_min}^{r_max} p(c|r) * f(r) dr / Z
-    where f(r) ∝ r^{-alpha} (alpha = k_r + 1) and Z = normalisation.
-
-    Parameters
-    ----------
-    c : float
-        Chord length to evaluate [m].
-    alpha : float
-        Power-law PDF exponent (alpha = k_r + 1).
-    r_min, r_max : float
-        Truncation limits [m].
-    L_min : float
-        Minimum observable chord (detection limit). Only chords c ≥ L_min are observed.
-
-    Returns
-    -------
-    float : un-normalised PDF value (normalise numerically before MLE).
+    Uses analytical beta functions for power law and cosh substitution for exponential.
+    Supports both scalar and NumPy array inputs for high-performance vectorized execution.
     """
-    # c must satisfy 0 < L_min ≤ c < 2*r_max (approximately)
-    if c < L_min or c <= 0:
-        return 0.0
-    # Minimum r to produce chord c: r_min_c = c/2
-    r_lo = max(r_min, c / 2.0 + 1e-9)
-    if r_lo >= r_max:
-        return 0.0
+    from scipy.special import beta, betainc
 
-    def integrand(r):
-        # f(r) ∝ r^{-alpha}
-        f_r = r ** (-alpha)
-        return chord_pdf_given_r(c, r) * f_r
+    is_scalar = np.isscalar(c)
+    c_arr = np.atleast_1d(c).astype(float)
+    out = np.zeros_like(c_arr, dtype=float)
 
-    val, _ = integrate.quad(integrand, r_lo, r_max, limit=50)
-    return max(val, 0.0)
+    valid = (c_arr >= L_min) & (c_arr > 0)
+    if not np.any(valid):
+        return out[0] if is_scalar else out
+
+    c_val = c_arr[valid]
+    r_lo = np.maximum(r_min, c_val / 2.0 + 1e-9)
+    in_range = r_lo < r_max
+    if not np.any(in_range):
+        return out[0] if is_scalar else out
+
+    c_active = c_val[in_range]
+    active_indices = np.where(valid)[0][in_range]
+
+    if size_model == "POWER_LAW":
+        u_lo = c_active / (2.0 * r_max)
+        u_hi = np.minimum(c_active / (2.0 * r_min), 1.0 - 1e-9)
+        
+        val_hi = betainc(alpha / 2.0, 0.5, u_hi**2)
+        val_lo = betainc(alpha / 2.0, 0.5, u_lo**2)
+        integral_val = 0.5 * beta(alpha / 2.0, 0.5) * (val_hi - val_lo)
+        const = (2.0 ** (alpha - 2.0)) * (c_active ** (1.0 - alpha))
+        out[active_indices] = np.maximum(const * integral_val, 0.0)
+
+    elif size_model == "EXPONENTIAL":
+        for idx, val in enumerate(c_active):
+            val_lo = max(2.0 * r_min / val, 1.0)
+            val_hi = 2.0 * r_max / val
+            if val_lo >= val_hi:
+                continue
+            t_lo = math.acosh(val_lo)
+            t_max = math.acosh(val_hi)
+
+            t_grid = np.linspace(t_lo, t_max, 30)
+            y = np.exp(-alpha * 0.5 * val * np.cosh(t_grid))
+            v = float(np.trapezoid(y, t_grid))
+            out[active_indices[idx]] = max(0.25 * val * v, 0.0)
+
+    return out[0] if is_scalar else out
 
 
 def censored_chord_log_likelihood(
@@ -115,52 +128,43 @@ def censored_chord_log_likelihood(
     r_min: float,
     r_max: float,
     L_min: float,
-    n_grid: int = 80,
+    size_model: str = "POWER_LAW",
+    n_grid: int = 150,
 ) -> float:
-    """Log-likelihood of chord length observations under truncated power-law.
+    """Log-likelihood of chord length observations.
 
-    Parameters
-    ----------
-    chord_lengths : (N,) array
-        Observed chord lengths [m].
-    is_contained : (N,) bool array
-        True for fully observed (NATURAL both ends) chords.
-        False for censored (CLIPPED at ≥ 1 end).
-    alpha : float
-        Power-law exponent to evaluate.
-    r_min, r_max, L_min : float
-        Distribution bounds and detection limit.
-    n_grid : int
-        Grid resolution for normalisation integral.
-
-    Returns
-    -------
-    float : log likelihood (higher = better).
+    Uses high-speed vectorized computation and interpolation of survival values
+    for censored traces, avoiding nested integration loops.
     """
     # Precompute normalisation over chord-length grid
     c_grid = np.linspace(L_min + 1e-6, 2 * r_max - 1e-6, n_grid)
-    pdf_grid = np.array([chord_pdf_ideal(c, alpha, r_min, r_max, L_min) for c in c_grid])
+    pdf_grid = chord_pdf_ideal(c_grid, alpha, r_min, r_max, L_min, size_model)
+    
+    dx = c_grid[1] - c_grid[0]
     Z = float(np.trapezoid(pdf_grid, c_grid))
     if Z < 1e-15:
         return -1e10
 
+    # Survival function grid via reverse cumulative integration
+    pdf_rev = pdf_grid[::-1]
+    cum_trap = np.zeros_like(pdf_rev)
+    cum_trap[1:] = np.cumsum(0.5 * (pdf_rev[:-1] + pdf_rev[1:]) * dx)
+    survival_grid = cum_trap[::-1]
+
     log_Z = math.log(Z)
     ll = 0.0
-    for c, contained in zip(chord_lengths, is_contained):
-        if contained:
-            # Full observation: log p(c) - log Z
-            p = chord_pdf_ideal(c, alpha, r_min, r_max, L_min)
-            if p < 1e-300:
-                ll -= 20.0
-            else:
-                ll += math.log(p) - log_Z
-        else:
-            # Censored: we know c is a lower bound on true chord
-            # P(C ≥ c) = ∫_c^{2*r_max} p(c') dc' / Z
-            c_tail = np.linspace(c, 2 * r_max - 1e-6, max(n_grid // 2, 10))
-            pdf_tail = np.array([chord_pdf_ideal(ct, alpha, r_min, r_max, L_min) for ct in c_tail])
-            surv = float(np.trapezoid(pdf_tail, c_tail))
-            surv_frac = surv / max(Z, 1e-15)
-            ll += math.log(max(surv_frac, 1e-15))
-
-    return ll
+    
+    contained_chords = chord_lengths[is_contained]
+    if len(contained_chords) > 0:
+        pdf_contained = chord_pdf_ideal(contained_chords, alpha, r_min, r_max, L_min, size_model)
+        pdf_contained = np.maximum(pdf_contained, 1e-300)
+        ll += np.sum(np.log(pdf_contained) - log_Z)
+        
+    censored_chords = chord_lengths[~is_contained]
+    if len(censored_chords) > 0:
+        surv_vals = np.interp(censored_chords, c_grid, survival_grid)
+        surv_frac = surv_vals / Z
+        surv_frac = np.maximum(surv_frac, 1e-15)
+        ll += np.sum(np.log(surv_frac))
+        
+    return float(ll)

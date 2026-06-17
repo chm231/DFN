@@ -92,14 +92,21 @@ def estimate_disc_map(
             face = faces.get(t.face_id)
             if face is None:
                 return None
-            # Normal = trace_dir × face_normal
-            d = np.asarray(t.direction_xyz, dtype=float)
-            n_face = np.asarray(face.normal_xyz, dtype=float)
-            normal = np.cross(d, n_face)
-            mag = np.linalg.norm(normal)
-            if mag < 1e-9:
-                return None
-            normal /= mag
+            
+            # If trace has measured/true orientation, use it. Otherwise fall back to cross product.
+            if t.trend_deg is not None and t.plunge_deg is not None:
+                from dfnrec.geometry.vector import normal_from_trend_plunge
+                normal = normal_from_trend_plunge(t.trend_deg, t.plunge_deg)
+            else:
+                # Normal = trace_dir × face_normal
+                d = np.asarray(t.direction_xyz, dtype=float)
+                n_face = np.asarray(face.normal_xyz, dtype=float)
+                normal = np.cross(d, n_face)
+                mag = np.linalg.norm(normal)
+                if mag < 1e-9:
+                    return None
+                normal /= mag
+            
             centroid = np.asarray(t.midpoint_xyz, dtype=float)
             r_init = t.observed_length / 2.0 + 0.5
         else:
