@@ -1,0 +1,112 @@
+{
+  "1": {
+    "set_id": 1,
+    "radius_distribution": {
+      "type": "lognormal",
+      "params": [
+        -0.02761172850002315,
+        0.5588255091397581
+      ],
+      "mean": 1.1077770854490039,
+      "std": 0.518832184668374,
+      "r_min": 0.1294384389083861,
+      "r_max": 2.38492659371214
+    },
+    "diameter_distribution": {
+      "mean": 2.2155541708980078,
+      "std": 1.037664369336748
+    },
+    "method": "simple_chord_approximation",
+    "warnings": [
+      "Radius estimates use corrected trace length / 2 as a conservative baseline."
+    ]
+  },
+  "2": {
+    "set_id": 2,
+    "radius_distribution": {
+      "type": "lognormal",
+      "params": [
+        -0.02463242194381653,
+        0.6474238642606144
+      ],
+      "mean": 1.194325077403072,
+      "std": 0.8753056894691404,
+      "r_min": 0.07815888189124781,
+      "r_max": 4.988582845246252
+    },
+    "diameter_distribution": {
+      "mean": 2.388650154806144,
+      "std": 1.750611378938281
+    },
+    "method": "simple_chord_approximation",
+    "warnings": [
+      "Radius estimates use corrected trace length / 2 as a conservative baseline."
+    ]
+  },
+  "3": {
+    "set_id": 3,
+    "radius_distribution": {
+      "type": "lognormal",
+      "params": [
+        0.17672146105302475,
+        0.6606554034411514
+      ],
+      "mean": 1.4983114616317634,
+      "std": 1.1297016523965822,
+      "r_min": 0.29770309705008113,
+      "r_max": 5.061082087830861
+    },
+    "diameter_distribution": {
+      "mean": 2.996622923263527,
+      "std": 2.2594033047931643
+    },
+    "method": "simple_chord_approximation",
+    "warnings": [
+      "Radius estimates use corrected trace length / 2 as a conservative baseline."
+    ]
+  },
+  "4": {
+    "set_id": 4,
+    "radius_distribution": {
+      "type": "lognormal",
+      "params": [
+        1.0713000800013612,
+        0.5833513824560574
+      ],
+      "mean": 3.3948131769278485,
+      "std": 1.7182824858432961,
+      "r_min": 0.5826045924305127,
+      "r_max": 7.199556753277754
+    },
+    "diameter_distribution": {
+      "mean": 6.789626353855697,
+      "std": 3.4365649716865923
+    },
+    "method": "simple_chord_approximation",
+    "warnings": [
+      "Radius estimates use corrected trace length / 2 as a conservative baseline."
+    ]
+  },
+  "5": {
+    "set_id": 5,
+    "radius_distribution": {
+      "type": "lognormal",
+      "params": [
+        -0.13152861870293606,
+        0.4521860044071085
+      ],
+      "mean": 0.9571226037911142,
+      "std": 0.3705051892576991,
+      "r_min": 0.18251364248275376,
+      "r_max": 1.948882111158028
+    },
+    "diameter_distribution": {
+      "mean": 1.9142452075822285,
+      "std": 0.7410103785153982
+    },
+    "method": "simple_chord_approximation",
+    "warnings": [
+      "Radius estimates use corrected trace length / 2 as a conservative baseline."
+    ]
+  }
+}

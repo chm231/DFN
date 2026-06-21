@@ -1,0 +1,70 @@
+{
+  "1": {
+    "set_id": 1,
+    "observed_P21": 0.27307655788304214,
+    "corrected_P21": 0.27307655788304214,
+    "orientation_corrected_P21": 0.29019331713245133,
+    "estimated_P32": 0.364913072866801,
+    "estimated_P32_uncorrected": 0.364913072866801,
+    "estimated_P30": null,
+    "p_obs": 1.0,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": [
+      "P30 could not be estimated reliably from the radius model."
+    ]
+  },
+  "2": {
+    "set_id": 2,
+    "observed_P21": 0.35362676917735586,
+    "corrected_P21": 0.35362676917735586,
+    "orientation_corrected_P21": 1.2372602812044124,
+    "estimated_P32": 1.5697200669085063,
+    "estimated_P32_uncorrected": 1.5697200669085063,
+    "estimated_P30": null,
+    "p_obs": 1.0,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": [
+      "P30 could not be estimated reliably from the radius model."
+    ]
+  },
+  "3": {
+    "set_id": 3,
+    "observed_P21": 0.6952960346072401,
+    "corrected_P21": 0.6952960346072401,
+    "orientation_corrected_P21": 0.8054211957429356,
+    "estimated_P32": 1.3803786990523257,
+    "estimated_P32_uncorrected": 1.3803786990523257,
+    "estimated_P30": null,
+    "p_obs": 1.0,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": [
+      "P30 could not be estimated reliably from the radius model."
+    ]
+  },
+  "4": {
+    "set_id": 4,
+    "observed_P21": 2.228917896459639,
+    "corrected_P21": 2.228917896459639,
+    "orientation_corrected_P21": 2.23561089933583,
+    "estimated_P32": 2.2372807638917935,
+    "estimated_P32_uncorrected": 2.2372807638917935,
+    "estimated_P30": 0.03089646991369452,
+    "p_obs": 1.0,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": []
+  },
+  "5": {
+    "set_id": 5,
+    "observed_P21": 0.15538048559625905,
+    "corrected_P21": 0.15538048559625905,
+    "orientation_corrected_P21": 0.24185197173928846,
+    "estimated_P32": 0.2873311900697286,
+    "estimated_P32_uncorrected": 0.2873311900697286,
+    "estimated_P30": null,
+    "p_obs": 1.0,
+    "method": "orientation_corrected_p21_proxy",
+    "warnings": [
+      "P30 could not be estimated reliably from the radius model."
+    ]
+  }
+}

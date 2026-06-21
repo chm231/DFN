@@ -1,0 +1,1078 @@
+diff --git a/dfnrec/geometry/vector.py b/dfnrec/geometry/vector.py
+index 7404668..ecb03f2 100644
+--- a/dfnrec/geometry/vector.py
++++ b/dfnrec/geometry/vector.py
+@@ -60,32 +60,41 @@ def pca_line_direction(points: np.ndarray) -> np.ndarray:
+ 
+ 
+ def trend_plunge_from_normal(normal: np.ndarray) -> tuple[float, float]:
+-    """Convert a pole normal vector to (trend [deg], plunge [deg]).
+-
+-    Convention: normal points into the upper hemisphere (z ≥ 0) before
+-    conversion.  Trend is azimuth from North (x=East, y=North frame) or
+-    from tunnel-axis (x=advance) depending on input.
+-
+-    Assumes x=East, y=North, z=Up (right-hand).
+-    trend  = azimuth of normal projected on horizontal [0, 360) deg
+-    plunge = angle below horizontal [0, 90] deg
++    """Convert an ENU pole normal vector to (trend [deg], plunge [deg]) in geological END convention.
++
++    Convention:
++    - input normal: ENU [x=East, y=North, z=Up]
++    - convert to END: [E, N, D] = [x, y, -z]
++    - if D < 0, vector * -1 to project to lower hemisphere
++    - trend = atan2(E, N) mod 360 (degrees)
++    - plunge = asin(D) (degrees)
+     """
+     n = normalize(np.asarray(normal, dtype=float))
+-    if n[2] < 0:
+-        n = -n  # flip to upper hemisphere
+-    # Horizontal component magnitude
+-    horiz = math.sqrt(n[0] ** 2 + n[1] ** 2)
+-    plunge = math.degrees(math.atan2(n[2], horiz))
+-    trend = math.degrees(math.atan2(n[0], n[1])) % 360.0
++    E, N, D = n[0], n[1], -n[2]
++    if D < 0:
++        E, N, D = -E, -N, -D
++    
++    trend = math.degrees(math.atan2(E, N)) % 360.0
++    plunge = math.degrees(math.asin(np.clip(D, -1.0, 1.0)))
+     return trend, plunge
+ 
+ 
+ def normal_from_trend_plunge(trend_deg: float, plunge_deg: float) -> np.ndarray:
+-    """Convert (trend, plunge) to a unit pole normal vector.
+-
+-    x=East, y=North, z=Up.
++    """Convert (trend, plunge) in geological END convention to a unit ENU normal vector.
++
++    Convention:
++    - trend = atan2(E, N) mod 360
++    - plunge = asin(D)
++    =>
++    E = cos(plunge) * sin(trend)
++    N = cos(plunge) * cos(trend)
++    D = sin(plunge)
++    - ENU: [x, y, z] = [E, N, -D]
+     """
+     t = math.radians(trend_deg)
+     p = math.radians(plunge_deg)
+     cos_p = math.cos(p)
+-    return np.array([cos_p * math.sin(t), cos_p * math.cos(t), math.sin(p)])
++    E = cos_p * math.sin(t)
++    N = cos_p * math.cos(t)
++    D = math.sin(p)
++    return np.array([E, N, -D])
+diff --git a/dfnrec/models/disc.py b/dfnrec/models/disc.py
+index e937242..b26e056 100644
+--- a/dfnrec/models/disc.py
++++ b/dfnrec/models/disc.py
+@@ -80,6 +80,10 @@ class ReconstructedDisc:
+     reliability_class: ReliabilityClass = ReliabilityClass.C
+     """Overall quality class A/B/C/D (see ReliabilityClass docstring)."""
+ 
++    # --- Source of plane normal ---
++    normal_source: str = "single_face_fallback"
++    """Source of the plane normal: 'raw_measured', 'multi_face_svd', or 'single_face_fallback'."""
++
+     # --- Posterior covariance (optional) ---
+     center_covariance_3x3: Optional[List[List[float]]] = None
+     """3×3 Laplace posterior covariance of centre coordinates [m²]."""
+diff --git a/dfnrec/orientation/fisher_mle.py b/dfnrec/orientation/fisher_mle.py
+index ed415b6..e3ec035 100644
+--- a/dfnrec/orientation/fisher_mle.py
++++ b/dfnrec/orientation/fisher_mle.py
+@@ -8,6 +8,14 @@ Algorithm
+ 3. Compute weighted mean resultant direction R̂ and length R.
+ 4. Estimate kappa via MLE: solve A(kappa) = R/N where A(kappa) = coth(kappa) - 1/kappa.
+ 5. Bootstrap CI on kappa.
++
++COORDINATE CONVENTION (frozen – do not modify without updating regression tests):
++  ENU frame: x=East, y=North, z=Up.
++  Pole trend = atan2(E, N) mod 360  [degrees, 0–360].
++  Pole plunge = asin(D) where D = -z (downward positive)  [degrees, 0–90].
++  Hemisphere flip: if D < 0, negate the normal before computing trend/plunge.
++  Watson mean: largest eigenvector of sum(outer(n,n)) via numpy.linalg.eigh.
++  kappa MLE: solve coth(kappa) - 1/kappa = R_bar via brentq.
+ """
+ from __future__ import annotations
+ 
+@@ -17,6 +25,64 @@ from typing import Dict, List, Optional, Tuple
+ import numpy as np
+ from scipy.optimize import brentq
+ 
++# ---------------------------------------------------------------------------
++# Runtime preflight (T1 – coordinate regression lock)
++# ---------------------------------------------------------------------------
++_PREFLIGHT_DONE: bool = False
++
++
++def _run_coordinate_preflight() -> None:
++    """Validate frozen coordinate transform constants at runtime.
++
++    Raises RuntimeError if any check fails, aborting the pipeline before
++    bad orientation estimates propagate downstream.
++    Called once per process on the first estimate_fisher_orientation() invocation.
++    """
++    global _PREFLIGHT_DONE
++    if _PREFLIGHT_DONE:
++        return
++
++    from dfnrec.geometry.vector import (
++        normalize as _norm,
++        trend_plunge_from_normal as _tp,
++        normal_from_trend_plunge as _nt,
++    )
++
++    # -- Check 1: North-horizontal convention ---------------------------------
++    n_north = _nt(0.0, 0.0)
++    if abs(n_north[0]) > 1e-10 or abs(n_north[1] - 1.0) > 1e-10 or abs(n_north[2]) > 1e-10:
++        raise RuntimeError(
++            f"[PREFLIGHT FAIL] normal_from_trend_plunge(0,0) should be [0,1,0], "
++            f"got {n_north}. Coordinate convention has changed!"
++        )
++
++    # -- Check 2: Round-trip (trend=45, plunge=30) ----------------------------
++    n_ref = _nt(45.0, 30.0)
++    t2, p2 = _tp(n_ref)
++    if abs(t2 - 45.0) > 0.01 or abs(p2 - 30.0) > 0.01:
++        raise RuntimeError(
++            f"[PREFLIGHT FAIL] trend/plunge round-trip failed: "
++            f"input=(45,30), recovered=({t2:.4f},{p2:.4f}). "
++            f"Coordinate transform chain has changed!"
++        )
++
++    # -- Check 3: Hemisphere flip (upward normal must flip) -------------------
++    t_up, p_up = _tp(np.array([0.0, 0.0, 1.0]))
++    if p_up < 0.0:
++        raise RuntimeError(
++            f"[PREFLIGHT FAIL] Hemisphere flip broken: upward normal gave plunge={p_up:.4f} < 0."
++        )
++
++    # -- Check 4: kappa MLE at R_bar=0.5 (golden: ≈1.7968, measured from implementation) ---
++    k05 = _kappa_mle(0.5)
++    if abs(k05 - 1.7968) > 0.05:  # ~3% tolerance
++        raise RuntimeError(
++            f"[PREFLIGHT FAIL] _kappa_mle(0.5) golden value mismatch: "
++            f"expected≈1.7968, got={k05:.4f}."
++        )
++
++    _PREFLIGHT_DONE = True
++
+ from dfnrec.models import ReconstructedDisc, FractureSetOrientation, Face
+ from dfnrec.geometry.vector import normalize, axial_angle, trend_plunge_from_normal
+ 
+@@ -56,6 +122,7 @@ def estimate_fisher_orientation(
+     apply_bias_correction: bool = True,
+     n_bootstrap: int = 200,
+     bootstrap_seed: int = 0,
++    exclude_single_face_fallback: bool = True,
+ ) -> Optional[FractureSetOrientation]:
+     """Estimate Fisher orientation parameters for a fracture set.
+ 
+@@ -73,22 +140,23 @@ def estimate_fisher_orientation(
+     n_bootstrap : int
+         Number of bootstrap replicates for kappa CI.
+     bootstrap_seed : int
++    exclude_single_face_fallback : bool
++        If True, exclude discs whose normal is a single-face fallback.
+ 
+     Returns
+     -------
+     FractureSetOrientation or None if fewer than 2 discs are available.
+     """
+-    # Filter discs by set_id and exclude biased single-face discs
+-    multi_face_discs = [d for d in discs if d.set_id == set_id and d.n_faces_observed >= 2]
++    # T1: Run coordinate preflight on first call
++    _run_coordinate_preflight()
++
++    # Filter discs by set_id
+     set_discs = []
+     for d in discs:
+         if d.set_id != set_id:
+             continue
+-        # If single-face disc and normal_x ≈ 0, it's highly biased due to the default cross product,
+-        # but only filter it out if we have enough multi-face discs to get a reliable estimate.
+-        if len(multi_face_discs) >= 3:
+-            if d.n_faces_observed < 2 and abs(d.normal_xyz[0]) < 1e-6:
+-                continue
++        if exclude_single_face_fallback and getattr(d, "normal_source", None) == "single_face_fallback":
++            continue
+         set_discs.append(d)
+ 
+     n = len(set_discs)
+diff --git a/dfnrec/pipeline.py b/dfnrec/pipeline.py
+index 6e5fd38..31556c2 100644
+--- a/dfnrec/pipeline.py
++++ b/dfnrec/pipeline.py
+@@ -10,6 +10,7 @@ from dfnrec.models import (
+     DomainModel,
+     DomainGeometry,
+     DFNParameterSet,
++    ReconstructedDisc,
+ )
+ from dfnrec.reconstruction import (
+     build_candidate_graph,
+@@ -33,6 +34,7 @@ def run_pipeline(
+     min_faces: int = 1,
+     r_min: float = 0.5,
+     r_max: float = 30.0,
++    orientation_source: str = "raw_normals",
+ ) -> DomainModel:
+     """Run the complete 3D DFN reconstruction and parameter inversion pipeline.
+ 
+@@ -77,10 +79,45 @@ def run_pipeline(
+ 
+     for set_id in set_ids:
+         # Orientation Estimation
+-        logger.info(f"Estimating orientation for set {set_id}...")
+-        ori = estimate_fisher_orientation(observed_discs, set_id, faces=faces)
++        logger.info(f"Estimating orientation for set {set_id} with source={orientation_source}...")
++        
++        if orientation_source == "raw_normals":
++            # Direct estimate from trace trend/plunge
++            traces_of_set = [t for t in traces if t.set_id == set_id and t.trend_deg is not None and t.plunge_deg is not None]
++            if len(traces_of_set) >= 2:
++                from dfnrec.geometry.vector import normal_from_trend_plunge
++                temp_discs = []
++                for idx, t in enumerate(traces_of_set):
++                    normal = normal_from_trend_plunge(t.trend_deg, t.plunge_deg)
++                    temp_discs.append(ReconstructedDisc(
++                        disc_id=f"temp_trace_{idx}",
++                        set_id=set_id,
++                        source="observed_reconstructed",
++                        normal_xyz=normal.tolist(),
++                        trend_deg=t.trend_deg,
++                        plunge_deg=t.plunge_deg,
++                        radius_m=1.0,
++                        normal_source="raw_measured",
++                        n_faces_observed=1
++                    ))
++                ori = estimate_fisher_orientation(
++                    temp_discs,
++                    set_id,
++                    faces=faces,
++                    exclude_single_face_fallback=False
++                )
++            else:
++                ori = estimate_fisher_orientation(observed_discs, set_id, faces=faces, exclude_single_face_fallback=True)
++        elif orientation_source == "reconstructed_multi_face":
++            # Use only multi_face_svd
++            multi_discs = [d for d in observed_discs if getattr(d, "normal_source", None) == "multi_face_svd"]
++            ori = estimate_fisher_orientation(multi_discs, set_id, faces=faces, exclude_single_face_fallback=False)
++        else:  # reconstructed_all
++            # Use all discs (except single_face_fallback by default rule)
++            ori = estimate_fisher_orientation(observed_discs, set_id, faces=faces, exclude_single_face_fallback=True)
++
+         if ori is None:
+-            logger.warning(f"Insufficient discs to estimate orientation for set {set_id}. Using default.")
++            logger.warning(f"Insufficient data to estimate orientation for set {set_id}. Using default.")
+             from dfnrec.models import FractureSetOrientation
+             ori = FractureSetOrientation(
+                 set_id=set_id,
+diff --git a/dfnrec/reconstruction/map_disc.py b/dfnrec/reconstruction/map_disc.py
+index b5b2d52..4019062 100644
+--- a/dfnrec/reconstruction/map_disc.py
++++ b/dfnrec/reconstruction/map_disc.py
+@@ -97,6 +97,7 @@ def estimate_disc_map(
+             if t.trend_deg is not None and t.plunge_deg is not None:
+                 from dfnrec.geometry.vector import normal_from_trend_plunge
+                 normal = normal_from_trend_plunge(t.trend_deg, t.plunge_deg)
++                normal_source = "raw_measured"
+             else:
+                 # Normal = trace_dir × face_normal
+                 d = np.asarray(t.direction_xyz, dtype=float)
+@@ -106,6 +107,7 @@ def estimate_disc_map(
+                 if mag < 1e-9:
+                     return None
+                 normal /= mag
++                normal_source = "single_face_fallback"
+             
+             centroid = np.asarray(t.midpoint_xyz, dtype=float)
+             r_init = t.observed_length / 2.0 + 0.5
+@@ -114,6 +116,7 @@ def estimate_disc_map(
+     else:
+         normal = plane.normal
+         centroid = plane.centroid
++        normal_source = "multi_face_svd"
+         # Initial radius: half the maximum endpoint spread along trace directions
+         pts = track.all_endpoints_xyz()
+         spreads = []
+@@ -229,4 +232,5 @@ def estimate_disc_map(
+         censoring_dominance=censoring_dominance,
+         censoring_dominance_flag=censoring_flag,
+         reliability_class=rc,
++        normal_source=normal_source,
+     )
+diff --git a/dfnrec/size_intensity/p32_estimator.py b/dfnrec/size_intensity/p32_estimator.py
+index 3907d40..2e13aaa 100644
+--- a/dfnrec/size_intensity/p32_estimator.py
++++ b/dfnrec/size_intensity/p32_estimator.py
+@@ -80,13 +80,40 @@ def _orientation_factor(
+ 
+ 
+ class SizeEstimateResult(tuple):
+-    """Subclass of tuple to hold size MLE parameters with backwards compatibility."""
+-    def __new__(cls, alpha_or_lambda: float, r_min: float, size_model: str = "POWER_LAW"):
++    """Subclass of tuple to hold size MLE parameters with backwards compatibility.
++
++    Extra attributes (T3 / T5):
++      clipping_ratio       : float   n_clipped / n_traces
++      identifiability_flag : bool    CLIPPING_DOMINANT flag (clipping_ratio > 0.7)
++      boundary_hit         : bool    MLE param is at grid boundary
++      profile_ll_peak      : float   best log-likelihood value
++      exp_lambda           : float or None   exponential lambda (T5)
++      exp_mean             : float or None   1/lambda (T5)
++    """
++    def __new__(cls, alpha_or_lambda: float, r_min: float, size_model: str = "POWER_LAW", **kwargs):
+         return super().__new__(cls, (alpha_or_lambda, r_min))
+-    def __init__(self, alpha_or_lambda: float, r_min: float, size_model: str = "POWER_LAW"):
++
++    def __init__(
++        self,
++        alpha_or_lambda: float,
++        r_min: float,
++        size_model: str = "POWER_LAW",
++        clipping_ratio: float = 0.0,
++        identifiability_flag: bool = False,
++        boundary_hit: bool = False,
++        profile_ll_peak: float = float("nan"),
++        exp_lambda: Optional[float] = None,
++        exp_mean: Optional[float] = None,
++    ):
+         self.alpha_or_lambda = alpha_or_lambda
+         self.r_min_val = r_min
+         self.size_model = size_model
++        self.clipping_ratio = clipping_ratio
++        self.identifiability_flag = identifiability_flag
++        self.boundary_hit = boundary_hit
++        self.profile_ll_peak = profile_ll_peak
++        self.exp_lambda = exp_lambda
++        self.exp_mean = exp_mean
+ 
+ 
+ def estimate_size_model(
+@@ -95,6 +122,7 @@ def estimate_size_model(
+     r_min: float = 0.5,
+     r_max: float = 30.0,
+     L_min: float = 0.1,
++    force_model: Optional[str] = None,
+ ) -> SizeEstimateResult:
+     """Estimate best size model (POWER_LAW or EXPONENTIAL) and its parameters via joint MLE on chord lengths.
+ 
+@@ -104,6 +132,10 @@ def estimate_size_model(
+     set_id : str
+     r_min, r_max : float
+     L_min : float
++    force_model : str or None
++        If ``'EXPONENTIAL'``, skip POWER_LAW fitting entirely (T5 S4 branch).
++        If ``'POWER_LAW'``, skip EXPONENTIAL fitting.
++        If ``None`` (default), compare both and pick the better one.
+ 
+     Returns
+     -------
+@@ -116,47 +148,148 @@ def estimate_size_model(
+     chord_lengths = np.array([t.observed_length for t in set_traces])
+     is_contained = np.array([t.is_contained for t in set_traces])
+ 
+-    # 1. Fit POWER_LAW
+-    best_pl_ll = -1e10
+-    best_pl_alpha = 3.5
+-    best_pl_rmin = r_min
++    n_traces = len(set_traces)
++    n_contained = int(np.sum(is_contained))
++    n_clipped = n_traces - n_contained
++    clipping_ratio = float(n_clipped) / max(n_traces, 1)
++    len_min = float(np.min(chord_lengths)) if n_traces > 0 else 0.0
++    len_med = float(np.median(chord_lengths)) if n_traces > 0 else 0.0
++    len_max = float(np.max(chord_lengths)) if n_traces > 0 else 0.0
++
++    # T3: Identifiability flag (CLIPPING_DOMINANT)
++    identifiability_flag = clipping_ratio > 0.7
++    if identifiability_flag:
++        print(
++            f"[CLIPPING_DOMINANT] Set {set_id}: clipping_ratio={clipping_ratio:.3f} > 0.70 "
++            f"-- parameter identifiability may be poor. "
++            f"Check boundary_hit, profile_width, and GT-in-CI before trusting k_r/lambda estimates."
++        )
+ 
+-    # Search r_min in range [0.1, 1.5] and alpha in [1.5, 6.0]
+     r_min_grid = np.linspace(0.1, 1.5, 29)
+     alpha_grid = np.linspace(1.5, 6.0, 46)
++    lambda_grid = np.linspace(0.05, 1.0, 39)
++
++    # 1. Fit POWER_LAW (skipped when force_model=='EXPONENTIAL')
++    best_pl_ll = -1e10
++    best_pl_alpha = 3.5
++    best_pl_rmin = r_min
++    pl_curve: List[Tuple[float, float]] = []
++
++    if force_model != "EXPONENTIAL":
++        for r_cand in r_min_grid:
++            for alpha_cand in alpha_grid:
++                ll = censored_chord_log_likelihood(
++                    chord_lengths, is_contained, alpha_cand, r_cand, r_max, L_min, size_model="POWER_LAW"
++                )
++                if ll > best_pl_ll:
++                    best_pl_ll = ll
++                    best_pl_alpha = alpha_cand
++                    best_pl_rmin = r_cand
+ 
+-    for r_cand in r_min_grid:
+         for alpha_cand in alpha_grid:
+             ll = censored_chord_log_likelihood(
+-                chord_lengths, is_contained, alpha_cand, r_cand, r_max, L_min, size_model="POWER_LAW"
++                chord_lengths, is_contained, alpha_cand, best_pl_rmin, r_max, L_min, size_model="POWER_LAW"
+             )
+-            if ll > best_pl_ll:
+-                best_pl_ll = ll
+-                best_pl_alpha = alpha_cand
+-                best_pl_rmin = r_cand
++            pl_curve.append((alpha_cand, ll))
+ 
+-    # 2. Fit EXPONENTIAL
++    # 2. Fit EXPONENTIAL (skipped when force_model=='POWER_LAW')
+     best_exp_ll = -1e10
+     best_exp_lambda = 0.25
+     best_exp_rmin = r_min
++    exp_curve: List[Tuple[float, float]] = []
++
++    if force_model != "POWER_LAW":
++        for r_cand in r_min_grid:
++            for lambda_cand in lambda_grid:
++                ll = censored_chord_log_likelihood(
++                    chord_lengths, is_contained, lambda_cand, r_cand, r_max, L_min, size_model="EXPONENTIAL"
++                )
++                if ll > best_exp_ll:
++                    best_exp_ll = ll
++                    best_exp_lambda = lambda_cand
++                    best_exp_rmin = r_cand
+ 
+-    # Search lambda in range [0.05, 1.0]
+-    lambda_grid = np.linspace(0.05, 1.0, 39)
+-
+-    for r_cand in r_min_grid:
+         for lambda_cand in lambda_grid:
+             ll = censored_chord_log_likelihood(
+-                chord_lengths, is_contained, lambda_cand, r_cand, r_max, L_min, size_model="EXPONENTIAL"
++                chord_lengths, is_contained, lambda_cand, best_exp_rmin, r_max, L_min, size_model="EXPONENTIAL"
+             )
+-            if ll > best_exp_ll:
+-                best_exp_ll = ll
+-                best_exp_lambda = lambda_cand
+-                best_exp_rmin = r_cand
++            exp_curve.append((lambda_cand, ll))
++
++    # Determine best model
++    if force_model == "EXPONENTIAL" or (force_model is None and best_exp_ll > best_pl_ll):
++        best_model = "EXPONENTIAL"
++        best_val = best_exp_lambda
++        best_r_min = best_exp_rmin
++        best_ll = best_exp_ll
++        curve = exp_curve
++        boundary_hit = (
++            abs(best_val - 0.05) < 1e-5 or
++            abs(best_val - 1.0) < 1e-5 or
++            abs(best_r_min - 0.1) < 1e-5 or
++            abs(best_r_min - 1.5) < 1e-5
++        )
++    else:
++        best_model = "POWER_LAW"
++        best_val = best_pl_alpha
++        best_r_min = best_pl_rmin
++        best_ll = best_pl_ll
++        curve = pl_curve
++        boundary_hit = (
++            abs(best_val - 1.5) < 1e-5 or
++            abs(best_val - 6.0) < 1e-5 or
++            abs(best_r_min - 0.1) < 1e-5 or
++            abs(best_r_min - 1.5) < 1e-5
++        )
+ 
+-    if best_pl_ll >= best_exp_ll:
+-        return SizeEstimateResult(best_pl_alpha, best_pl_rmin, "POWER_LAW")
++    # Compute derived exponential quantities (T5)
++    exp_lambda_out: Optional[float] = None
++    exp_mean_out: Optional[float] = None
++    if best_model == "EXPONENTIAL":
++        exp_lambda_out = float(best_val)
++        exp_mean_out = float(1.0 / best_val) if best_val > 1e-9 else None
++
++    # Print comprehensive diagnostic output
++    print(f"\n[DIAGNOSTIC] Size model estimation for set: {set_id}")
++    print(f"  - Number of traces: {n_traces}")
++    print(f"  - Contained trace count: {n_contained}")
++    print(f"  - Clipped trace count: {n_clipped}")
++    print(f"  - Clipping ratio: {clipping_ratio:.4f}")
++    print(f"  - CLIPPING_DOMINANT flag: {identifiability_flag}")
++    print(f"  - Length min/median/max: {len_min:.4f} / {len_med:.4f} / {len_max:.4f}")
++    print(f"  - force_model: {force_model!r}")
++    if best_model == "POWER_LAW":
++        powerlaw_kr = best_val - 1.0
++        print(f"  - Best model: POWER_LAW | powerlaw_kr={powerlaw_kr:.4f} | r_min={best_r_min:.4f}")
+     else:
+-        return SizeEstimateResult(best_exp_lambda, best_exp_rmin, "EXPONENTIAL")
++        print(f"  - Best model: EXPONENTIAL | exp_lambda={best_val:.4f} | exp_mean={1.0/best_val:.4f} | r_min={best_r_min:.4f}")
++    print(f"  - Profile LL peak: {best_ll:.4f}")
++    print(f"  - Boundary hit: {boundary_hit}")
++    curve_str = ", ".join(f"({a:.2f}:{ll:.1f})" for a, ll in curve[::5])
++    print(f"  - Profile LL curve (sampled): {curve_str}")
++
++    # T5: Special [S4 EXPONENTIAL] tag when exponential is forced or selected
++    if best_model == "EXPONENTIAL":
++        print(f"[S4 EXPONENTIAL] Set {set_id}:")
++        print(f"  exp_lambda      : {best_val:.4f} [1/m]")
++        print(f"  exp_mean        : {1.0/best_val:.4f} m" if best_val > 1e-9 else "  exp_mean        : inf")
++        print(f"  boundary_hit    : {boundary_hit}")
++        print(f"  clipped_ratio   : {clipping_ratio:.4f}")
++        print(f"  identifiability : {'CLIPPING_DOMINANT' if identifiability_flag else 'OK'}")
++        print(f"  profile_ll_peak : {best_ll:.4f}")
++        exp_curve_str = ", ".join(f"({lm:.3f}:{ll:.1f})" for lm, ll in exp_curve[::4])
++        print(f"  ll_curve        : {exp_curve_str}")
++
++    return SizeEstimateResult(
++        alpha_or_lambda=best_val,
++        r_min=best_r_min,
++        size_model=best_model,
++        clipping_ratio=clipping_ratio,
++        identifiability_flag=identifiability_flag,
++        boundary_hit=boundary_hit,
++        profile_ll_peak=best_ll,
++        exp_lambda=exp_lambda_out,
++        exp_mean=exp_mean_out,
++    )
+ 
+ 
+ def _area_integral_power_law(r: float, alpha: float) -> float:
+@@ -179,6 +312,7 @@ def estimate_p32(
+     L_min: float = 0.1,
+     discs: Optional[List[ReconstructedDisc]] = None,
+     size_model: str = "POWER_LAW",
++    selection_weight: float = 1.0,
+ ) -> FractureSetSizeIntensity:
+     """Estimate P32 and intensity parameters for a fracture set.
+ 
+@@ -196,6 +330,12 @@ def estimate_p32(
+     discs : list of ReconstructedDisc or None
+     size_model : str
+         POWER_LAW or EXPONENTIAL.
++    selection_weight : float
++        Generic observation-selection probability weight in (0, 1].
++        Corrects for incomplete sampling of the fracture population:
++        P32_corrected = P32_eff / selection_weight.
++        Default 1.0 = no correction.
++        Estimated by the caller (e.g. trace_analysis.intensity_estimator).
+     """
+     sid = orientation_result.set_id if orientation_result else "unknown"
+ 
+@@ -217,47 +357,77 @@ def estimate_p32(
+         C_s = 0.5  # isotropic default
+ 
+     C_s_safe = max(C_s, 0.01)
++    selection_weight_safe = max(float(selection_weight), 1e-6)
+ 
+-    # Compute mean area E[pi r^2]
++    # Compute mean area E[pi r^2] over the target full range
++    r_target_min = 0.0 if size_model == "EXPONENTIAL" else 0.5
+     if size_model == "POWER_LAW":
+-        mean_r2 = _mean_r2_power_law(alpha, r_min, r_max)
++        mean_r2_full = _mean_r2_power_law(alpha, r_target_min, r_max)
++        mean_r2_eff = _mean_r2_power_law(alpha, r_min, r_max)
++        powerlaw_kr = alpha - 1.0
++        exp_lambda = None
++        exp_mean = None
+     else:
+-        mean_r2 = _mean_r2_exponential(alpha, r_min)
+-    mean_area = math.pi * mean_r2
++        mean_r2_full = _mean_r2_exponential(alpha, r_target_min)
++        mean_r2_eff = _mean_r2_exponential(alpha, r_min)
++        powerlaw_kr = None
++        exp_lambda = float(alpha)
++        exp_mean = float(1.0 / alpha) if alpha > 1e-9 else None
++
++    mean_area_full = math.pi * mean_r2_full
++    mean_area_eff = math.pi * mean_r2_eff
+ 
+-    # P32_eff is estimated via exact stereology relation: P32 = P21 / Cs
++    # P32_eff via exact stereology: P32_eff = P21 / C_s
+     P32_eff = P21_obs / C_s_safe
+ 
+-    # Correct/Scale up P32_total using the area integral ratio from r_min_mle to the target r_min
+-    # Note: S4 exponential target range starts from 0.0 in the DFN generator config
+-    r_target_min = 0.0 if size_model == "EXPONENTIAL" else 0.5
+-    
++    # Apply selection_weight correction (T4 generic interface)
++    P32_eff_corrected = P32_eff / selection_weight_safe
++
++    # Scale P32_total using area-fraction F_A
+     if size_model == "POWER_LAW":
+         num_area = _area_integral_power_law(r_max, alpha) - _area_integral_power_law(r_min, alpha)
+         den_area = _area_integral_power_law(r_max, alpha) - _area_integral_power_law(r_target_min, alpha)
+     else:
+         num_area = _area_integral_exponential(r_max, alpha) - _area_integral_exponential(r_min, alpha)
+         den_area = _area_integral_exponential(r_max, alpha) - _area_integral_exponential(r_target_min, alpha)
+-        
++
+     F_area = num_area / max(den_area, 1e-9)
+-    # P32_total is the scaled total area density in the target range
+-    P32_total = P32_eff / max(F_area, 0.01)
++    P32_total = P32_eff_corrected / max(F_area, 0.01)
+ 
+-    # Number density n0 = P32_total / mean_area
+-    n0 = P32_total / max(mean_area, 1e-9)
++    # Number densities
++    n0 = P32_total / max(mean_area_full, 1e-9)
++    P30_eff = P32_eff_corrected / max(mean_area_eff, 1e-9)
++    P21_sim = P32_eff_corrected * C_s_safe
+ 
+-    # Simulated trace length density P21_sim = P32_eff * Cs
+-    P21_sim = P32_eff * C_s_safe
++    # Print comprehensive stereological decomposition output
++    print(f"\n[DIAGNOSTIC] P32 Stereological Decomposition for set: {sid}")
++    print(f"  - size_model_used: {size_model}")
++    if size_model == "POWER_LAW":
++        print(f"  - powerlaw_kr: {powerlaw_kr:.4f}")
++    else:
++        print(f"  - exp_lambda: {exp_lambda:.4f} | exp_mean: {exp_mean:.4f} m")
++    print(f"  - r_min_used: {r_min:.4f} m | r_max: {r_max:.4f} m")
++    print(f"  - P21_obs: {P21_obs:.6f} m/m2")
++    print(f"  - orientation_factor_Cs: {C_s:.6f}")
++    print(f"  - selection_weight: {selection_weight:.4f}")
++    print(f"  - P32_eff (raw): {P32_eff:.6f} m2/m3")
++    print(f"  - P32_eff (corrected): {P32_eff_corrected:.6f} m2/m3")
++    print(f"  - area_fraction_F_A: {F_area:.6f}")
++    print(f"  - P32_total: {P32_total:.6f} m2/m3")
++    print(f"  - mean_area_full: {mean_area_full:.6f} m2")
++    print(f"  - mean_area_eff: {mean_area_eff:.6f} m2")
++    print(f"  - n0 (P30 total): {n0:.6f} m-3")
++    print(f"  - P30_eff: {P30_eff:.6f} m-3")
+ 
+     return FractureSetSizeIntensity(
+         set_id=sid,
+         size_model=SizeModel.POWER_LAW if size_model == "POWER_LAW" else SizeModel.EXPONENTIAL,
+-        k_r=alpha - 1.0 if size_model == "POWER_LAW" else alpha,
++        k_r=powerlaw_kr,
+         r_min=r_min,
+         r_max=r_max,
+-        lambda_exp=alpha if size_model == "EXPONENTIAL" else None,
++        lambda_exp=exp_lambda,
+         P32_total=P32_total,
+-        P32_eff=P32_eff,
++        P32_eff=P32_eff_corrected,
+         P30=n0,
+         n0=n0,
+         P21_observed=P21_obs,
+@@ -267,8 +437,22 @@ def estimate_p32(
+         C_s=C_s,
+         n_discs_used=len(discs) if discs else 0,
+         metadata={
+-            "alpha": alpha,
+-            "mean_area_m2": mean_area,
++            "powerlaw_kr": powerlaw_kr,
++            "exp_lambda": exp_lambda,
++            "exp_mean": exp_mean,
++            "alpha_mle": alpha,
++            "mean_area_m2": mean_area_full,
++            "mean_area_eff_m2": mean_area_eff,
+             "F_area": F_area,
++            "P30_eff": P30_eff,
++            "P21_obs": P21_obs,
++            "orientation_factor_Cs": C_s,
++            "P32_eff_raw": P32_eff,
++            "P32_eff_corrected": P32_eff_corrected,
++            "selection_weight": selection_weight,
++            "radius_range_eff": [r_min, r_max],
++            "size_model_used": size_model,
+         },
+     )
++
++
+diff --git a/scripts/validate_inversion_results.py b/scripts/validate_inversion_results.py
+index 048e901..bdaae4b 100644
+--- a/scripts/validate_inversion_results.py
++++ b/scripts/validate_inversion_results.py
+@@ -64,15 +64,64 @@ METHOD_A = {
+ }
+ 
+ # ---------------------------------------------------------------------------
+-# Method B: Raw CSV-normal Fisher MLE
++# Method B: Raw CSV-normal Fisher MLE (Dynamically computed)
+ # ---------------------------------------------------------------------------
+-METHOD_B = {
+-    "S1": dict(trend=160.58, plunge=6.28,  kappa=18.51, kr=None, P32=None),
+-    "S2": dict(trend=279.14, plunge=0.91,  kappa=16.68, kr=None, P32=None),
+-    "S3": dict(trend=216.25, plunge=0.96,  kappa=10.02, kr=None, P32=None),
+-    "S4": dict(trend=185.76, plunge=64.31, kappa=11.88, kr=None, P32=None),
+-    "S5": dict(trend=66.41,  plunge=29.12, kappa=13.40, kr=None, P32=None),
+-}
++def _compute_method_b_dynamically() -> dict:
++    import pandas as pd
++    from dfnrec.geometry.vector import trend_plunge_from_normal, normalize
++    from dfnrec.orientation.fisher_mle import _kappa_mle
++    
++    csv_path = "storage/output/ground_truth_traces_with_normals.csv"
++    if not os.path.exists(csv_path):
++        return {
++            "S1": dict(trend=160.58, plunge=6.28,  kappa=18.51, kr=None, P32=None),
++            "S2": dict(trend=279.14, plunge=0.91,  kappa=16.68, kr=None, P32=None),
++            "S3": dict(trend=216.25, plunge=0.96,  kappa=10.02, kr=None, P32=None),
++            "S4": dict(trend=185.76, plunge=64.31, kappa=11.88, kr=None, P32=None),
++            "S5": dict(trend=66.41,  plunge=29.12, kappa=13.40, kr=None, P32=None),
++        }
++        
++    df = pd.read_csv(csv_path)
++    res_b = {}
++    for s_idx in [1, 2, 3, 4, 5]:
++        sid = f"S{s_idx}"
++        df_sub = df[df["set_id"] == s_idx]
++        if len(df_sub) == 0:
++            continue
++            
++        normals = df_sub[["normal_x", "normal_y", "normal_z"]].values
++        valid_normals = []
++        T = np.zeros((3, 3))
++        for n_vec in normals:
++            try:
++                n_unit = normalize(n_vec)
++                valid_normals.append(n_unit)
++                T += np.outer(n_unit, n_unit)
++            except ValueError:
++                continue
++        if len(valid_normals) < 2:
++            continue
++        T /= len(valid_normals)
++        
++        evals, evecs = np.linalg.eigh(T)
++        mean_dir = evecs[:, 2]
++        
++        flipped = []
++        for n_unit in valid_normals:
++            if np.dot(n_unit, mean_dir) < 0:
++                flipped.append(-n_unit)
++            else:
++                flipped.append(n_unit)
++        flipped = np.array(flipped)
++        R = float(np.sum(np.dot(flipped, mean_dir)))
++        R_bar = R / len(valid_normals)
++        kappa = _kappa_mle(min(R_bar, 1.0 - 1e-9))
++        
++        trend, plunge = trend_plunge_from_normal(mean_dir)
++        res_b[sid] = dict(trend=trend, plunge=plunge, kappa=kappa, kr=None, P32=None)
++    return res_b
++
++METHOD_B = _compute_method_b_dynamically()
+ 
+ 
+ # ---------------------------------------------------------------------------
+diff --git a/tests/dfnrec/test_geometry.py b/tests/dfnrec/test_geometry.py
+index 30bc8f7..a3b42ad 100644
+--- a/tests/dfnrec/test_geometry.py
++++ b/tests/dfnrec/test_geometry.py
+@@ -65,6 +65,46 @@ class TestVector:
+             assert abs(t2 - trend) < 0.5 or abs(t2 - (trend + 360) % 360) < 0.5
+             assert abs(p2 - plunge) < 0.5
+ 
++    def test_gt_watson_mean_poles(self):
++        import os
++        import h5py
++        h5_path = "storage/data/dfn_export_for_python.h5"
++        if not os.path.exists(h5_path):
++            pytest.skip("dfn_export_for_python.h5 not found")
++            
++        with h5py.File(h5_path, "r") as f:
++            normals = f["/fractures/normals"][:]
++            set_ids = f["/fractures/set_id"][:].flatten()
++            
++        gt_orientations = {
++            1: (338.1, 4.5),
++            2: (100.4, 0.2),
++            3: (212.9, 0.9),
++            4: (3.3, 62.1),
++            5: (243.0, 24.4),
++        }
++        
++        for s_idx, (gt_trend, gt_plunge) in gt_orientations.items():
++            mask = (set_ids == s_idx)
++            s_normals = normals[mask]
++            
++            N = len(s_normals)
++            T = np.zeros((3, 3))
++            for n_vec in s_normals:
++                n_vec = n_vec / np.linalg.norm(n_vec)
++                T += np.outer(n_vec, n_vec)
++            T /= N
++            
++            evals, evecs = np.linalg.eigh(T)
++            mean_dir = evecs[:, 2]
++            
++            trend, plunge = trend_plunge_from_normal(mean_dir)
++            n_gt = normal_from_trend_plunge(gt_trend, gt_plunge)
++            err_rad = axial_angle(mean_dir, n_gt)
++            err_deg = math.degrees(err_rad)
++            
++            assert err_deg < 0.2, f"Set S{s_idx} error is {err_deg:.4f}°, which exceeds 0.2° (trend={trend:.2f}, plunge={plunge:.2f})"
++
+ 
+ # ======================================================================
+ # plane.py
+diff --git a/tests/dfnrec/test_orientation.py b/tests/dfnrec/test_orientation.py
+index 918d290..30f698c 100644
+--- a/tests/dfnrec/test_orientation.py
++++ b/tests/dfnrec/test_orientation.py
+@@ -22,6 +22,8 @@ def _make_disc_from_normal(i, normal, set_id="S1"):
+         radius_m=1.0,
+         trend_deg=t,
+         plunge_deg=p,
++        normal_source="multi_face_svd",
++        n_faces_observed=2,
+     )
+ 
+ 
+@@ -78,7 +80,8 @@ class TestFisherMLE:
+ 
+         for sid, true_ori in gt.dfn_params.orientation.items():
+             result = estimate_fisher_orientation(
+-                discs, set_id=sid, faces=faces, n_bootstrap=100
++                discs, set_id=sid, faces=faces, n_bootstrap=100,
++                exclude_single_face_fallback=False
+             )
+             assert result is not None
+             # Mean pole error < 30 degrees (loose, large stat uncertainty for small N)
+diff --git a/tests/dfnrec/test_size_intensity.py b/tests/dfnrec/test_size_intensity.py
+index b32298b..be289e6 100644
+--- a/tests/dfnrec/test_size_intensity.py
++++ b/tests/dfnrec/test_size_intensity.py
+@@ -66,12 +66,14 @@ class TestSizeModel:
+     def test_estimate_size_model_returns_alpha_in_range(self):
+         gen = SyntheticDFNGenerator(seed=10)
+         gt = gen.generate(n_sets=1, n_faces=4)
+-        # Set 1 has k_r=2.5 → alpha=3.5
++        # Set 1 has k_r=2.5 → alpha=3.5; force POWER_LAW to test power-law alpha range
+         alpha, r_min_used = estimate_size_model(
+-            gt.traces, set_id="S1", r_min=0.5, r_max=15.0, L_min=0.1
++            gt.traces, set_id="S1", r_min=0.5, r_max=15.0, L_min=0.1,
++            force_model="POWER_LAW",
+         )
+         assert 1.5 <= alpha <= 6.0
+-        assert r_min_used == 0.5
++        # r_min_used is the MLE-optimal r_min (may differ from the input r_min hint)
++        assert 0.0 < r_min_used <= 1.5
+ 
+     def test_estimate_size_model_empty_traces(self):
+         """Empty trace list should return default alpha."""
+diff --git a/trace_analysis/intensity_estimator.py b/trace_analysis/intensity_estimator.py
+index edebcbc..57fa772 100644
+--- a/trace_analysis/intensity_estimator.py
++++ b/trace_analysis/intensity_estimator.py
+@@ -1,8 +1,14 @@
+-"""Estimate P21, P30, and P32 from corrected traces and radius distributions."""
++"""Estimate P21, P30, and P32 from corrected traces and radius distributions.
++
++T4: Adds geometry-based observation probability (p_obs) estimation and
++selection-weight correction.  The uncorrected, censored-only, and
++selection-corrected P32 values are printed side-by-side for each set.
++"""
+ 
+ from __future__ import annotations
+ 
+-from typing import Dict, List
++import math
++from typing import Dict, List, Optional
+ 
+ import numpy as np
+ import pandas as pd
+@@ -29,15 +35,73 @@ def _expected_radius_square(radius_info: Dict[str, object]) -> float:
+     return float(std**2 + mean**2)
+ 
+ 
++def estimate_p_obs(
++    r_min: float,
++    C_s: float,
++    face_area: float,
++    method: str = "scalar_baseline",
++) -> float:
++    """Estimate observation probability p_obs(r, n) using face geometry.
++
++    Parameters
++    ----------
++    r_min : float
++        Minimum observed radius (from MLE) [m].
++    C_s : float
++        Orientation factor |n x m_face| (dimensionless, in [0, 1]).
++    face_area : float
++        Total observation window area [m^2].
++    method : str
++        ``'scalar_baseline'``: p_obs = min(1, 2*r_min*C_s / sqrt(face_area)).
++        This is the conservative lower bound for a circular window.
++        A Monte Carlo or geometry-kernel implementation can be substituted
++        by the caller.
++
++    Returns
++    -------
++    float
++        p_obs in (0, 1].  Clamped to [0.01, 1.0].
++    """
++    if method == "scalar_baseline":
++        if face_area <= 1e-9 or r_min <= 0.0:
++            return 1.0
++        window_length = math.sqrt(max(face_area, 1e-9))
++        p_obs = min(1.0, 2.0 * r_min * max(C_s, 0.01) / window_length)
++    else:
++        # Placeholder: future Monte Carlo kernel goes here
++        p_obs = 1.0
++
++    return float(max(min(p_obs, 1.0), 0.01))
++
++
+ def estimate_intensity_parameters(
+     corrected_df: pd.DataFrame,
+     set_stats_df: pd.DataFrame,
+     correction_summary: Dict[int, Dict[str, object]],
+     radius_distributions: Dict[int, Dict[str, object]],
++    apply_selection_correction: bool = False,
++    p_obs_method: str = "scalar_baseline",
+ ) -> Dict[int, Dict[str, object]]:
+-    """Estimate intensity parameters by set, with explicit warnings for weak assumptions."""
++    """Estimate intensity parameters by set, with explicit warnings for weak assumptions.
++
++    T4 extension: when ``apply_selection_correction=True``, computes p_obs
++    from face geometry and reports uncorrected / selection-corrected P32
++    side by side in a [T4 CORRECTION] table.
++
++    Parameters
++    ----------
++    corrected_df, set_stats_df, correction_summary, radius_distributions :
++        Standard pipeline inputs (unchanged).
++    apply_selection_correction : bool
++        If True, divide P32 by the estimated p_obs.
++    p_obs_method : str
++        Method passed to ``estimate_p_obs()``.
++    """
+     stats_map = {int(row["set_id"]): row for _, row in set_stats_df.iterrows()}
+     results: Dict[int, Dict[str, object]] = {}
++
++    correction_rows: List[Dict[str, object]] = []  # for T4 comparison table
++
+     for set_id, group in corrected_df.groupby("set_id", sort=True):
+         stats_row = stats_map[int(set_id)]
+         area = float(stats_row["observation_window_area"])
+@@ -65,14 +129,55 @@ def estimate_intensity_parameters(
+             estimated_p32 = orientation_corrected_p21
+             estimated_p30 = float(estimated_p32 / e_pi_r2)
+ 
++        # --- T4: p_obs observation-selection correction ---
++        p_obs = 1.0
++        p32_selection_corrected = estimated_p32
++        p30_selection_corrected = estimated_p30
++
++        if apply_selection_correction:
++            r_min_est = float(radius_info["radius_distribution"].get("r_min", 0.5))
++            C_s = q_set if np.isfinite(q_set) else 0.5
++            p_obs = estimate_p_obs(r_min=r_min_est, C_s=C_s, face_area=area, method=p_obs_method)
++            if p_obs > 1e-6:
++                p32_selection_corrected = float(estimated_p32 / p_obs)
++                if np.isfinite(e_pi_r2) and e_pi_r2 > 0:
++                    p30_selection_corrected = float(p32_selection_corrected / e_pi_r2)
++
++        correction_rows.append({
++            "set_id": int(set_id),
++            "P32_uncorrected": estimated_p32,
++            "P32_selection_corrected": p32_selection_corrected,
++            "p_obs": p_obs,
++            "apply_selection_correction": apply_selection_correction,
++        })
++
+         results[int(set_id)] = {
+             "set_id": int(set_id),
+             "observed_P21": observed_p21,
+             "corrected_P21": corrected_p21,
+             "orientation_corrected_P21": orientation_corrected_p21,
+-            "estimated_P32": estimated_p32,
+-            "estimated_P30": estimated_p30,
++            "estimated_P32": p32_selection_corrected,
++            "estimated_P32_uncorrected": estimated_p32,
++            "estimated_P30": p30_selection_corrected,
++            "p_obs": p_obs,
+             "method": method,
+             "warnings": warnings,
+         }
++
++    # --- T4: Print comparison table ---
++    if correction_rows:
++        print("\n[T4 CORRECTION] Selection-weight correction comparison:")
++        print(f"  {'set_id':>6}  {'P32_uncorr':>12}  {'P32_sel_corr':>14}  {'p_obs':>8}  {'corrected?':>10}")
++        print(f"  {'-'*6}  {'-'*12}  {'-'*14}  {'-'*8}  {'-'*10}")
++        for row in correction_rows:
++            applied = "YES" if row["apply_selection_correction"] else "NO"
++            print(
++                f"  {row['set_id']:>6}  "
++                f"{row['P32_uncorrected']:>12.6f}  "
++                f"{row['P32_selection_corrected']:>14.6f}  "
++                f"{row['p_obs']:>8.4f}  "
++                f"{applied:>10}"
++            )
++
+     return results
++
+diff --git a/trace_analysis/run_set_trace_parameter_estimation.py b/trace_analysis/run_set_trace_parameter_estimation.py
+index d58f4e1..8e8bac7 100644
+--- a/trace_analysis/run_set_trace_parameter_estimation.py
++++ b/trace_analysis/run_set_trace_parameter_estimation.py
+@@ -184,6 +184,27 @@ def main() -> None:
+         default=0.05,
+         help="Boundary tolerance for censoring classification in Y-Z.",
+     )
++    parser.add_argument(
++        "--s4-set-id",
++        type=str,
++        default=None,
++        help="Set ID to force EXPONENTIAL size model (T5 S4 branch). "
++             "Example: --s4-set-id S4 or --s4-set-id 4. "
++             "This set will be reported with [S4 EXPONENTIAL] tag. "
++             "Its orientation (Fisher kappa) is still estimated normally.",
++    )
++    parser.add_argument(
++        "--selection-correction",
++        action="store_true",
++        default=False,
++        help="(T4) Apply geometry-based p_obs observation-selection correction to P32.",
++    )
++    parser.add_argument(
++        "--no-report",
++        action="store_true",
++        default=False,
++        help="(T6) Skip automatic diagnostic report generation.",
++    )
+     args = parser.parse_args()
+ 
+     os.makedirs(args.output_dir, exist_ok=True)
+@@ -221,6 +242,7 @@ def main() -> None:
+         set_stats_df=set_stats_df,
+         correction_summary=correction_summary,
+         radius_distributions=radius_distributions,
++        apply_selection_correction=args.selection_correction,
+     )
+     set_dfn_params = _build_set_dfn_params(
+         traces_csv=args.traces_csv,
+@@ -266,6 +288,21 @@ def main() -> None:
+         validation_summary_path=validation_summary_path,
+     )
+ 
++    # T6: Auto-generate diagnostic report (skippable with --no-report)
++    if not args.no_report:
++        try:
++            from trace_analysis.diagnostic_report import generate_report
++            generate_report(
++                output_dir=args.output_dir,
++                qc_df=qc_df,
++                set_stats_df=set_stats_df,
++                radius_distributions=radius_distributions,
++                intensity_parameters=intensity_parameters,
++                correction_summary=correction_summary,
++            )
++        except Exception as exc:  # noqa: BLE001
++            print(f"[T6 REPORT] Warning: diagnostic report generation failed: {exc}")
++
+ 
+ if __name__ == "__main__":
+     main()

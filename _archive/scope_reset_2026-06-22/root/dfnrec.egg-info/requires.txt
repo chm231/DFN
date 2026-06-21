@@ -1,0 +1,12 @@
+numpy
+scipy
+
+[cli]
+click
+
+[dev]
+pytest
+pytest-cov
+
+[geo]
+shapely

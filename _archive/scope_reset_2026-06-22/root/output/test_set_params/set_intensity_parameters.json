@@ -1,0 +1,77 @@
+{
+  "1": {
+    "set_id": 1,
+    "observed_P21": 1.0923062315321685,
+    "corrected_P21": 1.4085730406457646,
+    "orientation_corrected_P21": 1.4085730406457646,
+    "estimated_P32": 1.4085730406457646,
+    "estimated_P32_uncorrected": 1.4085730406457646,
+    "estimated_P30": 0.25372578946670227,
+    "p_obs": 1.0,
+    "method": "uncorrected_p21_proxy",
+    "warnings": [
+      "Orientation bias correction skipped because set normal data are unavailable.",
+      "Orientation correction was not applied to intensity."
+    ]
+  },
+  "2": {
+    "set_id": 2,
+    "observed_P21": 1.4145070767094234,
+    "corrected_P21": 1.9709768481896577,
+    "orientation_corrected_P21": 1.9709768481896577,
+    "estimated_P32": 1.9709768481896577,
+    "estimated_P32_uncorrected": 1.9709768481896577,
+    "estimated_P30": 0.28500428033302316,
+    "p_obs": 1.0,
+    "method": "uncorrected_p21_proxy",
+    "warnings": [
+      "Orientation bias correction skipped because set normal data are unavailable.",
+      "Orientation correction was not applied to intensity."
+    ]
+  },
+  "3": {
+    "set_id": 3,
+    "observed_P21": 2.7811841384289604,
+    "corrected_P21": 3.567088714367148,
+    "orientation_corrected_P21": 3.567088714367148,
+    "estimated_P32": 3.567088714367148,
+    "estimated_P32_uncorrected": 3.567088714367148,
+    "estimated_P30": 0.3330861361885938,
+    "p_obs": 1.0,
+    "method": "uncorrected_p21_proxy",
+    "warnings": [
+      "Orientation bias correction skipped because set normal data are unavailable.",
+      "Orientation correction was not applied to intensity."
+    ]
+  },
+  "4": {
+    "set_id": 4,
+    "observed_P21": 8.915671585838556,
+    "corrected_P21": 12.766146268084436,
+    "orientation_corrected_P21": 12.766146268084436,
+    "estimated_P32": 12.766146268084436,
+    "estimated_P32_uncorrected": 12.766146268084436,
+    "estimated_P30": 0.24144082371750603,
+    "p_obs": 1.0,
+    "method": "uncorrected_p21_proxy",
+    "warnings": [
+      "Orientation bias correction skipped because set normal data are unavailable.",
+      "Orientation correction was not applied to intensity."
+    ]
+  },
+  "5": {
+    "set_id": 5,
+    "observed_P21": 0.6215219423850362,
+    "corrected_P21": 0.8286033555838432,
+    "orientation_corrected_P21": 0.8286033555838432,
+    "estimated_P32": 0.8286033555838432,
+    "estimated_P32_uncorrected": 0.8286033555838432,
+    "estimated_P30": 0.22794960315574317,
+    "p_obs": 1.0,
+    "method": "uncorrected_p21_proxy",
+    "warnings": [
+      "Orientation bias correction skipped because set normal data are unavailable.",
+      "Orientation correction was not applied to intensity."
+    ]
+  }
+}

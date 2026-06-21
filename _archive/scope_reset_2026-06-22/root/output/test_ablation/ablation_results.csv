@@ -1,0 +1,6 @@
+condition,orientation_source,set_label_source,size_likelihood,selection_correction,set_id,size_model,kr_or_lambda,P32_total,P32_s,set_weight,clipping_ratio,CLIPPING_DOMINANT,boundary_hit,GT_in_CI
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,1,lognormal,N/A,1.4085730406457646,1.4085730406457646,0.06857243654073802,0.5531914893617021,False,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,2,lognormal,N/A,1.9709768481896577,1.9709768481896577,0.0959514920034158,0.7049180327868853,True,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,3,lognormal,N/A,3.567088714367148,3.567088714367148,0.17365373143091298,0.5568181818181818,False,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,4,lognormal,N/A,12.766146268084436,12.766146268084436,0.6214841045350883,0.8992805755395683,True,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,5,lognormal,N/A,0.8286033555838432,0.8286033555838432,0.040338235489844866,0.5,False,see log,N/A

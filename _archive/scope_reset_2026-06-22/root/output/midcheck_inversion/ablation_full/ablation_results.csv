@@ -1,0 +1,26 @@
+condition,orientation_source,set_label_source,size_likelihood,selection_correction,set_id,size_model,kr_or_lambda,P32_total,P32_s,set_weight,clipping_ratio,CLIPPING_DOMINANT,boundary_hit,GT_in_CI
+oracle3d|ori=gt_h5_normal|lbl=gt_h5|ll=censored|sel=none,gt_h5_normal,gt_h5,oracle_direct,none,1,pareto,kr=0.682,1.31,1.31,0.18631773574171528,,False,False,YES
+oracle3d|ori=gt_h5_normal|lbl=gt_h5|ll=censored|sel=none,gt_h5_normal,gt_h5,oracle_direct,none,2,pareto,kr=2.838,1.026,1.026,0.14592518845114494,,False,False,YES
+oracle3d|ori=gt_h5_normal|lbl=gt_h5|ll=censored|sel=none,gt_h5_normal,gt_h5,oracle_direct,none,3,pareto,kr=2.062,0.975,0.975,0.13867159721234534,,False,False,YES
+oracle3d|ori=gt_h5_normal|lbl=gt_h5|ll=censored|sel=none,gt_h5_normal,gt_h5,oracle_direct,none,4,exponential,"lambda=0.2002, mean=4.9943",2.32,2.32,0.3299672877257858,,False,False,YES
+oracle3d|ori=gt_h5_normal|lbl=gt_h5|ll=censored|sel=none,gt_h5_normal,gt_h5,oracle_direct,none,5,pareto,kr=0.838,1.4,1.4,0.19911819086900867,,False,False,YES
+gt_orientation|ori=gt_h5_trend_plunge|lbl=qc_csv|ll=censored|sel=none,gt_h5_trend_plunge,qc_csv,censored,none,1,pareto,kr=0.496,0.36991265390514577,0.36991265390514577,0.054229732737944916,0.5531914893617021,False,see log,N/A
+gt_orientation|ori=gt_h5_trend_plunge|lbl=qc_csv|ll=censored|sel=none,gt_h5_trend_plunge,qc_csv,censored,none,2,pareto,kr=0.396,2.4848745626509348,2.4848745626509348,0.36428622269956745,0.7049180327868853,True,see log,N/A
+gt_orientation|ori=gt_h5_trend_plunge|lbl=qc_csv|ll=censored|sel=none,gt_h5_trend_plunge,qc_csv,censored,none,3,pareto,kr=0.720,1.4191876439517417,1.4191876439517417,0.20805497142098733,0.5568181818181818,False,see log,N/A
+gt_orientation|ori=gt_h5_trend_plunge|lbl=qc_csv|ll=censored|sel=none,gt_h5_trend_plunge,qc_csv,censored,none,4,exponential,lambda=3.3948,2.2313923953454387,2.2313923953454387,0.3271253685311752,0.8992805755395683,True,see log,N/A
+gt_orientation|ori=gt_h5_trend_plunge|lbl=qc_csv|ll=censored|sel=none,gt_h5_trend_plunge,qc_csv,censored,none,5,pareto,kr=0.637,0.3158475137765243,0.3158475137765243,0.0463037046103251,0.5,False,see log,N/A
+gt_set_label|ori=mle|lbl=gt_h5|ll=censored|sel=none,mle,gt_h5,censored,none,1,pareto,kr=0.496,0.364913072866801,0.364913072866801,0.06248914070755732,0.5531914893617021,False,see log,N/A
+gt_set_label|ori=mle|lbl=gt_h5|ll=censored|sel=none,mle,gt_h5,censored,none,2,pareto,kr=0.396,1.5697200669085063,1.5697200669085063,0.2688049988505796,0.7049180327868853,True,see log,N/A
+gt_set_label|ori=mle|lbl=gt_h5|ll=censored|sel=none,mle,gt_h5,censored,none,3,pareto,kr=0.720,1.3803786990523257,1.3803786990523257,0.23638144305748526,0.5568181818181818,False,see log,N/A
+gt_set_label|ori=mle|lbl=gt_h5|ll=censored|sel=none,mle,gt_h5,censored,none,4,exponential,lambda=3.3948,2.2372807638917935,2.2372807638917935,0.3831207014832732,0.8992805755395683,True,see log,N/A
+gt_set_label|ori=mle|lbl=gt_h5|ll=censored|sel=none,mle,gt_h5,censored,none,5,pareto,kr=0.637,0.2873311900697286,0.2873311900697286,0.049203715901104624,0.5,False,see log,N/A
+trace_gt_both|ori=gt_h5_trend_plunge|lbl=gt_h5|ll=censored|sel=none,gt_h5_trend_plunge,gt_h5,censored,none,1,pareto,kr=0.496,0.36991265390514577,0.36991265390514577,0.054229732737944916,0.5531914893617021,False,see log,N/A
+trace_gt_both|ori=gt_h5_trend_plunge|lbl=gt_h5|ll=censored|sel=none,gt_h5_trend_plunge,gt_h5,censored,none,2,pareto,kr=0.396,2.4848745626509348,2.4848745626509348,0.36428622269956745,0.7049180327868853,True,see log,N/A
+trace_gt_both|ori=gt_h5_trend_plunge|lbl=gt_h5|ll=censored|sel=none,gt_h5_trend_plunge,gt_h5,censored,none,3,pareto,kr=0.720,1.4191876439517417,1.4191876439517417,0.20805497142098733,0.5568181818181818,False,see log,N/A
+trace_gt_both|ori=gt_h5_trend_plunge|lbl=gt_h5|ll=censored|sel=none,gt_h5_trend_plunge,gt_h5,censored,none,4,exponential,lambda=3.3948,2.2313923953454387,2.2313923953454387,0.3271253685311752,0.8992805755395683,True,see log,N/A
+trace_gt_both|ori=gt_h5_trend_plunge|lbl=gt_h5|ll=censored|sel=none,gt_h5_trend_plunge,gt_h5,censored,none,5,pareto,kr=0.637,0.3158475137765243,0.3158475137765243,0.0463037046103251,0.5,False,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,1,pareto,kr=0.496,0.364913072866801,0.364913072866801,0.06248914070755732,0.5531914893617021,False,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,2,pareto,kr=0.396,1.5697200669085063,1.5697200669085063,0.2688049988505796,0.7049180327868853,True,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,3,pareto,kr=0.720,1.3803786990523257,1.3803786990523257,0.23638144305748526,0.5568181818181818,False,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,4,exponential,lambda=3.3948,2.2372807638917935,2.2372807638917935,0.3831207014832732,0.8992805755395683,True,see log,N/A
+full|ori=mle|lbl=qc_csv|ll=censored|sel=none,mle,qc_csv,censored,none,5,pareto,kr=0.637,0.2873311900697286,0.2873311900697286,0.049203715901104624,0.5,False,see log,N/A

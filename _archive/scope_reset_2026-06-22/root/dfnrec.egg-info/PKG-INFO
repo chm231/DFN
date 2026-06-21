@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: dfnrec
+Version: 0.1.0
+Summary: DFN Reconstruction from Tunnel Face Traces
+Requires-Python: >=3.9
+Requires-Dist: numpy
+Requires-Dist: scipy
+Provides-Extra: geo
+Requires-Dist: shapely; extra == "geo"
+Provides-Extra: cli
+Requires-Dist: click; extra == "cli"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"

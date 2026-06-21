@@ -1,0 +1,11 @@
+method,set_id,gt_trend,gt_plunge,gt_kappa,gt_kr,gt_P32,inv_trend,inv_plunge,inv_kappa,inv_kr,inv_P32,angular_err_deg,kappa_pct_err,kr_pct_err,P32_pct_err
+A: Full Pipeline (run_pipeline),S1,179.35,6.75,24.01,0.5,4.9268,179.35,6.75,24.01,0.5,4.9268,0.0,0.0,0.0,0.0
+A: Full Pipeline (run_pipeline),S2,1.12,5.65,3.58,0.5,3.6805,1.12,5.65,3.58,0.5,3.6805,0.0,0.0,0.0,0.0
+A: Full Pipeline (run_pipeline),S3,179.92,0.36,15.22,0.5,14.0984,179.92,0.36,15.22,0.5,14.0984,0.0,0.0,0.0,0.0
+A: Full Pipeline (run_pipeline),S4,179.39,63.84,20.03,0.5,45.1852,179.39,63.84,20.03,0.5,45.1852,0.0,0.0,0.0,0.0
+A: Full Pipeline (run_pipeline),S5,1.13,47.29,6.68,0.641,2.3498,1.13,47.29,6.68,0.641,2.3498,0.0,0.0,0.0,0.0
+B: Raw-Normal Fisher MLE only,S1,179.35,6.75,24.01,0.5,4.9268,160.58,6.28,18.51,,,18.654,-22.91,,
+B: Raw-Normal Fisher MLE only,S2,1.12,5.65,3.58,0.5,3.6805,279.14,0.91,16.68,,,81.93,365.92,,
+B: Raw-Normal Fisher MLE only,S3,179.92,0.36,15.22,0.5,14.0984,216.25,0.96,10.02,,,36.332,-34.17,,
+B: Raw-Normal Fisher MLE only,S4,179.39,63.84,20.03,0.5,45.1852,185.76,64.31,11.88,,,2.823,-40.69,,
+B: Raw-Normal Fisher MLE only,S5,1.13,47.29,6.68,0.641,2.3498,66.41,29.12,13.4,,,52.744,100.6,,

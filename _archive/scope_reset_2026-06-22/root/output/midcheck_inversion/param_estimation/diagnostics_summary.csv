@@ -1,0 +1,6 @@
+set_id,n_traces,censored_ratio,CLIPPING_DOMINANT,boundary_hit,non_identifiable_flag,GT_in_CI,warnings_count,warnings
+1,47,0.5531914893617021,False,False,OK,N/A,1,P30 could not be estimated reliably from the radius model.
+2,61,0.7049180327868853,True,True,CLIPPING_DOMINANT;FLAT_PROFILE;BOUNDARY_HIT_LOWER,N/A,1,P30 could not be estimated reliably from the radius model.
+3,88,0.5568181818181818,False,False,OK,N/A,1,P30 could not be estimated reliably from the radius model.
+4,139,0.8992805755395683,True,True,CLIPPING_DOMINANT;FLAT_PROFILE;BOUNDARY_HIT_LOWER,N/A,0,
+5,32,0.5,False,False,OK,N/A,1,P30 could not be estimated reliably from the radius model.

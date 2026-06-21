@@ -1,0 +1,28 @@
+{
+  "input_file": "c:\\Users\\user\\OneDrive\\2026-1\\3D DFN modeling\\storage\\data\\dfn_export_for_python.h5",
+  "tunnel_dat": "c:\\Users\\user\\OneDrive\\2026-1\\3D DFN modeling\\storage\\data\\단면_폴리곤.dat",
+  "x_start": 0.0,
+  "x_end": 6.0,
+  "advance_step": 3.0,
+  "prediction_length": 6.0,
+  "domain_buffer": 10.0,
+  "n_observed_traces": 284,
+  "n_simulated_traces": 207,
+  "n_fracture_sets": 2,
+  "n_deterministic_fractures": 75,
+  "n_stochastic_fractures": 65,
+  "n_total_fractures": 140,
+  "P21_obs": 4.643694838511068,
+  "P21_sim": 4.715504440786828,
+  "errors": {
+    "p21_error": 0.0155,
+    "orientation_error": 0.0897,
+    "length_error": 0.2099,
+    "spatial_error": 0.0947,
+    "count_error": 0.2711,
+    "censoring_error": 0.291
+  },
+  "total_loss": 1.6968,
+  "p30_calibration_converged": false,
+  "elapsed_sec": 63.19
+}

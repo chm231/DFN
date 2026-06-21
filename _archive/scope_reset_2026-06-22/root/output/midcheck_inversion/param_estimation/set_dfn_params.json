@@ -1,0 +1,241 @@
+{
+  "metadata": {
+    "source_traces_csv": "storage/output/ground_truth_traces_with_normals.csv",
+    "coordinate_system": {
+      "x": "tunnel axis",
+      "y": "horizontal transverse on tunnel face",
+      "z": "vertical on tunnel face",
+      "face_model": "X = x_face_nominal \u00b1 dx"
+    },
+    "created_by": "run_set_trace_parameter_estimation.py"
+  },
+  "sets": [
+    {
+      "set_id": 1,
+      "n_traces": 47,
+      "observation": {
+        "p21_observed": 0.27307655788304214,
+        "p21_corrected": 0.27307655788304214,
+        "censored_ratio": 0.5531914893617021,
+        "length_min": 0.10056299581078486,
+        "length_mean": 1.7180959434375482,
+        "length_median": 1.7514192984902301,
+        "length_max": 3.870601776245757
+      },
+      "orientation": {
+        "mean_normal": [
+          -0.3383620337728239,
+          0.9397168223350041,
+          -0.049431042086130174
+        ],
+        "orientation_bias_factor": 0.9410160116071982,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "pareto",
+        "params": [
+          0.495801022076411,
+          0.1294384389083861
+        ],
+        "mean": 1.1077770854490039,
+        "std": 0.518832184668374,
+        "r_min": 0.1294384389083861,
+        "r_max": 2.38492659371214
+      },
+      "intensity": {
+        "P21": 0.29019331713245133,
+        "P30": null,
+        "P32": 0.364913072866801,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": [
+          "P30 could not be estimated reliably from the radius model."
+        ]
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    },
+    {
+      "set_id": 2,
+      "n_traces": 61,
+      "observation": {
+        "p21_observed": 0.35362676917735586,
+        "p21_corrected": 0.35362676917735586,
+        "censored_ratio": 0.7049180327868853,
+        "length_min": 0.002531684403712338,
+        "length_mean": 1.7142578568894626,
+        "length_median": 1.3309022669929234,
+        "length_max": 8.263085266620939
+      },
+      "orientation": {
+        "mean_normal": [
+          0.9582850021076391,
+          -0.2852748839456333,
+          -0.017552644398137685
+        ],
+        "orientation_bias_factor": 0.28581437111447355,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "pareto",
+        "params": [
+          0.39613700584667255,
+          0.07815888189124781
+        ],
+        "mean": 1.194325077403072,
+        "std": 0.8753056894691404,
+        "r_min": 0.07815888189124781,
+        "r_max": 4.988582845246252
+      },
+      "intensity": {
+        "P21": 1.2372602812044124,
+        "P30": null,
+        "P32": 1.5697200669085063,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": [
+          "P30 could not be estimated reliably from the radius model."
+        ]
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    },
+    {
+      "set_id": 3,
+      "n_traces": 88,
+      "observation": {
+        "p21_observed": 0.6952960346072401,
+        "p21_corrected": 0.6952960346072401,
+        "censored_ratio": 0.5568181818181818,
+        "length_min": 0.06862186801813923,
+        "length_mean": 2.3364039446133433,
+        "length_median": 1.9004831026667417,
+        "length_max": 8.083593294215543
+      },
+      "orientation": {
+        "mean_normal": [
+          -0.5047422489164938,
+          -0.862362862160434,
+          -0.03956710913352723
+        ],
+        "orientation_bias_factor": 0.8632700980334719,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "pareto",
+        "params": [
+          0.7202638689979641,
+          0.29770309705008113
+        ],
+        "mean": 1.4983114616317634,
+        "std": 1.1297016523965822,
+        "r_min": 0.29770309705008113,
+        "r_max": 5.061082087830861
+      },
+      "intensity": {
+        "P21": 0.8054211957429356,
+        "P30": null,
+        "P32": 1.3803786990523257,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": [
+          "P30 could not be estimated reliably from the radius model."
+        ]
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    },
+    {
+      "set_id": 4,
+      "n_traces": 139,
+      "observation": {
+        "p21_observed": 2.228917896459639,
+        "p21_corrected": 2.228917896459639,
+        "censored_ratio": 0.8992805755395683,
+        "length_min": 0.10093602540723523,
+        "length_mean": 4.7417660341921675,
+        "length_median": 4.500154938145464,
+        "length_max": 11.06984351318439
+      },
+      "orientation": {
+        "mean_normal": [
+          0.07732182603188127,
+          0.524153657028754,
+          -0.8481062899439425
+        ],
+        "orientation_bias_factor": 0.99700618614886,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "exponential",
+        "params": [
+          3.3948131769278485
+        ],
+        "mean": 3.3948131769278485,
+        "std": 1.7182824858432961,
+        "r_min": 0.5826045924305127,
+        "r_max": 7.199556753277754
+      },
+      "intensity": {
+        "P21": 2.23561089933583,
+        "P30": 0.03089646991369452,
+        "P32": 2.2372807638917935,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": []
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    },
+    {
+      "set_id": 5,
+      "n_traces": 32,
+      "observation": {
+        "p21_observed": 0.15538048559625905,
+        "p21_corrected": 0.15538048559625905,
+        "censored_ratio": 0.5,
+        "length_min": 0.2172385791370789,
+        "length_mean": 1.435844293412794,
+        "length_median": 1.560702420793181,
+        "length_max": 3.540381165738907
+      },
+      "orientation": {
+        "mean_normal": [
+          -0.7663182925180316,
+          -0.4353286827957264,
+          -0.47248831994832036
+        ],
+        "orientation_bias_factor": 0.6424611074238257,
+        "has_orientation_data": true
+      },
+      "radius_distribution": {
+        "type": "pareto",
+        "params": [
+          0.6371854806849653,
+          0.18251364248275376
+        ],
+        "mean": 0.9571226037911142,
+        "std": 0.3705051892576991,
+        "r_min": 0.18251364248275376,
+        "r_max": 1.948882111158028
+      },
+      "intensity": {
+        "P21": 0.24185197173928846,
+        "P30": null,
+        "P32": 0.2873311900697286,
+        "method": "orientation_corrected_p21_proxy",
+        "warnings": [
+          "P30 could not be estimated reliably from the radius model."
+        ]
+      },
+      "qc": {
+        "confidence": "baseline",
+        "warnings": []
+      }
+    }
+  ]
+}
