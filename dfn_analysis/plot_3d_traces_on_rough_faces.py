@@ -5,13 +5,12 @@ r"""
 $env:PYTHONPATH="."
 python dfn_analysis\plot_3d_traces_on_rough_faces.py `
   --rough-mesh-h5 storage\output\rough_face_mesh_collection\synthetic_rough_face_collection.h5 `
-  --trace-csv storage\output\trace_dataset_collection\trace_dataset_3d.csv `
+  --trace-h5 storage\output\trace_dataset_collection\trace_dataset_3d.h5 `
   --outdir storage\output\trace_visualization_collection
 ```
 """
 
 import argparse
-import csv
 import os
 from typing import Dict, List
 
@@ -58,29 +57,50 @@ def load_rough_face_collection_from_h5(h5_path: str) -> List[dict]:
     return faces
 
 
-def load_trace_rows(trace_csv_path: str) -> List[dict]:
-    """trace CSV를 읽고 수치형 컬럼을 적절히 변환한다."""
+def load_trace_rows(trace_h5_path: str) -> List[dict]:
+    """trace HDF5를 읽고 polyline vertex까지 복원한다."""
     rows = []
-    with open(trace_csv_path, "r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+    with h5py.File(trace_h5_path, "r") as f:
+        if "traces" not in f:
+            raise ValueError(f"Could not find /traces in: {trace_h5_path}")
+
+        grp = f["traces"]
+        n_rows = len(grp["trace_id"])
+        p0_xyz_all = grp["p0_xyz"][:].astype(np.float64)
+        p1_xyz_all = grp["p1_xyz"][:].astype(np.float64)
+        polyline_vertices_all = grp["polyline_vertices_xyz"][:].astype(np.float64) if "polyline_vertices_xyz" in grp else None
+        polyline_vertex_starts = grp["polyline_vertex_start"][:].astype(np.int64) if "polyline_vertex_start" in grp else None
+        polyline_vertex_counts = grp["polyline_vertex_count"][:].astype(np.int64) if "polyline_vertex_count" in grp else None
+
+        for idx in range(n_rows):
+            if polyline_vertices_all is not None and polyline_vertex_starts is not None and polyline_vertex_counts is not None:
+                start = int(polyline_vertex_starts[idx])
+                count = int(polyline_vertex_counts[idx])
+                polyline_xyz = polyline_vertices_all[start : start + count]
+            else:
+                polyline_xyz = np.vstack([p0_xyz_all[idx], p1_xyz_all[idx]]).astype(np.float64)
+
+            p0_endpoint_type = grp["p0_endpoint_type"][idx]
+            p1_endpoint_type = grp["p1_endpoint_type"][idx]
+            face_mesh_name = grp["face_mesh_name"][idx]
             rows.append(
                 {
-                    "trace_id": int(row["trace_id"]),
-                    "face_id": int(row["face_id"]),
-                    "face_x_m": float(row["face_x_m"]),
-                    "fracture_id": int(row["fracture_id"]),
-                    "set_id": int(row["set_id"]),
-                    "component_id": int(row["component_id"]),
-                    "p0_xyz": np.array([float(row["p0_x"]), float(row["p0_y"]), float(row["p0_z"])], dtype=np.float64),
-                    "p1_xyz": np.array([float(row["p1_x"]), float(row["p1_y"]), float(row["p1_z"])], dtype=np.float64),
-                    "observed_length_m": float(row["observed_length_m"]),
-                    "censoring_class": int(row["censoring_class"]),
-                    "is_closed_loop": int(row["is_closed_loop"]),
-                    "n_raw_segments": int(row["n_raw_segments"]),
-                    "p0_endpoint_type": row["p0_endpoint_type"],
-                    "p1_endpoint_type": row["p1_endpoint_type"],
-                    "face_mesh_name": row["face_mesh_name"],
+                    "trace_id": int(grp["trace_id"][idx]),
+                    "face_id": int(grp["face_id"][idx]),
+                    "face_x_m": float(grp["face_x_m"][idx]),
+                    "fracture_id": int(grp["fracture_id"][idx]),
+                    "set_id": int(grp["set_id"][idx]),
+                    "component_id": int(grp["component_id"][idx]),
+                    "p0_xyz": p0_xyz_all[idx],
+                    "p1_xyz": p1_xyz_all[idx],
+                    "polyline_xyz": polyline_xyz,
+                    "observed_length_m": float(grp["observed_length_m"][idx]),
+                    "censoring_class": int(grp["censoring_class"][idx]),
+                    "is_closed_loop": int(grp["is_closed_loop"][idx]),
+                    "n_raw_segments": int(grp["n_raw_segments"][idx]),
+                    "p0_endpoint_type": p0_endpoint_type.decode("utf-8") if isinstance(p0_endpoint_type, bytes) else str(p0_endpoint_type),
+                    "p1_endpoint_type": p1_endpoint_type.decode("utf-8") if isinstance(p1_endpoint_type, bytes) else str(p1_endpoint_type),
+                    "face_mesh_name": face_mesh_name.decode("utf-8") if isinstance(face_mesh_name, bytes) else str(face_mesh_name),
                 }
             )
     return rows
@@ -124,12 +144,11 @@ def plot_face_overlay(
 
     for row in trace_rows:
         color = set_color_map[row["set_id"]]
-        p0_xyz = row["p0_xyz"]
-        p1_xyz = row["p1_xyz"]
+        polyline_xyz = row["polyline_xyz"]
         ax.plot(
-            [p0_xyz[0], p1_xyz[0]],
-            [p0_xyz[1], p1_xyz[1]],
-            [p0_xyz[2], p1_xyz[2]],
+            polyline_xyz[:, 0],
+            polyline_xyz[:, 1],
+            polyline_xyz[:, 2],
             color=color,
             linewidth=2.0,
             alpha=0.95,
@@ -183,12 +202,11 @@ def plot_collection_overview(
 
     for row in trace_rows:
         color = set_color_map[row["set_id"]]
-        p0_xyz = row["p0_xyz"]
-        p1_xyz = row["p1_xyz"]
+        polyline_xyz = row["polyline_xyz"]
         ax.plot(
-            [p0_xyz[0], p1_xyz[0]],
-            [p0_xyz[1], p1_xyz[1]],
-            [p0_xyz[2], p1_xyz[2]],
+            polyline_xyz[:, 0],
+            polyline_xyz[:, 1],
+            polyline_xyz[:, 2],
             color=color,
             linewidth=1.4,
             alpha=0.95,
@@ -220,14 +238,14 @@ def main() -> None:
         description="Visualize extracted 3D traces on top of the synthetic rough face mesh collection."
     )
     parser.add_argument("--rough-mesh-h5", required=True, help="Rough face mesh collection HDF5")
-    parser.add_argument("--trace-csv", required=True, help="trace_dataset_3d.csv path")
+    parser.add_argument("--trace-h5", required=True, help="trace_dataset_3d.h5 path")
     parser.add_argument("--outdir", default="storage/output/trace_visualization_collection", help="Output directory")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
 
     rough_faces = load_rough_face_collection_from_h5(args.rough_mesh_h5)
-    trace_rows = load_trace_rows(args.trace_csv)
+    trace_rows = load_trace_rows(args.trace_h5)
     set_color_map = build_set_color_map([row["set_id"] for row in trace_rows])
 
     for face_mesh in rough_faces:

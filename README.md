@@ -60,7 +60,7 @@ python dfn_analysis/generate_synthetic_rough_face_mesh.py `
 $env:PYTHONPATH="."
 python dfn_analysis/export_setwise_3d_traces.py `
   --input storage/data/dfn_export_for_python.h5 `
-  --face-step 3.0 `
+  --rough-mesh-h5 storage/output/rough_face_mesh_collection/synthetic_rough_face_collection.h5 `
   --outdir storage/output/trace_dataset_collection
 ```
 

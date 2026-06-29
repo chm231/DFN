@@ -8,11 +8,13 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import h5py
 import numpy as np
 
+from dfn_analysis.estimate_fisher_kappa import estimate_fisher_k_axial, estimate_trace_normal_3pt
+
 # trace_dataset_3d.csv 컬럼 설명:
 # - trace_id:
 #   CSV 전체에서 각 trace row에 부여한 고유 번호
 # - face_id:
-#   몇 번째 rough face mesh 또는 flat face에서 추출된 trace인지 나타내는 번호
+#   몇 번째 rough face mesh에서 추출된 trace인지 나타내는 번호
 # - face_x_m:
 #   해당 face의 기준 x 좌표(m)
 # - fracture_id:
@@ -26,7 +28,7 @@ import numpy as np
 # - p1_x, p1_y, p1_z:
 #   trace 다른 쪽 끝점 p1의 전역 3D 좌표(m)
 # - observed_length_m:
-#   rough face mesh 또는 flat face 위에서 실제로 관측된 trace component 길이(m)
+#   rough face mesh 위에서 실제로 관측된 trace component 길이(m)
 # - censoring_class:
 #   trace 양 끝이 mesh/window 경계에서 잘렸는지 나타내는 분류
 #   0=안 잘림, 1=한쪽 잘림, 2=양쪽 잘림
@@ -40,7 +42,7 @@ import numpy as np
 # - p1_endpoint_type:
 #   p1 끝점의 유형 (예: mesh_boundary, disc_boundary, interior)
 # - face_mesh_name:
-#   trace를 만든 face mesh 이름 또는 flat mode 식별자
+#   trace를 만든 rough face mesh 이름
 
 
 def load_hdf5_dfn(h5_path: str) -> dict:
@@ -169,140 +171,6 @@ def signed_polygon_area(poly_yz: np.ndarray) -> float:
     return 0.5 * float(np.dot(y, np.roll(z, -1)) - np.dot(z, np.roll(y, -1)))
 
 
-def point_on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tol: float = 1e-9) -> bool:
-    ab = b - a
-    ap = point - a
-    cross = ab[0] * ap[1] - ab[1] * ap[0]
-    if abs(cross) > tol:
-        return False
-    dot = np.dot(ap, ab)
-    if dot < -tol:
-        return False
-    if dot - np.dot(ab, ab) > tol:
-        return False
-    return True
-
-
-def point_in_polygon(point_yz: np.ndarray, poly_yz: np.ndarray) -> bool:
-    y, z = float(point_yz[0]), float(point_yz[1])
-    inside = False
-    n = len(poly_yz)
-    for i in range(n):
-        a = poly_yz[i]
-        b = poly_yz[(i + 1) % n]
-        if point_on_segment(point_yz, a, b):
-            return True
-        yi, zi = a
-        yj, zj = b
-        intersects = ((zi > z) != (zj > z)) and (y < (yj - yi) * (z - zi) / (zj - zi + 1e-15) + yi)
-        if intersects:
-            inside = not inside
-    return inside
-
-
-def segment_intersection_2d(
-    p0: np.ndarray, p1: np.ndarray, q0: np.ndarray, q1: np.ndarray, tol: float = 1e-9
-) -> Optional[Tuple[float, np.ndarray]]:
-    r = p1 - p0
-    s = q1 - q0
-    rxs = r[0] * s[1] - r[1] * s[0]
-    qp = q0 - p0
-    qpxr = qp[0] * r[1] - qp[1] * r[0]
-    if abs(rxs) <= tol and abs(qpxr) <= tol:
-        return None
-    if abs(rxs) <= tol:
-        return None
-    t = (qp[0] * s[1] - qp[1] * s[0]) / rxs
-    u = (qp[0] * r[1] - qp[1] * r[0]) / rxs
-    if -tol <= t <= 1.0 + tol and -tol <= u <= 1.0 + tol:
-        point = p0 + np.clip(t, 0.0, 1.0) * r
-        return float(np.clip(t, 0.0, 1.0)), point
-    return None
-
-
-def clip_segment_to_polygon(
-    p0_yz: np.ndarray, p1_yz: np.ndarray, poly_yz: np.ndarray
-) -> List[Tuple[np.ndarray, np.ndarray, int]]:
-    t_values = []
-    if point_in_polygon(p0_yz, poly_yz):
-        t_values.append((0.0, p0_yz.copy(), True))
-    if point_in_polygon(p1_yz, poly_yz):
-        t_values.append((1.0, p1_yz.copy(), True))
-    for i in range(len(poly_yz)):
-        q0 = poly_yz[i]
-        q1 = poly_yz[(i + 1) % len(poly_yz)]
-        hit = segment_intersection_2d(p0_yz, p1_yz, q0, q1)
-        if hit is not None:
-            t_values.append((hit[0], hit[1], False))
-    if not t_values:
-        return []
-    t_values.sort(key=lambda item: item[0])
-    unique = []
-    for t_val, point, is_inside in t_values:
-        if unique and abs(t_val - unique[-1][0]) < 1e-8:
-            continue
-        unique.append((t_val, point, is_inside))
-    clipped = []
-    for idx in range(len(unique) - 1):
-        t0, p0, _ = unique[idx]
-        t1, p1, _ = unique[idx + 1]
-        if t1 - t0 < 1e-8:
-            continue
-        mid_t = 0.5 * (t0 + t1)
-        mid = p0_yz + mid_t * (p1_yz - p0_yz)
-        if point_in_polygon(mid, poly_yz):
-            n_clipped = int(t0 > 1e-8) + int(t1 < 1.0 - 1e-8)
-            clipped.append((p0.copy(), p1.copy(), n_clipped))
-    if not clipped and len(unique) == 1 and point_in_polygon(unique[0][1], poly_yz):
-        clipped.append((unique[0][1].copy(), unique[0][1].copy(), 0))
-    return clipped
-
-
-def intersect_disc_with_face(
-    center_xyz: np.ndarray,
-    normal_xyz: np.ndarray,
-    radius: float,
-    face_x: float,
-    poly_yz: np.ndarray,
-) -> List[dict]:
-    """기존 flat face용 analytic trace 계산."""
-    cx, cy, cz = center_xyz
-    nx, ny, nz = normal_xyz
-    yz_norm_sq = ny * ny + nz * nz
-    if yz_norm_sq < 1e-12:
-        return []
-    dist_to_line = abs(face_x - cx) / np.sqrt(yz_norm_sq)
-    if dist_to_line > radius + 1e-12:
-        return []
-    c_rhs = nx * (cx - face_x) + ny * cy + nz * cz
-    factor = (ny * cy + nz * cz - c_rhs) / yz_norm_sq
-    chord_mid_yz = np.array([cy - ny * factor, cz - nz * factor], dtype=np.float64)
-    chord_half_len = float(np.sqrt(max(radius * radius - dist_to_line * dist_to_line, 0.0)))
-    chord_dir_yz = np.array([-nz, ny], dtype=np.float64) / np.sqrt(yz_norm_sq)
-    full_p0_yz = chord_mid_yz - chord_half_len * chord_dir_yz
-    full_p1_yz = chord_mid_yz + chord_half_len * chord_dir_yz
-    clipped_segments = clip_segment_to_polygon(full_p0_yz, full_p1_yz, poly_yz)
-    rows = []
-    for component_id, (clip_p0_yz, clip_p1_yz, n_clipped) in enumerate(clipped_segments):
-        clip_p0_xyz = np.array([face_x, clip_p0_yz[0], clip_p0_yz[1]], dtype=np.float64)
-        clip_p1_xyz = np.array([face_x, clip_p1_yz[0], clip_p1_yz[1]], dtype=np.float64)
-        observed_length = float(np.linalg.norm(clip_p1_xyz - clip_p0_xyz))
-        rows.append(
-            {
-                "component_id": component_id,
-                "p0_xyz": clip_p0_xyz,
-                "p1_xyz": clip_p1_xyz,
-                "observed_length_m": observed_length,
-                "censoring_class": min(n_clipped, 2),
-                "is_closed_loop": 0,
-                "n_raw_segments": 1,
-                "p0_endpoint_type": "mesh_boundary" if n_clipped > 0 else "disc_boundary",
-                "p1_endpoint_type": "mesh_boundary" if n_clipped > 1 else "disc_boundary",
-            }
-        )
-    return rows
-
-
 def intersect_triangle_with_plane(
     v0: np.ndarray, v1: np.ndarray, v2: np.ndarray, center_xyz: np.ndarray, normal_xyz: np.ndarray
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
@@ -369,6 +237,57 @@ def clip_segment_to_disc(
 
 def _quantize_point(point_xyz: np.ndarray, tol: float) -> Tuple[int, int, int]:
     return tuple(np.round(point_xyz / tol).astype(np.int64).tolist())
+
+
+def build_component_polyline_xyz(
+    component_nodes: Sequence[Tuple[int, int, int]],
+    graph: Dict[Tuple[int, int, int], set],
+    point_map: Dict[Tuple[int, int, int], np.ndarray],
+) -> np.ndarray:
+    """connected trace component의 vertex들을 연결 순서대로 복원한다."""
+    degree_one_nodes = [node for node in component_nodes if len(graph[node]) == 1]
+    if degree_one_nodes:
+        start_key = min(degree_one_nodes)
+    else:
+        start_key = min(component_nodes)
+
+    polyline_keys = [start_key]
+    used_edges = set()
+    current = start_key
+    prev = None
+
+    while True:
+        next_key = None
+        for candidate in sorted(graph[current]):
+            edge_key = tuple(sorted((current, candidate)))
+            if edge_key in used_edges:
+                continue
+            if prev is not None and candidate == prev:
+                continue
+            next_key = candidate
+            break
+        if next_key is None:
+            for candidate in sorted(graph[current]):
+                edge_key = tuple(sorted((current, candidate)))
+                if edge_key not in used_edges:
+                    next_key = candidate
+                    break
+        if next_key is None:
+            break
+
+        used_edges.add(tuple(sorted((current, next_key))))
+        polyline_keys.append(next_key)
+        prev, current = current, next_key
+
+    if polyline_keys[0] != polyline_keys[-1]:
+        remaining_edges = set()
+        for node in component_nodes:
+            for nxt in graph[node]:
+                remaining_edges.add(tuple(sorted((node, nxt))))
+        if used_edges != remaining_edges and not degree_one_nodes:
+            polyline_keys.append(polyline_keys[0])
+
+    return np.vstack([point_map[key] for key in polyline_keys]).astype(np.float64)
 
 
 def extract_trace_components(
@@ -450,11 +369,17 @@ def extract_trace_components(
         p0_type = endpoint_type(p0_xyz, p0_key)
         p1_type = endpoint_type(p1_xyz, p1_key)
         censoring_class = int(p0_type == "mesh_boundary") + int(p1_type == "mesh_boundary")
+        polyline_xyz = build_component_polyline_xyz(
+            component_nodes=sorted(component_nodes),
+            graph=graph,
+            point_map=point_map,
+        )
 
         components.append(
             {
                 "p0_xyz": p0_xyz,
                 "p1_xyz": p1_xyz,
+                "polyline_xyz": polyline_xyz,
                 "observed_length_m": observed_length,
                 "censoring_class": min(censoring_class, 2),
                 "is_closed_loop": is_closed_loop,
@@ -572,21 +497,6 @@ def intersect_disc_with_face_mesh_segments(
     return segments
 
 
-def resolve_face_range(data: dict, args: argparse.Namespace) -> np.ndarray:
-    """flat mode에서 사용할 x=const face 위치들을 정한다."""
-    if args.face_x_csv:
-        return np.array([float(x.strip()) for x in args.face_x_csv.split(",") if x.strip()], dtype=np.float64)
-    if args.x_start is not None and args.x_end is not None:
-        return np.arange(args.x_start, args.x_end + 1e-9, args.face_step, dtype=np.float64)
-    if data["x_start"] is not None and data["x_end"] is not None:
-        return np.arange(data["x_start"], data["x_end"] + 1e-9, args.face_step, dtype=np.float64)
-    if data["crop_box"] is not None:
-        return np.arange(data["crop_box"][0], data["crop_box"][1] + 1e-9, args.face_step, dtype=np.float64)
-    xmin = float(np.min(data["centers"][:, 0]))
-    xmax = float(np.max(data["centers"][:, 0]))
-    return np.arange(xmin, xmax + 1e-9, args.face_step, dtype=np.float64)
-
-
 def write_csv(rows: Sequence[dict], csv_path: str) -> None:
     fieldnames = [
         "trace_id",
@@ -610,7 +520,7 @@ def write_csv(rows: Sequence[dict], csv_path: str) -> None:
         "face_mesh_name",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -632,6 +542,24 @@ def write_hdf5(rows: Sequence[dict], poly_yz: np.ndarray, face_x: np.ndarray, h5
     p0_endpoint_type = np.array([r["p0_endpoint_type"].encode("utf-8") for r in rows], dtype="S32")
     p1_endpoint_type = np.array([r["p1_endpoint_type"].encode("utf-8") for r in rows], dtype="S32")
     face_mesh_name = np.array([r["face_mesh_name"].encode("utf-8") for r in rows], dtype="S64")
+    trace_normal_xyz = np.array(
+        [
+            r["trace_normal_xyz"] if r["trace_normal_xyz"] is not None else np.array([np.nan, np.nan, np.nan], dtype=np.float32)
+            for r in rows
+        ],
+        dtype=np.float32,
+    ) if rows else np.zeros((0, 3), dtype=np.float32)
+    trace_normal_valid = np.array([r["trace_normal_valid"] for r in rows], dtype=np.uint8)
+    trace_normal_quality = np.array([r["trace_normal_quality"] for r in rows], dtype=np.float32)
+    trace_normal_reason = np.array([r["trace_normal_reason"].encode("utf-8") for r in rows], dtype="S32")
+    polyline_vertex_counts = np.array([len(r["polyline_xyz"]) for r in rows], dtype=np.int32)
+    polyline_vertex_starts = np.zeros(len(rows), dtype=np.int32)
+    if len(rows):
+        polyline_vertex_starts[1:] = np.cumsum(polyline_vertex_counts[:-1], dtype=np.int32)
+    if rows:
+        polyline_vertices_xyz = np.vstack([r["polyline_xyz"] for r in rows]).astype(np.float32)
+    else:
+        polyline_vertices_xyz = np.zeros((0, 3), dtype=np.float32)
 
     with h5py.File(h5_path, "w") as f:
         grp = f.create_group("traces")
@@ -650,54 +578,17 @@ def write_hdf5(rows: Sequence[dict], poly_yz: np.ndarray, face_x: np.ndarray, h5
         grp.create_dataset("face_mesh_name", data=face_mesh_name)
         grp.create_dataset("p0_xyz", data=p0)
         grp.create_dataset("p1_xyz", data=p1)
+        grp.create_dataset("trace_normal_xyz", data=trace_normal_xyz)
+        grp.create_dataset("trace_normal_valid", data=trace_normal_valid)
+        grp.create_dataset("trace_normal_quality", data=trace_normal_quality)
+        grp.create_dataset("trace_normal_reason", data=trace_normal_reason)
+        grp.create_dataset("polyline_vertex_start", data=polyline_vertex_starts)
+        grp.create_dataset("polyline_vertex_count", data=polyline_vertex_counts)
+        grp.create_dataset("polyline_vertices_xyz", data=polyline_vertices_xyz)
 
         meta = f.create_group("meta")
         meta.create_dataset("tunnel_poly_yz", data=poly_yz.astype(np.float32))
         meta.create_dataset("face_x_positions_m", data=face_x.astype(np.float32))
-
-
-def build_rows_flat_faces(data: dict, poly_yz: np.ndarray, face_x: np.ndarray) -> List[dict]:
-    """flat mode trace 레코드 생성."""
-    rows = []
-    trace_id = 1
-    for face_idx, x_face in enumerate(face_x, start=1):
-        face_trace_count = 0
-        for fracture_id in range(len(data["radii"])):
-            components = intersect_disc_with_face(
-                data["centers"][fracture_id],
-                data["normals"][fracture_id],
-                float(data["radii"][fracture_id]),
-                float(x_face),
-                poly_yz,
-            )
-            for seg in components:
-                rows.append(
-                    {
-                        "trace_id": trace_id,
-                        "face_id": int(face_idx),
-                        "face_x_m": float(x_face),
-                        "fracture_id": int(fracture_id),
-                        "set_id": int(data["set_ids"][fracture_id]),
-                        "component_id": int(seg["component_id"]),
-                        "p0_x": float(seg["p0_xyz"][0]),
-                        "p0_y": float(seg["p0_xyz"][1]),
-                        "p0_z": float(seg["p0_xyz"][2]),
-                        "p1_x": float(seg["p1_xyz"][0]),
-                        "p1_y": float(seg["p1_xyz"][1]),
-                        "p1_z": float(seg["p1_xyz"][2]),
-                        "observed_length_m": float(seg["observed_length_m"]),
-                        "censoring_class": int(seg["censoring_class"]),
-                        "is_closed_loop": int(seg["is_closed_loop"]),
-                        "n_raw_segments": int(seg["n_raw_segments"]),
-                        "p0_endpoint_type": seg["p0_endpoint_type"],
-                        "p1_endpoint_type": seg["p1_endpoint_type"],
-                        "face_mesh_name": "flat_face",
-                    }
-                )
-                trace_id += 1
-                face_trace_count += 1
-        print(f"[*] Flat face {face_idx}/{len(face_x)} @ x={x_face:.2f} m -> {face_trace_count} traces")
-    return rows
 
 
 def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[dict]:
@@ -739,6 +630,7 @@ def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[di
             graph_time += time.perf_counter() - t_graph_start
 
             for component_id, seg in enumerate(components):
+                normal_est = estimate_trace_normal_3pt(seg["polyline_xyz"])
                 rows.append(
                     {
                         "trace_id": trace_id,
@@ -759,6 +651,11 @@ def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[di
                         "n_raw_segments": int(seg["n_raw_segments"]),
                         "p0_endpoint_type": seg["p0_endpoint_type"],
                         "p1_endpoint_type": seg["p1_endpoint_type"],
+                        "trace_normal_xyz": None if normal_est["normal"] is None else normal_est["normal"].astype(np.float64),
+                        "trace_normal_valid": int(normal_est["valid"]),
+                        "trace_normal_quality": float(normal_est["quality"]),
+                        "trace_normal_reason": normal_est["reason"],
+                        "polyline_xyz": seg["polyline_xyz"].astype(np.float64),
                         "face_mesh_name": face_ctx["source_name"],
                     }
                 )
@@ -784,21 +681,40 @@ def print_summary(rows: Sequence[dict]) -> None:
     for set_id in set_ids:
         set_rows = [row for row in rows if row["set_id"] == set_id]
         total_length = sum(row["observed_length_m"] for row in set_rows)
-        print(f"    - Set {set_id}: {len(set_rows):,} traces, observed total length = {total_length:.3f} m")
+        valid_normals = [
+            row["trace_normal_xyz"]
+            for row in set_rows
+            if row["trace_normal_valid"] and row["trace_normal_xyz"] is not None
+        ]
+        fisher_stats = estimate_fisher_k_axial(np.vstack(valid_normals)) if valid_normals else {
+            "valid": False,
+            "kappa": np.nan,
+            "mean_normal": None,
+            "n": 0,
+            "resultant_length": 0.0,
+        }
+        valid_count = sum(int(row["trace_normal_valid"]) for row in set_rows)
+        mean_normal = fisher_stats["mean_normal"]
+        mean_normal_text = (
+            f"[{mean_normal[0]:+.4f}, {mean_normal[1]:+.4f}, {mean_normal[2]:+.4f}]"
+            if mean_normal is not None
+            else "None"
+        )
+        kappa_text = f"{fisher_stats['kappa']:.3f}" if np.isfinite(fisher_stats["kappa"]) else str(fisher_stats["kappa"])
+        print(
+            f"    - Set {set_id}: {len(set_rows):,} traces, observed total length = {total_length:.3f} m, "
+            f"valid_normals = {valid_count:,}, Fisher kappa = {kappa_text}, mean_normal = {mean_normal_text}"
+        )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Export per-set 3D trace datasets from flat faces or face-wise rough face mesh collections."
+        description="Export per-set 3D trace datasets from face-wise rough face mesh collections."
     )
     parser.add_argument("--input", required=True, help="Input HDF5 DFN file")
     parser.add_argument("--outdir", default="storage/output/trace_dataset_collection", help="Output directory")
     parser.add_argument("--tunnel-dat", help="Optional tunnel polygon .dat file when HDF5 has no tunnel polygon")
     parser.add_argument("--rough-mesh-h5", help="Optional HDF5 containing /rough_faces or legacy /rough_face")
-    parser.add_argument("--face-step", type=float, default=3.0, help="Face spacing along X (flat mode only)")
-    parser.add_argument("--x-start", type=float, help="Face range start (flat mode only)")
-    parser.add_argument("--x-end", type=float, help="Face range end (flat mode only)")
-    parser.add_argument("--face-x-csv", help="Explicit comma-separated face X positions for flat mode")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -814,22 +730,18 @@ def main() -> None:
     if signed_polygon_area(poly_yz) < 0.0:
         poly_yz = poly_yz[::-1].copy()
 
-    rough_faces = None
     rough_face_source = args.rough_mesh_h5 if args.rough_mesh_h5 else args.input
     try:
         rough_faces = load_rough_face_collection_from_h5(rough_face_source)
-    except ValueError:
-        rough_faces = None
+    except ValueError as exc:
+        raise ValueError(
+            f"Rough face collection is required. Could not find /rough_faces or /rough_face in: {rough_face_source}"
+        ) from exc
 
-    if rough_faces:
-        print(f"[*] Using face-wise rough face collection from: {rough_face_source}")
-        face_contexts = [precompute_face_mesh(face) for face in rough_faces]
-        rows = build_rows_rough_faces(data, face_contexts)
-        face_x = np.array([ctx["face_x"] for ctx in face_contexts], dtype=np.float64)
-    else:
-        print("[*] Rough face collection not found. Falling back to flat x=const face mode.")
-        face_x = resolve_face_range(data, args)
-        rows = build_rows_flat_faces(data, poly_yz, face_x)
+    print(f"[*] Using face-wise rough face collection from: {rough_face_source}")
+    face_contexts = [precompute_face_mesh(face) for face in rough_faces]
+    rows = build_rows_rough_faces(data, face_contexts)
+    face_x = np.array([ctx["face_x"] for ctx in face_contexts], dtype=np.float64)
 
     csv_path = os.path.join(args.outdir, "trace_dataset_3d.csv")
     h5_path = os.path.join(args.outdir, "trace_dataset_3d.h5")
