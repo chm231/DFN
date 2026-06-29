@@ -603,12 +603,17 @@ def main():
     tunnel_Y = None
     tunnel_Z = None
     
-    # Search for 단면_폴리곤.dat in root or storage
-    tunnel_file = os.path.join(_parent, "단면_폴리곤.dat")
-    if not os.path.exists(tunnel_file):
-        tunnel_file = os.path.join(_parent, "storage", "data", "단면_폴리곤.dat")
-        
-    if os.path.exists(tunnel_file):
+    # Search for the tunnel polygon DAT from the repo root first, then fall back to nearby locations.
+    tunnel_candidates = [
+        os.path.join(_project_root, "storage", "data", "단면_폴리곤.dat"),
+        os.path.join(_parent, "storage", "data", "단면_폴리곤.dat"),
+        os.path.join(_parent, "단면_폴리곤.dat"),
+        os.path.join(os.getcwd(), "storage", "data", "단면_폴리곤.dat"),
+        os.path.join(os.getcwd(), "단면_폴리곤.dat"),
+    ]
+    tunnel_file = next((path for path in tunnel_candidates if os.path.exists(path)), None)
+
+    if tunnel_file is not None:
         print(f"[*] Parsing tunnel file: {tunnel_file}")
         poly = read_tunnel_polygon(tunnel_file)
         if poly is not None:
@@ -827,4 +832,5 @@ def main():
 if __name__ == "__main__":
     _here = os.path.dirname(os.path.abspath(__file__))
     _parent = os.path.dirname(_here)
+    _project_root = os.path.dirname(_parent)
     main()
