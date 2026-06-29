@@ -31,7 +31,7 @@ $env:PYTHONPATH="."
 python dfn_analysis/export_setwise_3d_traces.py `
   --input storage/data/dfn_export_for_python.h5 `
   --face-step 3.0 `
-  --outdir storage/output/trace_dataset
+  --outdir storage/output/trace_dataset_collection
 ```
 
 출력:

@@ -348,7 +348,7 @@ def main() -> None:
         description="Export per-set 3D trace datasets where DFN discs intersect tunnel face polygons."
     )
     parser.add_argument("--input", required=True, help="Input HDF5 DFN file")
-    parser.add_argument("--outdir", default="storage/output/trace_dataset", help="Output directory")
+    parser.add_argument("--outdir", default="storage/output/trace_dataset_collection", help="Output directory")
     parser.add_argument("--tunnel-dat", help="Optional tunnel polygon .dat file. Used when HDF5 has no /tunnel/poly_YZ.")
     parser.add_argument("--face-step", type=float, default=3.0, help="Face spacing along X (m)")
     parser.add_argument("--x-start", type=float, help="Face range start (m)")
