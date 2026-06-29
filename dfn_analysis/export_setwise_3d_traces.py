@@ -8,7 +8,11 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import h5py
 import numpy as np
 
-from dfn_analysis.estimate_fisher_kappa import estimate_fisher_k_axial, estimate_trace_normal_3pt
+from dfn_analysis.estimate_fisher_kappa import (
+    estimate_fisher_k_axial,
+    estimate_trace_normal_3pt,
+)
+from dfn_analysis.estimate_mean_orientation import normal_to_trend_plunge_ned
 
 # trace_dataset_3d.csv 컬럼 설명:
 # - trace_id:
@@ -700,10 +704,17 @@ def print_summary(rows: Sequence[dict]) -> None:
             if mean_normal is not None
             else "None"
         )
+        trend_plunge_text = "None"
+        if mean_normal is not None:
+            trend, plunge = normal_to_trend_plunge_ned(mean_normal)
+            if trend is not None and plunge is not None:
+                trend_plunge_text = f"{trend:05.1f}° / {plunge:04.1f}°"
+
         kappa_text = f"{fisher_stats['kappa']:.3f}" if np.isfinite(fisher_stats["kappa"]) else str(fisher_stats["kappa"])
         print(
             f"    - Set {set_id}: {len(set_rows):,} traces, observed total length = {total_length:.3f} m, "
-            f"valid_normals = {valid_count:,}, Fisher kappa = {kappa_text}, mean_normal = {mean_normal_text}"
+            f"valid_normals = {valid_count:,}, Fisher kappa = {kappa_text}, "
+            f"mean_normal = {mean_normal_text}, Trend/Plunge = {trend_plunge_text}"
         )
 
 
