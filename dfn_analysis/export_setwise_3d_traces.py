@@ -3,7 +3,7 @@ import csv
 import os
 import re
 import time
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
@@ -87,7 +87,7 @@ def load_hdf5_dfn(h5_path: str) -> dict:
     }
 
 
-def _read_scalar(group: h5py.Group, key: str, default) -> object:
+def _read_scalar(group: h5py.Group, key: str, default: Any) -> Any:
     if key not in group:
         return default
     value = group[key][()]
@@ -263,7 +263,7 @@ def build_component_polyline_xyz(
     while True:
         next_key = None
         for candidate in sorted(graph[current]):
-            edge_key = tuple(sorted((current, candidate)))
+            edge_key = (current, candidate) if current < candidate else (candidate, current)
             if edge_key in used_edges:
                 continue
             if prev is not None and candidate == prev:
@@ -272,14 +272,14 @@ def build_component_polyline_xyz(
             break
         if next_key is None:
             for candidate in sorted(graph[current]):
-                edge_key = tuple(sorted((current, candidate)))
+                edge_key = (current, candidate) if current < candidate else (candidate, current)
                 if edge_key not in used_edges:
                     next_key = candidate
                     break
         if next_key is None:
             break
 
-        used_edges.add(tuple(sorted((current, next_key))))
+        used_edges.add((current, next_key) if current < next_key else (next_key, current))
         polyline_keys.append(next_key)
         prev, current = current, next_key
 
@@ -287,7 +287,7 @@ def build_component_polyline_xyz(
         remaining_edges = set()
         for node in component_nodes:
             for nxt in graph[node]:
-                remaining_edges.add(tuple(sorted((node, nxt))))
+                remaining_edges.add((node, nxt) if node < nxt else (nxt, node))
         if used_edges != remaining_edges and not degree_one_nodes:
             polyline_keys.append(polyline_keys[0])
 
@@ -317,7 +317,7 @@ def extract_trace_components(
         point_map.setdefault(k1, p1_xyz)
         graph.setdefault(k0, set()).add(k1)
         graph.setdefault(k1, set()).add(k0)
-        edge_key = tuple(sorted([k0, k1]))
+        edge_key = (k0, k1) if k0 < k1 else (k1, k0)
         edge_lengths[edge_key] = float(np.linalg.norm(p1_xyz - p0_xyz))
 
     components = []
@@ -341,7 +341,7 @@ def extract_trace_components(
         observed_length = 0.0
         for node in component_nodes:
             for nxt in graph[node]:
-                edge_key = tuple(sorted([node, nxt]))
+                edge_key = (node, nxt) if node < nxt else (nxt, node)
                 if edge_key not in component_edges:
                     component_edges.add(edge_key)
                     observed_length += edge_lengths[edge_key]
@@ -410,10 +410,11 @@ def precompute_face_mesh(face_mesh: dict, tol: float = 1e-8) -> dict:
 
     edge_counts: Dict[Tuple[int, int], int] = {}
     for tri in triangles:
+        t0, t1, t2 = int(tri[0]), int(tri[1]), int(tri[2])
         edges = [
-            tuple(sorted((int(tri[0]), int(tri[1])))),
-            tuple(sorted((int(tri[1]), int(tri[2])))),
-            tuple(sorted((int(tri[2]), int(tri[0])))),
+            (t0, t1) if t0 < t1 else (t1, t0),
+            (t1, t2) if t1 < t2 else (t2, t1),
+            (t2, t0) if t2 < t0 else (t0, t2),
         ]
         for edge in edges:
             edge_counts[edge] = edge_counts.get(edge, 0) + 1
@@ -699,18 +700,20 @@ def print_summary(rows: Sequence[dict]) -> None:
         }
         valid_count = sum(int(row["trace_normal_valid"]) for row in set_rows)
         mean_normal = fisher_stats["mean_normal"]
-        mean_normal_text = (
-            f"[{mean_normal[0]:+.4f}, {mean_normal[1]:+.4f}, {mean_normal[2]:+.4f}]"
-            if mean_normal is not None
-            else "None"
-        )
+        
+        mean_normal_text = "None"
         trend_plunge_text = "None"
-        if mean_normal is not None:
+        if mean_normal is not None and isinstance(mean_normal, np.ndarray):
+            mean_normal_text = (
+                f"[{mean_normal[0]:+.4f}, {mean_normal[1]:+.4f}, {mean_normal[2]:+.4f}]"
+            )
             trend, plunge = normal_to_trend_plunge_ned(mean_normal)
             if trend is not None and plunge is not None:
                 trend_plunge_text = f"{trend:05.1f}° / {plunge:04.1f}°"
 
-        kappa_text = f"{fisher_stats['kappa']:.3f}" if np.isfinite(fisher_stats["kappa"]) else str(fisher_stats["kappa"])
+        kappa_val = fisher_stats["kappa"]
+        kappa_float = float(kappa_val) if (isinstance(kappa_val, (int, float)) or isinstance(kappa_val, np.number)) else np.nan
+        kappa_text = f"{kappa_float:.3f}" if np.isfinite(kappa_float) else str(kappa_float)
         print(
             f"    - Set {set_id}: {len(set_rows):,} traces, observed total length = {total_length:.3f} m, "
             f"valid_normals = {valid_count:,}, Fisher kappa = {kappa_text}, "
