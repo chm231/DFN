@@ -74,6 +74,12 @@ def load_hdf5_dfn(h5_path: str) -> dict:
         x_start = float(f["/meta/x_start"][()]) if "/meta/x_start" in f else None
         x_end = float(f["/meta/x_end"][()]) if "/meta/x_end" in f else None
         crop_box = f["/meta/crop_box"][:].ravel() if "/meta/crop_box" in f else None
+        generation_rmin = float(np.asarray(f["/meta/generation_rmin"][()]).ravel()[0]) if "/meta/generation_rmin" in f else None
+        generation_rmax = float(np.asarray(f["/meta/generation_rmax"][()]).ravel()[0]) if "/meta/generation_rmax" in f else None
+        set_meta_ids = f["/meta/set_ids"][:].ravel().astype(np.int32) if "/meta/set_ids" in f else None
+        set_table_r0 = f["/meta/set_table_r0"][:].ravel().astype(np.float64) if "/meta/set_table_r0" in f else None
+        set_generation_rmin = f["/meta/set_generation_rmin"][:].ravel().astype(np.float64) if "/meta/set_generation_rmin" in f else None
+        set_effective_rmin = f["/meta/set_effective_rmin"][:].ravel().astype(np.float64) if "/meta/set_effective_rmin" in f else None
 
     return {
         "centers": centers.astype(np.float64),
@@ -84,6 +90,12 @@ def load_hdf5_dfn(h5_path: str) -> dict:
         "x_start": x_start,
         "x_end": x_end,
         "crop_box": crop_box.astype(np.float64) if crop_box is not None else None,
+        "generation_rmin": generation_rmin,
+        "generation_rmax": generation_rmax,
+        "set_meta_ids": set_meta_ids,
+        "set_table_r0": set_table_r0,
+        "set_generation_rmin": set_generation_rmin,
+        "set_effective_rmin": set_effective_rmin,
     }
 
 
@@ -243,6 +255,17 @@ def _quantize_point(point_xyz: np.ndarray, tol: float) -> Tuple[int, int, int]:
     return tuple(np.round(point_xyz / tol).astype(np.int64).tolist())
 
 
+def point_to_segment_distance(point_xyz: np.ndarray, seg0_xyz: np.ndarray, seg1_xyz: np.ndarray) -> float:
+    segment = seg1_xyz - seg0_xyz
+    seg_len_sq = float(np.dot(segment, segment))
+    if seg_len_sq < 1e-18:
+        return float(np.linalg.norm(point_xyz - seg0_xyz))
+    t = float(np.dot(point_xyz - seg0_xyz, segment) / seg_len_sq)
+    t = min(1.0, max(0.0, t))
+    closest = seg0_xyz + t * segment
+    return float(np.linalg.norm(point_xyz - closest))
+
+
 def build_component_polyline_xyz(
     component_nodes: Sequence[Tuple[int, int, int]],
     graph: Dict[Tuple[int, int, int], set],
@@ -298,9 +321,10 @@ def extract_trace_components(
     segments: List[Tuple[np.ndarray, np.ndarray]],
     center_xyz: np.ndarray,
     radius: float,
-    boundary_nodes: set,
+    boundary_segments_xyz: np.ndarray,
     tol: float = 1e-5,
     eps_disc: float = 5e-3,
+    eps_mesh: float = 5e-3,
 ) -> List[dict]:
     """세그먼트 집합에서 connected component별 p0/p1와 길이를 추출한다."""
     if not segments:
@@ -364,7 +388,14 @@ def extract_trace_components(
 
         def endpoint_type(point_xyz: np.ndarray, point_key: Tuple[int, int, int]) -> str:
             dist_to_disc_boundary = abs(np.linalg.norm(point_xyz - center_xyz) - radius)
-            if point_key in boundary_nodes:
+            if len(boundary_segments_xyz):
+                min_boundary_dist = min(
+                    point_to_segment_distance(point_xyz, segment_xyz[0], segment_xyz[1])
+                    for segment_xyz in boundary_segments_xyz
+                )
+            else:
+                min_boundary_dist = float("inf")
+            if min_boundary_dist < eps_mesh:
                 return "mesh_boundary"
             if dist_to_disc_boundary < eps_disc:
                 return "disc_boundary"
@@ -420,9 +451,11 @@ def precompute_face_mesh(face_mesh: dict, tol: float = 1e-8) -> dict:
             edge_counts[edge] = edge_counts.get(edge, 0) + 1
 
     boundary_vertex_ids = set()
+    boundary_segments_xyz = []
     for edge, count in edge_counts.items():
         if count == 1:
             boundary_vertex_ids.update(edge)
+            boundary_segments_xyz.append(vertices_xyz[list(edge)].astype(np.float64))
 
     boundary_nodes = {_quantize_point(vertices_xyz[idx], tol) for idx in boundary_vertex_ids}
     bbox_corners = np.array(
@@ -450,6 +483,7 @@ def precompute_face_mesh(face_mesh: dict, tol: float = 1e-8) -> dict:
         "mesh_bbox_max": mesh_bbox_max,
         "bbox_corners": bbox_corners,
         "boundary_nodes": boundary_nodes,
+        "boundary_segments_xyz": np.asarray(boundary_segments_xyz, dtype=np.float64),
     }
 
 
@@ -508,6 +542,7 @@ def write_csv(rows: Sequence[dict], csv_path: str) -> None:
         "face_id",
         "face_x_m",
         "fracture_id",
+        "radius_m",
         "set_id",
         "component_id",
         "p0_x",
@@ -531,12 +566,24 @@ def write_csv(rows: Sequence[dict], csv_path: str) -> None:
             writer.writerow(row)
 
 
-def write_hdf5(rows: Sequence[dict], poly_yz: np.ndarray, face_x: np.ndarray, h5_path: str) -> None:
+def write_hdf5(
+    rows: Sequence[dict],
+    poly_yz: np.ndarray,
+    face_x: np.ndarray,
+    h5_path: str,
+    generation_rmin: Optional[float] = None,
+    generation_rmax: Optional[float] = None,
+    set_meta_ids: Optional[np.ndarray] = None,
+    set_table_r0: Optional[np.ndarray] = None,
+    set_generation_rmin: Optional[np.ndarray] = None,
+    set_effective_rmin: Optional[np.ndarray] = None,
+) -> None:
     p0 = np.array([[r["p0_x"], r["p0_y"], r["p0_z"]] for r in rows], dtype=np.float32) if rows else np.zeros((0, 3), dtype=np.float32)
     p1 = np.array([[r["p1_x"], r["p1_y"], r["p1_z"]] for r in rows], dtype=np.float32) if rows else np.zeros((0, 3), dtype=np.float32)
     set_ids = np.array([r["set_id"] for r in rows], dtype=np.uint16)
     face_ids = np.array([r["face_id"] for r in rows], dtype=np.uint16)
     fracture_ids = np.array([r["fracture_id"] for r in rows], dtype=np.int32)
+    radius_m = np.array([r["radius_m"] for r in rows], dtype=np.float32) if rows else np.zeros((0,), dtype=np.float32)
     trace_ids = np.array([r["trace_id"] for r in rows], dtype=np.int32)
     component_ids = np.array([r["component_id"] for r in rows], dtype=np.int32)
     censoring = np.array([r["censoring_class"] for r in rows], dtype=np.uint8)
@@ -570,6 +617,7 @@ def write_hdf5(rows: Sequence[dict], poly_yz: np.ndarray, face_x: np.ndarray, h5
         grp = f.create_group("traces")
         grp.create_dataset("trace_id", data=trace_ids)
         grp.create_dataset("fracture_id", data=fracture_ids)
+        grp.create_dataset("radius_m", data=radius_m)
         grp.create_dataset("set_id", data=set_ids)
         grp.create_dataset("face_id", data=face_ids)
         grp.create_dataset("face_x_m", data=face_x_values)
@@ -594,6 +642,18 @@ def write_hdf5(rows: Sequence[dict], poly_yz: np.ndarray, face_x: np.ndarray, h5
         meta = f.create_group("meta")
         meta.create_dataset("tunnel_poly_yz", data=poly_yz.astype(np.float32))
         meta.create_dataset("face_x_positions_m", data=face_x.astype(np.float32))
+        if generation_rmin is not None:
+            meta.create_dataset("generation_rmin", data=np.array([generation_rmin], dtype=np.float32))
+        if generation_rmax is not None:
+            meta.create_dataset("generation_rmax", data=np.array([generation_rmax], dtype=np.float32))
+        if set_meta_ids is not None:
+            meta.create_dataset("set_ids", data=np.asarray(set_meta_ids, dtype=np.int32))
+        if set_table_r0 is not None:
+            meta.create_dataset("set_table_r0", data=np.asarray(set_table_r0, dtype=np.float32))
+        if set_generation_rmin is not None:
+            meta.create_dataset("set_generation_rmin", data=np.asarray(set_generation_rmin, dtype=np.float32))
+        if set_effective_rmin is not None:
+            meta.create_dataset("set_effective_rmin", data=np.asarray(set_effective_rmin, dtype=np.float32))
 
 
 def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[dict]:
@@ -630,7 +690,7 @@ def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[di
                 segments=segments,
                 center_xyz=data["centers"][fracture_id],
                 radius=float(data["radii"][fracture_id]),
-                boundary_nodes=face_ctx["boundary_nodes"],
+                boundary_segments_xyz=face_ctx["boundary_segments_xyz"],
             )
             graph_time += time.perf_counter() - t_graph_start
 
@@ -642,6 +702,7 @@ def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[di
                         "face_id": int(face_ctx["face_id"]),
                         "face_x_m": float(face_ctx["face_x"]),
                         "fracture_id": int(fracture_id),
+                        "radius_m": float(data["radii"][fracture_id]),
                         "set_id": int(data["set_ids"][fracture_id]),
                         "component_id": component_id,
                         "p0_x": float(seg["p0_xyz"][0]),
@@ -760,7 +821,18 @@ def main() -> None:
     csv_path = os.path.join(args.outdir, "trace_dataset_3d.csv")
     h5_path = os.path.join(args.outdir, "trace_dataset_3d.h5")
     write_csv(rows, csv_path)
-    write_hdf5(rows, poly_yz, face_x, h5_path)
+    write_hdf5(
+        rows,
+        poly_yz,
+        face_x,
+        h5_path,
+        data.get("generation_rmin"),
+        data.get("generation_rmax"),
+        data.get("set_meta_ids"),
+        data.get("set_table_r0"),
+        data.get("set_generation_rmin"),
+        data.get("set_effective_rmin"),
+    )
 
     print_summary(rows)
     print(f"[*] CSV written to: {csv_path}")

@@ -65,7 +65,7 @@ from matplotlib.colors import Normalize
 from scipy.ndimage import gaussian_filter
 
 
-def load_tunnel_polygon_from_dat(dat_path: str, scale: float = 0.001) -> np.ndarray:
+def load_tunnel_polygon_from_dat(dat_path: str, scale: float = 0.001, z_offset: float = 0.0) -> np.ndarray:
     """DAT 파일에서 터널 단면 [y, z] 좌표를 읽는다."""
     poly_y = []
     poly_z = []
@@ -75,7 +75,7 @@ def load_tunnel_polygon_from_dat(dat_path: str, scale: float = 0.001) -> np.ndar
             if not match:
                 continue
             poly_y.append(float(match.group(1)) * scale)
-            poly_z.append(float(match.group(2)) * scale)
+            poly_z.append(float(match.group(2)) * scale + z_offset)
 
     if not poly_y:
         raise ValueError(f"터널 단면 polygon을 읽지 못했습니다: {dat_path}")
@@ -197,6 +197,7 @@ def save_collection_hdf5(
     grid_y: np.ndarray,
     grid_z: np.ndarray,
     face_results: List[dict],
+    z_offset: float,
 ) -> None:
     """multi-face rough mesh collection을 독립 HDF5로 저장한다."""
     with h5py.File(out_path, "w") as f:
@@ -225,6 +226,9 @@ def save_collection_hdf5(
         grid = f.create_group("grid")
         grid.create_dataset("grid_y", data=grid_y.astype(np.float32))
         grid.create_dataset("grid_z", data=grid_z.astype(np.float32))
+
+        meta = f.create_group("meta")
+        meta.create_dataset("z_offset_m", data=np.array([z_offset], dtype=np.float32))
 
 
 def plot_intermediate_visualizations(
@@ -357,24 +361,30 @@ def print_summary(face_results: List[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="터널 단면 polygon 내부에 multi-face synthetic rough face mesh collection을 생성한다."
+        description="Generate a multi-face synthetic rough face mesh collection inside a tunnel polygon."
     )
-    parser.add_argument("--tunnel-dat", required=True, help="터널 단면 polygon DAT 파일")
-    parser.add_argument("--outdir", default="storage/output/rough_face_mesh_collection", help="출력 폴더")
-    parser.add_argument("--grid-step", type=float, default=0.20, help="Y-Z 격자 간격 (m)")
-    parser.add_argument("--amplitude", type=float, default=0.05, help="roughness RMS 진폭 (m)")
-    parser.add_argument("--corr-length", type=float, default=1.00, help="roughness 상관 길이 (m)")
-    parser.add_argument("--base-x", type=float, default=0.0, help="기준 face x 위치 (m)")
-    parser.add_argument("--face-step", type=float, default=3.0, help="face 간격 (m)")
-    parser.add_argument("--num-faces", type=int, default=1, help="생성할 face 개수")
-    parser.add_argument("--face-x-csv", help='명시적 face x 목록, 예: "0,3,6,9"')
-    parser.add_argument("--seed-base", type=int, default=42, help="base 난수 시드")
-    parser.add_argument("--out-h5", default="rough_face_mesh_collection.h5", help="출력 HDF5 파일명")
+    parser.add_argument("--tunnel-dat", required=True, help="Tunnel section polygon DAT file.")
+    parser.add_argument("--outdir", default="storage/output/rough_face_mesh_collection", help="Output directory.")
+    parser.add_argument("--grid-step", type=float, default=0.20, help="Y-Z grid spacing in meters.")
+    parser.add_argument("--amplitude", type=float, default=0.05, help="Roughness RMS amplitude in meters.")
+    parser.add_argument("--corr-length", type=float, default=1.00, help="Roughness correlation length in meters.")
+    parser.add_argument("--base-x", type=float, default=0.0, help="Base face x position in meters.")
+    parser.add_argument("--face-step", type=float, default=3.0, help="Face spacing in meters.")
+    parser.add_argument("--num-faces", type=int, default=1, help="Number of faces to generate.")
+    parser.add_argument("--face-x-csv", help='Explicit face x positions, e.g. "0,3,6,9".')
+    parser.add_argument("--seed-base", type=int, default=42, help="Base random seed.")
+    parser.add_argument("--out-h5", default="rough_face_mesh_collection.h5", help="Output HDF5 filename.")
+    parser.add_argument(
+        "--z-offset",
+        type=float,
+        default=-4.0,
+        help="Shift DAT polygon z coordinates in meters to match the DFN /tunnel/poly_YZ convention.",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
 
-    poly_yz = ensure_ccw_polygon(load_tunnel_polygon_from_dat(args.tunnel_dat))
+    poly_yz = ensure_ccw_polygon(load_tunnel_polygon_from_dat(args.tunnel_dat, z_offset=args.z_offset))
     grid_y, grid_z = build_regular_grid(poly_yz, args.grid_step)
     inside_mask = build_inside_mask(poly_yz, grid_y, grid_z)
     face_x_values = resolve_face_positions(args)
@@ -416,6 +426,7 @@ def main() -> None:
         grid_y=grid_y,
         grid_z=grid_z,
         face_results=face_results,
+        z_offset=args.z_offset,
     )
 
     # 각 face별로 개별 preview를 저장해 roughness 차이를 바로 비교할 수 있게 한다.

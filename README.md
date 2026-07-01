@@ -69,6 +69,43 @@ python dfn_analysis/export_setwise_3d_traces.py `
 - `trace_dataset_3d.csv`
 - `trace_dataset_3d.h5`
 
+### 4. Radius power-law estimation from censored trace lengths
+Script: [dfn_analysis/estimate_radius_powerlaw_from_traces.py](dfn_analysis/estimate_radius_powerlaw_from_traces.py)
+
+Purpose: Estimate set-wise radius power-law candidate `kr` using a size-biased radius-to-chord likelihood.
+
+Status: active experimental estimator. `P32` is not estimated in this step.
+
+Radius lower bound is a modeling choice. Current benchmarks distinguish `r >= 1.0 m` and `r >= 0.5 m` populations. P32 estimates and kr recovery should be interpreted only within the declared radius range.
+
+Previous direct trace-length Pareto fitting experiments were removed from the active tree because they treated observed trace length as Pareto-distributed directly and produced boundary-sensitive fits.
+
+### 5. Window clipping diagnostics
+Script: [dfn_analysis/diagnose_window_clipping_effects.py](dfn_analysis/diagnose_window_clipping_effects.py)
+
+Purpose: Diagnose whether rejected radius-to-chord fits are caused by finite face/window clipping and censoring structure.
+
+Status: diagnostic step before window-aware likelihood and P32 estimation.
+
+### 6. Window-aware Monte Carlo radius likelihood
+Script: [dfn_analysis/estimate_radius_powerlaw_window_mc.py](dfn_analysis/estimate_radius_powerlaw_window_mc.py)
+
+Purpose: Estimate set-wise radius power-law candidates with finite face/window clipping and censoring classes included through forward Monte Carlo simulation.
+
+Status: active experimental estimator. `P32` is not estimated in this step.
+
+Finite-window MC likelihood should use `proposal_area` center weighting for parameter recovery.
+Unweighted center sampling is retained only as a legacy diagnostic comparison mode.
+
 ## Dependencies
 
 최소 의존성은 [requirements.txt](requirements.txt)에 정리되어 있습니다.
+
+## Default Radius Population (r >= 0.5 m)
+The default radius population is now defined as r >= 0.5 m.
+Accordingly, generation_rmin, estimation_rmin, likelihood_rmin, and P32 labels default to 0.5 m and P32_r_ge_0p5m.
+Previous r >= 1.0 m outputs are retained only as legacy comparison benchmarks and should not be mixed with r >= 0.5 m results.
+
+본 프로젝트의 기본 DFN 반경 population은 r >= 0.5 m로 통일한다.
+P32 및 kr 추정값은 명시된 radius range 안에서만 해석해야 하며,
+P32_r_ge_0p5m와 P32_r_ge_1m는 직접 같은 값으로 비교하지 않는다.

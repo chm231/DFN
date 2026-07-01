@@ -132,6 +132,10 @@ def sample_radius(sizeDist, N, seed=None):
     
     dtype = sizeDist['type'].lower()
     if dtype == 'powerlaw':
+        # Case A:
+        # inverse CDF uses exponent kr
+        # -> survival exponent = kr (S_R(r) proportional to r^-kr)
+        # -> pdf exponent = kr + 1 (f_R(r) proportional to r^-(kr+1))
         k = sizeDist['kr']
         alpha = k + 1.0
         if np.abs(alpha - 1.0) < 1e-12:
@@ -139,6 +143,7 @@ def sample_radius(sizeDist, N, seed=None):
         else:
             r = (rmin**(1.0 - alpha) + U * (rmax**(1.0 - alpha) - rmin**(1.0 - alpha)))**(1.0 / (1.0 - alpha))
     elif dtype == 'exponential':
+        # Exponential survival function integration for inverse transform sampling
         lbl = 1.0 / sizeDist['r0']
         A = np.exp(-lbl * rmin)
         B = np.exp(-lbl * rmax)
@@ -459,8 +464,9 @@ def main():
     parser = argparse.ArgumentParser(description="Python-based 3D Rock Mass DFN Generator (Forsmark/Laxemar statistics)")
     parser.add_argument("--site", type=str, default="laxemar", choices=["forsmark", "laxemar"], help="Stratigraphic site parameter set")
     parser.add_argument("--output-dir", type=str, default="dfn_output_cube250m", help="Output folder directory")
-    parser.add_argument("--rmin", type=float, default=1.0, help="Explicit DFN lower size cutoff resolution")
+    parser.add_argument("--rmin", type=float, default=0.5, help="Explicit DFN lower size cutoff resolution")
     parser.add_argument("--rmax", type=float, default=250.0, help="Explicit DFN upper size limit")
+    parser.add_argument("--p32-label", default="P32_r_ge_0p5m", help="P32 population label for this generated DFN, e.g. P32_r_ge_0p5m")
     parser.add_argument("--size", type=float, default=250.0, help="Dimension of the model generation box (meters)")
     parser.add_argument("--validate",              action="store_true",  help="Run validation suite: size distribution + stereonet plots (= MATLAB run_validation_suite)")
     parser.add_argument("--no-export",              action="store_false", dest="export",          help="Skip HDF5 export (= MATLAB export_for_python=false)")
@@ -487,6 +493,7 @@ def main():
     
     # 2. Site configurations
     site = args.site.lower()
+    p32_label = args.p32_label or f"P32_r_ge_{str(args.rmin).replace('.', 'p')}m"
     sets: List[Dict[str, Any]] = []
     
     if site == "forsmark":
@@ -505,6 +512,11 @@ def main():
             {'name': 'Set_4', 'P32': 2.320, 'sizeDist': {'type': 'exponential', 'r0': 4.0, 'rmin': args.rmin, 'rmax': args.rmax}, 'trend': 3.3, 'plunge': 62.1, 'kappa': 10.13},
             {'name': 'Set_5', 'P32': 1.400, 'sizeDist': {'type': 'powerlaw', 'kr': 3.60, 'r0': 0.400, 'rmin': max(args.rmin, 0.400), 'rmax': args.rmax}, 'trend': 243.0, 'plunge': 24.4, 'kappa': 23.52}
         ]
+
+    set_meta_ids = np.array([idx + 1 for idx in range(len(sets))], dtype=np.int32)
+    set_table_r0 = np.array([float(seti["sizeDist"].get("r0", np.nan)) for seti in sets], dtype=np.float32)
+    set_generation_rmin = np.array([float(seti["sizeDist"]["rmin"]) for seti in sets], dtype=np.float32)
+    set_effective_rmin = np.array([float(seti["sizeDist"]["rmin"]) for seti in sets], dtype=np.float32)
         
     print(f"=========================================================")
     print(f" Rock Mass DFN Generator - Python Port ({args.site.upper()})")
@@ -679,6 +691,17 @@ def main():
             # Meta group
             f.create_dataset('/meta/domain_box', data=domain_box.reshape(1, 6), dtype=np.float32)
             f.create_dataset('/meta/crop_box', data=crop_box.reshape(1, 6), dtype=np.float32)
+            f.create_dataset('/meta/generation_rmin', data=np.array([args.rmin], dtype=np.float32))
+            f.create_dataset('/meta/generation_rmax', data=np.array([args.rmax], dtype=np.float32))
+            f.create_dataset('/meta/set_ids', data=set_meta_ids, dtype=np.int32)
+            f.create_dataset('/meta/set_table_r0', data=set_table_r0, dtype=np.float32)
+            f.create_dataset('/meta/set_generation_rmin', data=set_generation_rmin, dtype=np.float32)
+            f.create_dataset('/meta/set_effective_rmin', data=set_effective_rmin, dtype=np.float32)
+            f.create_dataset('/meta/p32_label', data=np.bytes_(p32_label))
+            f.create_dataset('/meta/site', data=np.bytes_(site))
+            f.create_dataset('/meta/powerlaw_pdf_convention', data=np.bytes_("f_R(r) proportional to r^-(kr+1)"))
+            f.create_dataset('/meta/powerlaw_survival_convention', data=np.bytes_("S_R(r) proportional to r^-kr"))
+            f.create_dataset('/meta/kr_parameter_interpretation', data=np.bytes_("survival exponent"))
             
             # File attributes
             f.attrs['created_by'] = 'generate_dfn.py'
