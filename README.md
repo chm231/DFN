@@ -97,6 +97,65 @@ Status: active experimental estimator. `P32` is not estimated in this step.
 Finite-window MC likelihood should use `proposal_area` center weighting for parameter recovery.
 Unweighted center sampling is retained only as a legacy diagnostic comparison mode.
 
+### 7. Integrated kr entrypoint
+Script: [dfn_analysis/estimate_kr.py](dfn_analysis/estimate_kr.py)
+
+Purpose: Run the active benchmark1 `kr` estimator from a single entrypoint and write both per-`lmin` fit outputs and best-per-set summaries.
+
+Example:
+
+```powershell
+$env:PYTHONPATH="."
+python dfn_analysis/estimate_kr.py `
+  --trace-h5 storage/output/laxemar_rmin0p5_trace_dataset_collection/trace_dataset_3d.h5 `
+  --site laxemar `
+  --target-set 1 2 3 5 `
+  --run-bootstrap `
+  --outdir storage/output/estimate_kr
+```
+
+If the trace input does not contain `/meta/tunnel_poly_yz`, provide `--tunnel-dat`.
+
+## Parsimonious Baseline Report (benchmark1)
+Script: [scripts/run_parsimonious_baseline_report.py](scripts/run_parsimonious_baseline_report.py)
+
+Purpose: Assemble the benchmark1 parsimonious baseline outputs — one common estimator applied to all fracture sets, followed by a validation-only GT comparison and a mismatch diagnostic table. GT is never used inside estimator fitting; it is read only after the GT-free common result table is written.
+
+The report is self-contained: it reads a curated input snapshot in `storage/output/benchmark1_parsimonious/inputs/` (with a fallback to the original experiment paths when present), so the legacy experiment outputs can be archived without breaking the baseline.
+
+Run:
+
+```powershell
+$env:PYTHONPATH="."
+python scripts/run_parsimonious_baseline_report.py
+```
+
+Outputs (`storage/output/benchmark1_parsimonious/`):
+- `common_estimator_results.csv`
+- `gt_comparison.csv`
+- `mismatch_diagnostics.csv`
+- `methodology_summary.md`
+
+Estimator definition: [docs/parsimonious_estimator_baseline.md](docs/parsimonious_estimator_baseline.md).
+
+## Active Files and Archived Experiments
+Active benchmark1 pipeline: DFN / trace input generation → common `kr`/`P32` estimator → validation-only GT comparison → mismatch diagnostics.
+
+Active scripts: the numbered scripts above, plus
+[dfn_analysis/estimate_p32_combined_bootstrap.py](dfn_analysis/estimate_p32_combined_bootstrap.py),
+[dfn_analysis/estimate_p32_mc_calibrated.py](dfn_analysis/estimate_p32_mc_calibrated.py),
+[dfn_analysis/build_p32_pilot_summary.py](dfn_analysis/build_p32_pilot_summary.py),
+[dfn_analysis/summarize_setwise_trace_statistics.py](dfn_analysis/summarize_setwise_trace_statistics.py),
+[dfn_analysis/diagnose_trace_length_km.py](dfn_analysis/diagnose_trace_length_km.py),
+[dfn_analysis/estimate_fisher_kappa.py](dfn_analysis/estimate_fisher_kappa.py),
+[dfn_analysis/estimate_mean_orientation.py](dfn_analysis/estimate_mean_orientation.py),
+[dfn_analysis/plot_setwise_trace_length_distribution.py](dfn_analysis/plot_setwise_trace_length_distribution.py), and
+[dfn_analysis/plot_3d_traces_on_rough_faces.py](dfn_analysis/plot_3d_traces_on_rough_faces.py).
+
+Final outputs: `storage/output/benchmark1_parsimonious/` (results, GT comparison, mismatch diagnostics, curated `inputs/` snapshot).
+
+Historical diagnostic scripts and intermediate experiment outputs have been moved to `_archive/benchmark1_legacy_cleanup_2026-07-01/`. The active benchmark1 baseline now focuses on a parsimonious trace-based estimator and its validation-only GT comparison. The archive is a preservation of experiment history, not a deletion; see its `MANIFEST.md` for the full moved-file list and reasons.
+
 ## Dependencies
 
 최소 의존성은 [requirements.txt](requirements.txt)에 정리되어 있습니다.

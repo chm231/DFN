@@ -1,55 +1,31 @@
 # Current Task
 
 ## Goal
-Completed: MC KM-emulated survival export and KM vs MC comparison refresh.
+Completed: benchmark1 parsimonious baseline report and legacy smoke/tmp archive cleanup.
 
 ## Status
-- `diagnose_trace_length_km.py` implemented and smoke-tested.
-- Full KM runs completed for:
-  - Laxemar Sets 1, 2, 3, 5
-  - Forsmark Sets 1, 2, 5
-- Final merged outputs created:
-  - `storage/output/trace_length_km_diagnostics/km_final_diagnostic_summary.csv`
-  - `storage/output/trace_length_km_diagnostics/km_final_diagnostic_report.md`
-- `window_mc_predicted_survival_curve.csv` exported for:
-  - `storage/output/window_mc_predicted_survival/laxemar/`
-  - `storage/output/window_mc_predicted_survival/forsmark/`
-- KM vs MC comparison outputs created:
-  - `storage/output/trace_length_km_diagnostics/laxemar_mc_comparison/`
-  - `storage/output/trace_length_km_diagnostics/forsmark_mc_comparison/`
-  - `storage/output/trace_length_km_diagnostics/km_mc_final_comparison_summary.csv`
-  - `storage/output/trace_length_km_diagnostics/km_mc_final_comparison_report.md`
-- `window_mc_predicted_survival_curve.csv` now exports:
-  - `mc_observed_visible_survival`
-  - `mc_km_emulated_survival`
-  - `mc_true_chord_survival`
-- KM vs MC consistency was re-evaluated using `mc_km_emulated_survival`.
+- `docs/parsimonious_estimator_baseline.md` added to state the common estimator and validation-only GT policy.
+- `scripts/run_parsimonious_baseline_report.py` added as a wrapper/reporting script; it does not modify the estimator.
+- Final report outputs created under `storage/output/benchmark1_parsimonious/`:
+  - `common_estimator_results.csv`
+  - `gt_comparison.csv`
+  - `mismatch_diagnostics.csv`
+  - `methodology_summary.md`
+- Legacy smoke/tmp artifacts were moved out of the active tree into `_archive/benchmark1_legacy_cleanup_2026-07-01/`.
 
 ## Key interpretation
-- KM is diagnostic-only.
-- It does not replace final `kr_hat`, `P32_hat`, or adoption status.
-- The earlier all-set mismatch was partly a comparison-definition problem.
-- Direct `observed KM` vs `MC visible survival` comparison remains diagnostic-only.
-- Primary consistency check now uses `observed KM` vs `mc_km_emulated_survival`.
-- Current best-lmin results:
-  - `mc_consistent_with_km`: Forsmark Sets 2, 5; Laxemar Set 5
-  - `mc_km_tail_mismatch`: Forsmark Set 1; Laxemar Sets 1, 2, 3
+- The benchmark objective is framework validation, not truth-tuned matching.
+- One parsimonious estimator is applied across sets.
+- Remaining mismatch should be discussed through observation limits, not patched with set-specific corrections.
 
 ## Next step
-- Diagnose the remaining KM-emulated mismatches for:
-  - Forsmark Set 1
-  - Laxemar Sets 1, 2, 3
-- Candidate causes:
-  - polygon clipping mismatch
-  - censoring-class handling difference
-  - lmin-fit interaction
-  - trace filtering mismatch
-  - face-level sampling variability
+- Use the new common result table and mismatch table to draft the benchmark1 Methods/Results text.
+- If deeper diagnosis is needed, keep it in auxiliary diagnostics without altering the common estimator.
 
 ## Do not change
 - Do not change the `kr` estimator.
 - Do not change `effective_rmin` logic.
 - Do not change the `unit_p32_forward_mc` estimator.
-- Do not replace accepted/provisional/rejected statuses using KM alone.
-- Do not use Kaplan-Meier outputs as direct `P32_hat` estimates.
-- Do not include Laxemar Set 4 in the power-law KM/kr recovery interpretation.
+- Do not add set-specific corrections, fudge factors, or GT-tuned rescaling.
+- Do not use benchmark truth inside estimator fitting logic.
+- Do not reinterpret Laxemar Set 4 as a power-law inversion target.

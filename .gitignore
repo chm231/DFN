@@ -8,6 +8,9 @@
 storage/data/
 storage/output/
 "dfn generator v1/src/main/dfn_output_*"
+# Archived experiment outputs (preserved on disk, kept out of git history)
+_archive/**/storage/output/
+_archive/**/storage/data/
 
 # Python
 __pycache__/

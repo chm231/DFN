@@ -10,6 +10,7 @@ DFN parameter inversion benchmark using synthetic Laxemar/Forsmark datasets.
 - Use `direction_mode = empirical_trace`.
 - Use `p32_label = P32_r_ge_0p5m`, but note that some sets have set-specific effective support.
 - Laxemar Set 4 is excluded from power-law `kr` inversion because it is exponential.
+- Keep `benchmark1` on one parsimonious common estimator and use benchmark truth only for validation.
 
 ## Power-law convention
 - PDF convention: `f_R(r | kr) proportional to r^-(kr+1)`
@@ -38,7 +39,7 @@ DFN parameter inversion benchmark using synthetic Laxemar/Forsmark datasets.
 - Global `rmin=0.5` likelihood results for Laxemar Sets 2/3 are diagnostic only.
 - `conditional_visible_trace_proxy` P32 results are scaffold only.
 - Forsmark Set 2 `oracle_marginal` interpretation was superseded by higher-resolution `oracle_pass`; provisional status remains because of residual `kr` systematic bias.
-- `check_dense_c_interpolation.py` is now a legacy diagnostic path; prefer `build_dense_ckr_table.py` plus `estimate_p32_combined_bootstrap.py --C-interpolation-mode log_linear_dense`.
+- The old dense interpolation spot-check has been archived; prefer `build_dense_ckr_table.py` plus `estimate_p32_combined_bootstrap.py --C-interpolation-mode log_linear_dense`.
 
 ## Codex workflow
 Before modifying code, read:

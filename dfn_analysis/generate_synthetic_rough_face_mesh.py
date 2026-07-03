@@ -1,29 +1,17 @@
 r"""
 실행 예시:
 
-```powershell
-# 현재 프로젝트 루트를 import 경로에 추가한다.
-$env:PYTHONPATH="."
-
-# multi-face rough face mesh collection을 생성해서
-# 별도 HDF5 파일로 저장한다.
+```
+$env:PYTHONPATH='.'
 python dfn_analysis\generate_synthetic_rough_face_mesh.py `
-  # 터널 단면 polygon DAT 파일 경로
-  --tunnel-dat storage\data\단면_폴리곤.dat `
-  # 결과 HDF5와 preview PNG를 저장할 폴더
-  --outdir storage\output\rough_face_mesh_collection `
-  # rough face를 생성할 막장면 x 위치 목록(m)
-  --face-x-csv "0,3,6,9" `
-  # Y-Z 평면 격자 간격(m). 작을수록 mesh가 촘촘해진다.
+  --tunnel-dat 'storage\data\단면_폴리곤.dat' `
+  --outdir 'storage\output\rough_face_mesh_collection' `
+  --face-x-csv "0,1,2,3" `
   --grid-step 0.2 `
-  # roughness의 RMS 진폭(m)
   --amplitude 0.05 `
-  # roughness field의 상관 길이(m). 클수록 더 완만해진다.
   --corr-length 1.0 `
-  # face별 난수 seed의 시작값. 각 face는 seed_base + face_idx 로 생성된다.
   --seed-base 42 `
-  # 저장할 HDF5 파일 이름
-  --out-h5 rough_face_mesh_collection.h5
+  --merge-collection-into-hdf5 'storage\data\dfn_export_for_python.h5'
 
 # 주요 parser 옵션 의미:
 # --tunnel-dat:
@@ -48,6 +36,10 @@ python dfn_analysis\generate_synthetic_rough_face_mesh.py `
 #   난수 seed 시작값이다. face별로 서로 다른 roughness를 만들기 위해 face index를 더해 사용한다.
 # --out-h5:
 #   outdir 아래에 저장할 HDF5 파일 이름이다.
+# --merge-collection-into-hdf5:
+#   생성한 multi-face collection을 기존 DFN HDF5 안의 /rough_faces 구조로 병합한다.
+# --merge-into-hdf5:
+#   이전 단일-face 워크플로우 호환용 alias다. 내부적으로 collection 병합으로 처리된다.
 ```
 """
 
@@ -61,11 +53,10 @@ import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
 import numpy as np
 from matplotlib.path import Path
-from matplotlib.colors import Normalize
 from scipy.ndimage import gaussian_filter
 
 
-def load_tunnel_polygon_from_dat(dat_path: str, scale: float = 0.001, z_offset: float = 0.0) -> np.ndarray:
+def load_tunnel_polygon_from_dat(dat_path: str, scale: float = 0.001) -> np.ndarray:
     """DAT 파일에서 터널 단면 [y, z] 좌표를 읽는다."""
     poly_y = []
     poly_z = []
@@ -75,7 +66,7 @@ def load_tunnel_polygon_from_dat(dat_path: str, scale: float = 0.001, z_offset: 
             if not match:
                 continue
             poly_y.append(float(match.group(1)) * scale)
-            poly_z.append(float(match.group(2)) * scale + z_offset)
+            poly_z.append(float(match.group(2)) * scale)
 
     if not poly_y:
         raise ValueError(f"터널 단면 polygon을 읽지 못했습니다: {dat_path}")
@@ -197,7 +188,6 @@ def save_collection_hdf5(
     grid_y: np.ndarray,
     grid_z: np.ndarray,
     face_results: List[dict],
-    z_offset: float,
 ) -> None:
     """multi-face rough mesh collection을 독립 HDF5로 저장한다."""
     with h5py.File(out_path, "w") as f:
@@ -227,8 +217,63 @@ def save_collection_hdf5(
         grid.create_dataset("grid_y", data=grid_y.astype(np.float32))
         grid.create_dataset("grid_z", data=grid_z.astype(np.float32))
 
-        meta = f.create_group("meta")
-        meta.create_dataset("z_offset_m", data=np.array([z_offset], dtype=np.float32))
+
+def merge_collection_into_existing_hdf5(
+    target_h5_path: str,
+    poly_yz: np.ndarray,
+    grid_y: np.ndarray,
+    grid_z: np.ndarray,
+    face_results: List[dict],
+) -> None:
+    """생성한 multi-face collection을 기존 DFN HDF5에 /rough_faces 로 병합한다."""
+    with h5py.File(target_h5_path, "a") as f:
+        if "rough_faces" in f:
+            del f["rough_faces"]
+        faces_grp = f.create_group("rough_faces")
+
+        for result in face_results:
+            face_key = f"face_{result['face_id']:06d}"
+            grp = faces_grp.create_group(face_key)
+
+            mesh = grp.create_group("mesh")
+            mesh.create_dataset("vertices_xyz", data=result["vertices_xyz"].astype(np.float32))
+            mesh.create_dataset("triangles", data=result["triangles"].astype(np.int32))
+
+            field = grp.create_group("field")
+            field.create_dataset("inside_mask", data=result["inside_mask"].astype(np.uint8))
+            field.create_dataset("rough_x", data=result["rough_x"].astype(np.float32))
+
+            meta = grp.create_group("meta")
+            meta.create_dataset("face_id", data=np.array([result["face_id"]], dtype=np.int32))
+            meta.create_dataset("face_x", data=np.array([result["face_x"]], dtype=np.float32))
+            meta.create_dataset("seed", data=np.array([result["seed"]], dtype=np.int32))
+            meta.create_dataset("source_name", data=np.bytes_(face_key))
+
+        if "rough_face" in f:
+            del f["rough_face"]
+
+        # 단일 face backward compatibility
+        if len(face_results) == 1:
+            result = face_results[0]
+            grp = f.create_group("rough_face")
+            mesh = grp.create_group("mesh")
+            mesh.create_dataset("vertices_xyz", data=result["vertices_xyz"].astype(np.float32))
+            mesh.create_dataset("triangles", data=result["triangles"].astype(np.int32))
+            meta = grp.create_group("meta")
+            meta.create_dataset("base_x", data=np.array([result["face_x"]], dtype=np.float32))
+
+        if "/tunnel/poly_YZ" not in f and "tunnel" not in f:
+            tunnel = f.create_group("tunnel")
+            tunnel.create_dataset("poly_yz", data=poly_yz.astype(np.float32))
+
+        meta = f.require_group("rough_face_meta")
+        if "grid_y" in meta:
+            del meta["grid_y"]
+        if "grid_z" in meta:
+            del meta["grid_z"]
+        meta.create_dataset("grid_y", data=grid_y.astype(np.float32))
+        meta.create_dataset("grid_z", data=grid_z.astype(np.float32))
+        meta.attrs["merged_by"] = "generate_synthetic_rough_face_mesh.py"
 
 
 def plot_intermediate_visualizations(
@@ -241,9 +286,8 @@ def plot_intermediate_visualizations(
     vertices_xyz: np.ndarray,
     triangles: np.ndarray,
     face_x: float,
-    face_id: int,
 ) -> None:
-    """face 하나의 2D/3D 미리보기 이미지를 저장한다."""
+    """첫 번째 face를 빠르게 확인할 수 있는 미리보기 이미지를 저장한다."""
     fig = plt.figure(figsize=(16, 5))
 
     ax1 = fig.add_subplot(1, 3, 1)
@@ -266,12 +310,10 @@ def plot_intermediate_visualizations(
     fig.colorbar(im, ax=ax2, shrink=0.85, label="X offset (m)")
 
     ax3 = fig.add_subplot(1, 3, 3, projection="3d")
-    ax3.set_title(f"Synthetic Rough Face Mesh #{face_id:03d} @ x={face_x:.2f} m")
+    ax3.set_title(f"Synthetic Rough Face Mesh @ x={face_x:.2f} m")
     if len(vertices_xyz) > 0 and len(triangles) > 0:
         tri = mtri.Triangulation(vertices_xyz[:, 1], vertices_xyz[:, 2], triangles)
-        tri_roughness = np.mean(vertices_xyz[triangles, 0] - face_x, axis=1)
-        max_abs_roughness = max(float(np.max(np.abs(tri_roughness))), 1e-9)
-        surface = ax3.plot_trisurf(
+        ax3.plot_trisurf(
             vertices_xyz[:, 0],
             vertices_xyz[:, 1],
             vertices_xyz[:, 2],
@@ -281,66 +323,10 @@ def plot_intermediate_visualizations(
             edgecolor="k",
             alpha=0.95,
         )
-        surface.set_array(tri_roughness)
-        surface.set_norm(Normalize(vmin=-max_abs_roughness, vmax=max_abs_roughness))
     ax3.set_xlim(-5.0, 5.0)
     ax3.set_xlabel("X (m)")
     ax3.set_ylabel("Y (m)")
     ax3.set_zlabel("Z (m)")
-
-    plt.tight_layout()
-    plt.savefig(out_png, dpi=220, bbox_inches="tight")
-    plt.close(fig)
-
-
-def plot_collection_overview(
-    out_png: str,
-    face_results: List[dict],
-) -> None:
-    """여러 face를 한 장의 3D 그림으로 겹쳐서 저장한다."""
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(1, 1, 1, projection="3d")
-    ax.set_title("Synthetic Rough Face Mesh Collection")
-
-    global_max_abs_roughness = max(
-        max(float(np.max(np.abs(result["rough_x"][result["inside_mask"]]))), 1e-9)
-        for result in face_results
-    )
-    shared_norm = Normalize(vmin=-global_max_abs_roughness, vmax=global_max_abs_roughness)
-    last_surface = None
-
-    for result in face_results:
-        vertices_xyz = result["vertices_xyz"]
-        triangles = result["triangles"]
-        face_x = result["face_x"]
-        if len(vertices_xyz) == 0 or len(triangles) == 0:
-            continue
-
-        tri = mtri.Triangulation(vertices_xyz[:, 1], vertices_xyz[:, 2], triangles)
-        tri_roughness = np.mean(vertices_xyz[triangles, 0] - face_x, axis=1)
-        last_surface = ax.plot_trisurf(
-            vertices_xyz[:, 0],
-            vertices_xyz[:, 1],
-            vertices_xyz[:, 2],
-            triangles=tri.triangles,
-            cmap="viridis",
-            linewidth=0.10,
-            edgecolor="none",
-            alpha=0.55,
-        )
-        last_surface.set_array(tri_roughness)
-        last_surface.set_norm(shared_norm)
-
-    if last_surface is not None:
-        fig.colorbar(last_surface, ax=ax, shrink=0.7, pad=0.08, label="Roughness offset (m)")
-
-    all_vertices = np.vstack([result["vertices_xyz"] for result in face_results if len(result["vertices_xyz"]) > 0])
-    ax.set_xlim(float(np.min(all_vertices[:, 0])) - 0.2, float(np.max(all_vertices[:, 0])) + 0.2)
-    ax.set_ylim(float(np.min(all_vertices[:, 1])), float(np.max(all_vertices[:, 1])))
-    ax.set_zlim(float(np.min(all_vertices[:, 2])), float(np.max(all_vertices[:, 2])))
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
 
     plt.tight_layout()
     plt.savefig(out_png, dpi=220, bbox_inches="tight")
@@ -361,30 +347,32 @@ def print_summary(face_results: List[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate a multi-face synthetic rough face mesh collection inside a tunnel polygon."
+        description="터널 단면 polygon 내부에 multi-face synthetic rough face mesh collection을 생성한다."
     )
-    parser.add_argument("--tunnel-dat", required=True, help="Tunnel section polygon DAT file.")
-    parser.add_argument("--outdir", default="storage/output/rough_face_mesh_collection", help="Output directory.")
-    parser.add_argument("--grid-step", type=float, default=0.20, help="Y-Z grid spacing in meters.")
-    parser.add_argument("--amplitude", type=float, default=0.05, help="Roughness RMS amplitude in meters.")
-    parser.add_argument("--corr-length", type=float, default=1.00, help="Roughness correlation length in meters.")
-    parser.add_argument("--base-x", type=float, default=0.0, help="Base face x position in meters.")
-    parser.add_argument("--face-step", type=float, default=3.0, help="Face spacing in meters.")
-    parser.add_argument("--num-faces", type=int, default=1, help="Number of faces to generate.")
-    parser.add_argument("--face-x-csv", help='Explicit face x positions, e.g. "0,3,6,9".')
-    parser.add_argument("--seed-base", type=int, default=42, help="Base random seed.")
-    parser.add_argument("--out-h5", default="rough_face_mesh_collection.h5", help="Output HDF5 filename.")
-    parser.add_argument(
-        "--z-offset",
-        type=float,
-        default=-4.0,
-        help="Shift DAT polygon z coordinates in meters to match the DFN /tunnel/poly_YZ convention.",
-    )
+    parser.add_argument("--tunnel-dat", required=True, help="터널 단면 polygon DAT 파일")
+    parser.add_argument("--outdir", default="storage/output/rough_face_mesh_collection", help="출력 폴더")
+    parser.add_argument("--grid-step", type=float, default=0.20, help="Y-Z 격자 간격 (m)")
+    parser.add_argument("--amplitude", type=float, default=0.05, help="roughness RMS 진폭 (m)")
+    parser.add_argument("--corr-length", type=float, default=1.00, help="roughness 상관 길이 (m)")
+    parser.add_argument("--base-x", type=float, default=0.0, help="기준 face x 위치 (m)")
+    parser.add_argument("--face-step", type=float, default=3.0, help="face 간격 (m)")
+    parser.add_argument("--num-faces", type=int, default=1, help="생성할 face 개수")
+    parser.add_argument("--face-x-csv", help='명시적 face x 목록, 예: "0,3,6,9"')
+    parser.add_argument("--seed-base", type=int, default=42, help="base 난수 시드")
+    parser.add_argument("--out-h5", default="synthetic_rough_face_collection.h5", help="출력 HDF5 파일명")
+    parser.add_argument("--merge-collection-into-hdf5", help="생성 결과를 기존 DFN HDF5의 /rough_faces 로 병합")
+    parser.add_argument("--merge-into-hdf5", help="이전 옵션 호환용 alias. 내부적으로 collection 병합을 수행")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
 
-    poly_yz = ensure_ccw_polygon(load_tunnel_polygon_from_dat(args.tunnel_dat, z_offset=args.z_offset))
+    if args.merge_into_hdf5:
+        print("[*] Warning: --merge-into-hdf5 는 deprecated 입니다. collection 방식으로 병합합니다.")
+        if args.merge_collection_into_hdf5 and args.merge_collection_into_hdf5 != args.merge_into_hdf5:
+            raise ValueError("--merge-into-hdf5 와 --merge-collection-into-hdf5 값이 다릅니다.")
+        args.merge_collection_into_hdf5 = args.merge_into_hdf5
+
+    poly_yz = ensure_ccw_polygon(load_tunnel_polygon_from_dat(args.tunnel_dat))
     grid_y, grid_z = build_regular_grid(poly_yz, args.grid_step)
     inside_mask = build_inside_mask(poly_yz, grid_y, grid_z)
     face_x_values = resolve_face_positions(args)
@@ -420,44 +408,41 @@ def main() -> None:
         )
 
     h5_path = os.path.join(args.outdir, args.out_h5)
+    png_path = os.path.join(args.outdir, "synthetic_rough_face_mesh_preview.png")
+
     save_collection_hdf5(
         out_path=h5_path,
         poly_yz=poly_yz,
         grid_y=grid_y,
         grid_z=grid_z,
         face_results=face_results,
-        z_offset=args.z_offset,
+    )
+    plot_intermediate_visualizations(
+        out_png=png_path,
+        poly_yz=poly_yz,
+        grid_y=grid_y,
+        grid_z=grid_z,
+        mask=face_results[0]["inside_mask"],
+        rough_x=face_results[0]["rough_x"],
+        vertices_xyz=face_results[0]["vertices_xyz"],
+        triangles=face_results[0]["triangles"],
+        face_x=face_results[0]["face_x"],
     )
 
-    # 각 face별로 개별 preview를 저장해 roughness 차이를 바로 비교할 수 있게 한다.
-    for result in face_results:
-        face_png_path = os.path.join(
-            args.outdir,
-            f"synthetic_rough_face_preview_face_{result['face_id']:06d}.png",
-        )
-        plot_intermediate_visualizations(
-            out_png=face_png_path,
+    if args.merge_collection_into_hdf5:
+        merge_collection_into_existing_hdf5(
+            target_h5_path=args.merge_collection_into_hdf5,
             poly_yz=poly_yz,
             grid_y=grid_y,
             grid_z=grid_z,
-            mask=result["inside_mask"],
-            rough_x=result["rough_x"],
-            vertices_xyz=result["vertices_xyz"],
-            triangles=result["triangles"],
-            face_x=result["face_x"],
-            face_id=result["face_id"],
+            face_results=face_results,
         )
-
-    collection_png_path = os.path.join(args.outdir, "synthetic_rough_face_collection_overview.png")
-    plot_collection_overview(
-        out_png=collection_png_path,
-        face_results=face_results,
-    )
 
     print_summary(face_results)
     print(f"[*] HDF5 saved to: {h5_path}")
-    print(f"[*] Per-face previews saved to: {args.outdir}")
-    print(f"[*] Collection overview saved to: {collection_png_path}")
+    print(f"[*] Preview saved to: {png_path}")
+    if args.merge_collection_into_hdf5:
+        print(f"[*] Merged into existing DFN HDF5: {args.merge_collection_into_hdf5}")
 
 
 if __name__ == "__main__":
