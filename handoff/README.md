@@ -71,5 +71,49 @@
 - 나머지 모듈은 `from dfn_analysis.<module> import ...` 형태로 서로만 참조하므로, 이 폴더를
   `dfn_analysis` 패키지로 유지하면 상호 import는 정상 동작합니다.
 
+## 임의(arbitrary) 데이터셋으로 실행 — 일반화
+
+내장 preset(forsmark/laxemar) 외의 데이터셋에도 돌릴 수 있습니다.
+
+- **방향/κ 추정**: normal 기반이라 site 무관, 그대로 동작.
+- **kr 추정 (`estimate_kr`)**: 이미 일반화됨. `--site` 없이 `--dfn-model <라벨> --generation-rmin <값>`
+  만으로 임의 trace 데이터셋에 동작 (기본 `empirical_trace` 모드).
+- **P32 추정 (`estimate_p32_mc_calibrated`)**: set별 크기분포·방향이 방법론에 필수이므로,
+  외부 JSON config로 주입한다. `dataset_config.py` 참조.
+
+### P32용 데이터셋 config (JSON)
+`handoff/configs/example_dataset_forsmark.json` 참고:
+```json
+{
+  "dataset_name": "my_dataset",
+  "sets": {
+    "1": {"p32_base": 0.602, "dist_type": "powerlaw", "r0": 0.28,
+          "trend": 182.8, "plunge": -1.7, "kappa": 22.1},
+    ...
+  }
+}
+```
+- `p32_base / dist_type / r0` : 크기분포 (모집단 반지름 샘플링 + support 스케일링)
+- `trend / plunge / kappa`    : Fisher 방향 (교차확률 forward MC)
+
+실행 예:
+```
+python -m dfn_analysis.estimate_p32_mc_calibrated \
+  --trace-h5 <trace.h5> --config configs/my_dataset.json --site my_dataset \
+  --target-set 1 2 5 --kr-summary-csv <kr_summary.csv> --dfn-h5 <dfn.h5> \
+  --calibration-factor-mode unit_p32_forward_mc --outcsv <out.csv>
+```
+(`--site`는 config의 `dataset_name`과 일치해야 하며, 내장 preset이 아니면 `--dfn-h5` 명시 필수)
+
+### 검증 (Forsmark)
+- kr: `--site` 없이 generic 실행 → 내장 preset 경로와 동일 kr_hat (Set1 2.80/2.88, Set5 3.10/2.92).
+- P32: forsmark preset을 JSON(`dataset_name=forsmark_generic`)으로 추출 → config 경로 실행 결과가
+  내장 preset과 **결정론 수치 완전 동일**(support_scaled_p32/radius_moments/Fisher 일치). MC 부분만 시드 차이.
+
+### 아직 종속인 부분
+- **조건화**(`generate_conditional_hidden_dfn`)의 `POWERLAW_SETS=(1,2,3,5)`는 여전히 고정. 임의
+  데이터셋의 set 구조에 맞게 조정 필요.
+- **복원 단계**(reconstructed_discs.csv 생성)는 이 핸드오프에 없음 → 조건화 입력을 별도 확보해야 함.
+
 ## 실행 환경
 - Python 3.9+ / numpy, scipy, h5py, matplotlib, pyvista

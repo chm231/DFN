@@ -581,7 +581,15 @@ def main() -> None:
         default="storage/output/final_kr_bootstrap_effective_rmin/final_kr_bootstrap_summary_effective_rmin.csv",
         help="Bootstrap summary CSV.",
     )
-    parser.add_argument("--site", choices=["forsmark", "laxemar"], required=True)
+    # --site: 내장 preset(forsmark/laxemar) 또는 --config 의 dataset_name(임의 데이터셋)
+    parser.add_argument("--site", required=True,
+                        help="Dataset label. Use 'forsmark'/'laxemar' for the built-in "
+                             "presets, or any name matching --config dataset_name for an "
+                             "arbitrary dataset.")
+    # --config: 임의 데이터셋의 set별 크기/방향 파라미터를 담은 외부 JSON (dataset_config.py)
+    parser.add_argument("--config", default=None,
+                        help="External dataset JSON config (per-set size + orientation "
+                             "parameters) to run on an arbitrary dataset. See dataset_config.py.")
     parser.add_argument("--target-set", nargs="+", type=int, required=True)
     parser.add_argument("--p32-label", default="P32_r_ge_0p5m")
     parser.add_argument("--set-rmin-mode", default="effective_generation")
@@ -607,8 +615,21 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # 임의 데이터셋: 외부 JSON config를 preset dict에 주입한 뒤 --site 로 사용
+    if args.config:
+        from dfn_analysis.dataset_config import load_and_register
+        registered = load_and_register(args.config)
+        if args.site != registered:
+            raise ValueError(
+                f"--site '{args.site}' must match config dataset_name '{registered}'")
+
     # ---- kr 요약/부트스트랩 CSV 로드 및 대상 사이트·세트로 필터링 ----
-    dfn_h5 = args.dfn_h5 or DEFAULT_DFN_H5[args.site]
+    # DEFAULT_DFN_H5에 없는 임의 데이터셋은 --dfn-h5 를 명시해야 함
+    dfn_h5 = args.dfn_h5 or DEFAULT_DFN_H5.get(args.site)
+    if dfn_h5 is None:
+        raise ValueError(
+            f"No default DFN HDF5 for site '{args.site}'. Pass --dfn-h5 explicitly "
+            "(required for arbitrary datasets driven by --config).")
     kr_rows = [row for row in read_csv(args.kr_summary_csv) if str(row["site"]) == args.site and int(row["set_id"]) in set(args.target_set)]
     bootstrap_map = {
         (str(row["site"]), int(row["set_id"])): row
