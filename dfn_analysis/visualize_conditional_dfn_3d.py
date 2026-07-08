@@ -19,18 +19,26 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
 import h5py
 import pyvista as pv
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+# Reuse the trace geometry from the conditioning module (single source of truth).
+from dfn_analysis.generate_conditional_hidden_dfn import (  # noqa: E402
+    load_observed_traces, visible_trace_on_face, _ccw_polygon,
+)
 
 # Per-set colours (sets 1,2,3,5 are the reconstructed/conditioned powerlaw sets)
 SET_COLORS = {1: "#1f77b4", 2: "#ff7f0e", 3: "#2ca02c", 5: "#d62728"}
 FACE_COLOR = "#888888"
+OBSERVED_COLOR = "#1f77b4"    # blue
+CONDITIONED_COLOR = "#d62728"  # red
 
 
 # ----------------------------------------------------------------------
@@ -97,6 +105,28 @@ def build_face_polygon(poly_yz: np.ndarray, xf: float) -> pv.PolyData:
     return pv.PolyData(pts, face)
 
 
+def build_lines(segments: List[Tuple[np.ndarray, np.ndarray]]) -> pv.PolyData:
+    """Combine [(p0, p1), ...] 3D segments into one PolyData of line cells."""
+    if not segments:
+        return pv.PolyData()
+    pts = np.array([p for seg in segments for p in seg], dtype=float)
+    n = len(segments)
+    lines = np.hstack([np.full((n, 1), 2),
+                       np.arange(2 * n).reshape(n, 2)]).astype(np.int64).ravel()
+    return pv.PolyData(pts, lines=lines)
+
+
+def conditioned_face_segments(centers, normals, radii, face_xs, poly_ccw):
+    """Traces the visible discs leave on each face (the conditioned traces)."""
+    segs = []
+    for c, nrm, r in zip(centers, normals, radii):
+        for xf in face_xs:
+            seg = visible_trace_on_face(c, nrm, r, xf, poly_ccw)
+            if seg is not None:
+                segs.append(seg)
+    return segs
+
+
 # ----------------------------------------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -109,6 +139,9 @@ def main() -> None:
     ap.add_argument("--min-radius", type=float, default=1.5,
                     help="Only show HIDDEN discs with radius >= this [m] "
                          "(declutter; visible discs always shown). Set 0 for all.")
+    ap.add_argument("--traces", action=argparse.BooleanOptionalAction, default=True,
+                    help="Overlay observed (blue) and conditioned (red) face traces; "
+                         "discs are drawn neutral grey so the traces read clearly.")
     ap.add_argument("--no-window", action="store_true",
                     help="Render off-screen and only save the screenshot.")
     ap.add_argument("--out", type=Path, default=None,
@@ -147,23 +180,32 @@ def main() -> None:
     plotter = pv.Plotter(off_screen=args.no_window, window_size=(1400, 900))
     plotter.set_background("white")
 
-    # Discs are drawn as circle OUTLINES (wireframe) coloured by set, so the
-    # tunnel faces stay visible through them. Visible (reconstructed) discs are
-    # bold and opaque; hidden (stochastic) discs are thin and faint.
-    for s, color in SET_COLORS.items():
-        sel_h = mask & (set_ids == s) & (sources == "hidden")
-        if sel_h.any():
-            mesh = build_disc_mesh(centers[sel_h], normals[sel_h], radii[sel_h])
-            plotter.add_mesh(mesh, color=color, style="wireframe",
-                             line_width=1, opacity=0.35)
-        sel_v = mask & (set_ids == s) & (sources == "visible")
-        if sel_v.any():
-            mesh = build_disc_mesh(centers[sel_v], normals[sel_v], radii[sel_v])
-            plotter.add_mesh(mesh, color=color, style="wireframe",
-                             line_width=3, opacity=1.0, label=f"Set {s}")
-        else:
-            plotter.add_mesh(pv.PolyData(np.zeros((1, 3))), color=color,
-                             point_size=1, label=f"Set {s}")
+    # Discs as circle OUTLINES (wireframe). In trace mode discs are neutral grey
+    # so the blue/red traces read unambiguously; otherwise coloured by set.
+    hid_m = mask & (sources == "hidden")
+    vis_m = mask & (sources == "visible")
+    if args.traces:
+        if hid_m.any():
+            plotter.add_mesh(build_disc_mesh(centers[hid_m], normals[hid_m], radii[hid_m]),
+                             color="#c0c0c0", style="wireframe", line_width=1, opacity=0.30)
+        if vis_m.any():
+            plotter.add_mesh(build_disc_mesh(centers[vis_m], normals[vis_m], radii[vis_m]),
+                             color="#606060", style="wireframe", line_width=2, opacity=0.7,
+                             label="Visible discs")
+    else:
+        for s, color in SET_COLORS.items():
+            sel_h = hid_m & (set_ids == s)
+            if sel_h.any():
+                plotter.add_mesh(build_disc_mesh(centers[sel_h], normals[sel_h], radii[sel_h]),
+                                 color=color, style="wireframe", line_width=1, opacity=0.35)
+            sel_v = vis_m & (set_ids == s)
+            if sel_v.any():
+                plotter.add_mesh(build_disc_mesh(centers[sel_v], normals[sel_v], radii[sel_v]),
+                                 color=color, style="wireframe", line_width=3, opacity=1.0,
+                                 label=f"Set {s}")
+            else:
+                plotter.add_mesh(pv.PolyData(np.zeros((1, 3))), color=color,
+                                 point_size=1, label=f"Set {s}")
 
     # Tunnel observation faces (the only filled surfaces — spatial reference)
     for xf in face_xs:
@@ -173,12 +215,32 @@ def main() -> None:
     plotter.add_mesh(build_face_polygon(poly_yz, face_xs[0]), color=FACE_COLOR,
                      opacity=0.0, label="Tunnel face")
 
-    n_vis = int((mask & (sources == "visible")).sum())
-    n_hid = int((mask & (sources == "hidden")).sum())
-    plotter.add_text(
-        f"Conditional DFN (local box)\nvisible={n_vis}  hidden={n_hid}  faces={len(face_xs)}",
-        position="upper_left", font_size=11, color="black",
-    )
+    # Face traces: observed (blue) and conditioned = visible discs re-projected (red)
+    n_obs = n_cond = 0
+    if args.traces:
+        poly_ccw = _ccw_polygon(poly_yz)
+        obs_by_face, _ = load_observed_traces(pdir / "trace_dataset/trace_dataset_3d.csv")
+        obs_segs = [seg for segs in obs_by_face.values() for seg in segs]
+        vis_all = sources == "visible"
+        cond_segs = conditioned_face_segments(
+            centers[vis_all], normals[vis_all], radii[vis_all], face_xs, poly_ccw)
+        n_obs, n_cond = len(obs_segs), len(cond_segs)
+        obs_lines = build_lines(obs_segs)
+        if obs_lines.n_points:
+            plotter.add_mesh(obs_lines.tube(radius=0.035), color=OBSERVED_COLOR,
+                             label="Observed traces")
+        cond_lines = build_lines(cond_segs)
+        if cond_lines.n_points:
+            plotter.add_mesh(cond_lines.tube(radius=0.035), color=CONDITIONED_COLOR,
+                             label="Conditioned traces")
+        print(f"traces: observed={n_obs}  conditioned={n_cond}")
+
+    n_vis = int(vis_m.sum())
+    n_hid = int(hid_m.sum())
+    info = f"Conditional DFN (local box)\nvisible={n_vis}  hidden={n_hid}  faces={len(face_xs)}"
+    if args.traces:
+        info += f"\nobserved traces={n_obs} (blue)  conditioned={n_cond} (red)"
+    plotter.add_text(info, position="upper_left", font_size=11, color="black")
     plotter.add_legend(bcolor="white", border=True)
     plotter.add_axes(xlabel="x (advance)", ylabel="y (North)", zlabel="z (Up)")
     mid_x = (box["xmin"] + box["xmax"]) / 2
