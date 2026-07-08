@@ -47,7 +47,9 @@ from matplotlib.lines import Line2D
 REPO = Path(__file__).resolve().parent.parent
 OBSERVED_COLOR = "tab:blue"
 CONDITIONED_COLOR = "tab:red"
-POWERLAW_SETS = (1, 2, 3, 5)  # Set 4 is exponential (D002) — excluded from inversion
+# 대상 set은 하드코딩하지 않고 역산 파라미터가 존재하는 set에서 자동 유도한다
+# (예: Laxemar는 Set4=지수분포라 kr 미보유 → 자동 제외; Forsmark는 5개 모두 powerlaw → 전부 포함).
+# --sets / --exclude-sets 로 수동 지정 가능. per-set 분포타입은 params["dist_type"](기본 powerlaw).
 
 
 # ----------------------------------------------------------------------
@@ -230,6 +232,9 @@ def load_inverted_params(kr_csv: Path, p32_csv: Path) -> Dict[int, dict]:
             sid = int(row["set_id"])
             params.setdefault(sid, {})
             params[sid]["P32"] = float(row["P32_hat"])
+    # 분포 타입 기본값(powerlaw); 외부 config로 set별 override 가능(예: 지수분포)
+    for sid in params:
+        params[sid].setdefault("dist_type", "powerlaw")
     return params
 
 
@@ -242,20 +247,41 @@ def generate_hidden_discs(
     box: dict,
     rmax_local: float,
     seed: int,
+    target_sets: List[int],
 ) -> List[dict]:
-    """Generate unconditioned stochastic discs per set inside the local box."""
+    """Generate unconditioned stochastic discs per set inside the local box.
+
+    target_sets는 하드코딩이 아니라 상위(main)에서 데이터로부터 유도해 전달한다.
+    per-set 분포타입(params["dist_type"])에 따라 powerlaw/exponential 크기분포로 생성한다.
+    """
     V = box["dx"] * box["dy"] * box["dz"]
     hidden: List[dict] = []
-    for sid in POWERLAW_SETS:
+    for sid in target_sets:
         p = params.get(sid)
-        if p is None or "P32" not in p or "kr" not in p:
+        if p is None or "P32" not in p:
             continue
+        dist_type = p.get("dist_type", "powerlaw")
+        # 크기분포 구성 (powerlaw는 kr, exponential은 r0 필요)
+        if dist_type == "exponential":
+            r0 = p.get("r0")
+            if r0 is None:
+                print(f"  [set {sid}] exponential set needs r0 (via --config); skipped")
+                continue
+            size_dist = {"type": "exponential", "r0": float(r0),
+                         "rmin": p.get("rmin", 0.5), "rmax": rmax_local}
+            size_desc = f"exp r0={float(r0):.2f}"
+        else:  # powerlaw
+            if "kr" not in p:
+                print(f"  [set {sid}] powerlaw set has no kr; skipped")
+                continue
+            size_dist = {"type": "powerlaw", "kr": p["kr"], "rmin": p["rmin"], "rmax": rmax_local}
+            size_desc = f"kr={p['kr']:.2f}"
+        # 방향(orientation)은 복원 disc에서 추정
         ori = set_orientation_from_discs(visible_discs, sid)
         if ori is None:
             print(f"  [set {sid}] skipped hidden gen: insufficient orientation evidence")
             continue
         mean_n, kappa = ori
-        size_dist = {"type": "powerlaw", "kr": p["kr"], "rmin": p["rmin"], "rmax": rmax_local}
         N = GEN.compute_num_fractures_from_P32(p["P32"], size_dist, V)
         if N <= 0:
             continue
@@ -271,8 +297,8 @@ def generate_hidden_discs(
                 set_id=sid, center=centers[j], normal=normals[j],
                 radius=float(radii[j]), source="hidden", adoption="stochastic",
             ))
-        print(f"  [set {sid}] hidden generated: N={N:,}  (P32={p['P32']:.3f}, kr={p['kr']:.2f}, "
-              f"rmin={p['rmin']:.2f}, kappa={kappa:.1f})")
+        print(f"  [set {sid}] hidden generated: N={N:,}  (P32={p['P32']:.3f}, {size_desc}, "
+              f"rmin={size_dist['rmin']:.2f}, kappa={kappa:.1f})")
     return hidden
 
 
@@ -316,7 +342,7 @@ def conditioned_traces(
 
 def print_diagnostics(
     face_xs, poly_ccw, observed, cond, obs_len_by_set, n_visible, n_hidden_gen,
-    n_hidden_removed, n_hidden_kept, params,
+    n_hidden_removed, n_hidden_kept, params, target_sets,
 ):
     window_area = _polygon_area(poly_ccw) * len(face_xs)
     cond_len = sum(np.linalg.norm(p1 - p0) for segs in cond.values() for p0, p1 in segs)
@@ -324,13 +350,14 @@ def print_diagnostics(
     n_cond = sum(len(s) for s in cond.values())
 
     obs_len_all = sum(obs_len_by_set.values())
-    # Conditioned traces come only from reconstructed sets, so the fair P21
-    # comparison restricts the observed side to the same sets (Set 4 excluded).
-    obs_len_matched = sum(L for s, L in obs_len_by_set.items() if s in POWERLAW_SETS)
+    # Conditioned traces come only from the conditioned sets, so the fair P21
+    # comparison restricts the observed side to the same sets.
+    ts = set(target_sets)
+    obs_len_matched = sum(L for s, L in obs_len_by_set.items() if s in ts)
     p21_obs_all = obs_len_all / window_area if window_area else 0.0
     p21_obs_matched = obs_len_matched / window_area if window_area else 0.0
     p21_cond = cond_len / window_area if window_area else 0.0
-    p32_target = sum(params[s]["P32"] for s in POWERLAW_SETS if s in params and "P32" in params[s])
+    p32_target = sum(params[s]["P32"] for s in target_sets if s in params and "P32" in params[s])
 
     print("-" * 64)
     print("Conditional hidden DFN - diagnostics")
@@ -345,13 +372,13 @@ def print_diagnostics(
     print(f"  observed traces (blue)   : {n_obs}  | P21(all sets)      = {p21_obs_all:.3f} 1/m")
     print(f"  conditioned traces (red) : {n_cond}  | P21               = {p21_cond:.3f} 1/m")
     print("  " + "-" * 40)
-    print(f"  set-matched comparison (reconstructed sets {POWERLAW_SETS}, Set 4 excluded both sides):")
+    print(f"  set-matched comparison (conditioned sets {sorted(target_sets)}):")
     print(f"    observed  P21 (matched): {p21_obs_matched:.3f} 1/m")
     print(f"    conditioned P21        : {p21_cond:.3f} 1/m")
     if p21_obs_matched > 0:
         err = (p21_cond - p21_obs_matched) / p21_obs_matched * 100
         print(f"    P21 error (matched)    : {err:+.1f} %")
-    print(f"  target P32 (sets {POWERLAW_SETS}) : {p32_target:.3f} 1/m")
+    print(f"  target P32 (sets {sorted(target_sets)}) : {p32_target:.3f} 1/m")
     print("-" * 64)
 
 
@@ -433,6 +460,12 @@ def main() -> None:
                     help="Comma list of reconstructed-disc adoptions to keep as visible.")
     ap.add_argument("--show-hidden", action="store_true",
                     help="Overlay hidden disc centers near the window (default off).")
+    ap.add_argument("--sets", nargs="+", type=int, default=None,
+                    help="Sets to condition (default: all sets with inverted params).")
+    ap.add_argument("--exclude-sets", nargs="+", type=int, default=[],
+                    help="Sets to exclude from conditioning.")
+    ap.add_argument("--config", default=None,
+                    help="Optional dataset JSON: per-set dist_type/r0 (e.g. exponential sets).")
     args = ap.parse_args()
 
     pdir = args.pipeline_dir
@@ -443,6 +476,24 @@ def main() -> None:
     visible = load_visible_discs(pdir / "reconstruct/reconstructed_discs.csv", keep)
     observed, obs_len_by_set = load_observed_traces(pdir / "trace_dataset/trace_dataset_3d.csv")
     params = load_inverted_params(pdir / "kr/kr_summary_by_set.csv", pdir / "p32/p32_summary.csv")
+
+    # per-set 분포타입/r0 override (지수분포 set 등)
+    if args.config:
+        import json
+        cfg = json.load(open(args.config, encoding="utf-8"))
+        for sid_str, s in cfg.get("sets", {}).items():
+            sid = int(sid_str)
+            params.setdefault(sid, {})
+            if "dist_type" in s:
+                params[sid]["dist_type"] = str(s["dist_type"])
+            if "r0" in s:
+                params[sid]["r0"] = float(s["r0"])
+
+    # 대상 set: 지정 없으면 역산 파라미터가 있는 모든 set (하드코딩 (1,2,3,5) 제거)
+    exclude = set(args.exclude_sets)
+    target_sets = args.sets if args.sets is not None else sorted(params.keys())
+    target_sets = [s for s in target_sets if s not in exclude]
+    print(f"Target sets (conditioned): {target_sets}")
 
     face_xs = sorted(observed.keys())
     with h5py.File(pdir / "dfn_export_for_python.h5", "r") as f:
@@ -462,7 +513,7 @@ def main() -> None:
     print(f"Visible discs kept ({keep}): {len(visible)}")
 
     # --- Generate + condition ---
-    hidden_all = generate_hidden_discs(params, visible, box, args.rmax_local, args.seed)
+    hidden_all = generate_hidden_discs(params, visible, box, args.rmax_local, args.seed, target_sets)
     hidden_kept, n_removed = remove_face_intersecting(hidden_all, face_xs, poly_ccw)
 
     # --- Conditioned traces (red) = visible discs re-projected onto faces ---
@@ -470,7 +521,7 @@ def main() -> None:
 
     # --- Diagnostics + outputs ---
     print_diagnostics(face_xs, poly_ccw, observed, cond, obs_len_by_set, len(visible),
-                      len(hidden_all), n_removed, len(hidden_kept), params)
+                      len(hidden_all), n_removed, len(hidden_kept), params, target_sets)
     out_dir = pdir / "conditional_hidden"
     write_dfn_csv(visible, hidden_kept, out_dir / "conditional_dfn.csv")
     plot_fig(observed, cond, face_xs, poly_ccw, hidden_kept,
