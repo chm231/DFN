@@ -1,0 +1,26 @@
+{
+  "dataset_name": "forsmark_generic",
+  "sets": {
+    "1": {
+      "dist_type": "powerlaw",
+      "trend": 4.69,
+      "plunge": 2.76,
+      "kappa": 26.47,
+      "kr_hat_estimated": 2.8
+    },
+    "2": {
+      "dist_type": "powerlaw",
+      "trend": 316.95,
+      "plunge": 3.16,
+      "kappa": 21.26,
+      "kr_hat_estimated": 2.4
+    },
+    "5": {
+      "dist_type": "powerlaw",
+      "trend": 130.37,
+      "plunge": 77.72,
+      "kappa": 13.5,
+      "kr_hat_estimated": 3.1
+    }
+  }
+}

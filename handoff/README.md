@@ -105,10 +105,24 @@ python -m dfn_analysis.estimate_p32_mc_calibrated \
 ```
 (`--site`는 config의 `dataset_name`과 일치해야 하며, 내장 preset이 아니면 `--dfn-h5` 명시 필수)
 
+### config를 trace에서 자동 생성 (자기완결적 추정)
+방향(trend/plunge/kappa)은 참값 대신 **trace에서 추정**할 수 있다. `build_dataset_config_from_traces.py`가
+trace h5의 per-trace 법선(`trace_normal_xyz`)으로 set별 평균 방향+κ를 추정하고, kr_hat과 함께 config JSON을 만든다:
+```
+python -m dfn_analysis.build_dataset_config_from_traces \
+  --trace-h5 <trace.h5> --kr-summary-csv <kr_summary.csv> \
+  --dataset-name my_dataset --target-set 1 2 5 --out configs/my_dataset.json
+```
+→ 이 config를 P32에 넘기면 크기(kr)·방향이 **모두 trace에서 추정된** 값으로 P32가 계산된다.
+(powerlaw 세트는 P32 추정에 `dist_type`+방향만 필요하고 `r0`/`p32_base`는 불필요 → 추정 config에서 생략 가능;
+생략 시 검증용 `P32_reference`만 NaN이 되고 추정 `P32_hat`에는 영향 없음.)
+
 ### 검증 (Forsmark)
 - kr: `--site` 없이 generic 실행 → 내장 preset 경로와 동일 kr_hat (Set1 2.80/2.88, Set5 3.10/2.92).
-- P32: forsmark preset을 JSON(`dataset_name=forsmark_generic`)으로 추출 → config 경로 실행 결과가
-  내장 preset과 **결정론 수치 완전 동일**(support_scaled_p32/radius_moments/Fisher 일치). MC 부분만 시드 차이.
+- P32(참값 방향 config): forsmark preset을 JSON으로 추출 → 내장 preset과 **결정론 수치 완전 동일**
+  (support_scaled_p32/radius_moments/Fisher 일치). MC 부분만 시드 차이.
+- P32(**추정 방향** config, 자기완결): trace 추정 방향으로 P32 → 참값 방향 대비 Set1 +1.7% / Set2 +17% /
+  Set5 −20%. 집중 셋(κ 큰 Set1)은 거의 일치, 등방 셋(κ≈0.9 Set5)은 방향 추정 불안정으로 편차 큼(예상된 한계).
 
 ### 아직 종속인 부분
 - **조건화**(`generate_conditional_hidden_dfn`)의 `POWERLAW_SETS=(1,2,3,5)`는 여전히 고정. 임의

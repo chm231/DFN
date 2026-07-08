@@ -112,6 +112,9 @@ def support_scaled_p32(
     p32_base = float(cfg["p32_base"])
     dist_type = str(cfg["dist_type"])
     r0 = float(cfg["r0"])
+    # 크기 참조가 없는 config(자기완결 추정: p32_base/r0 미제공)면 검증 reference는 NaN
+    if not math.isfinite(p32_base) or not math.isfinite(r0) or r0 <= 0.0:
+        return float("nan")
 
     # 멱법칙 분포: 반경^2 가중 적분비로 지지 구간을 재스케일
     if dist_type == "powerlaw":

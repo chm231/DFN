@@ -54,15 +54,17 @@ def register_dataset(cfg: Dict[str, Any]) -> str:
     for sid_str, s in cfg["sets"].items():
         sid = int(sid_str)
         # 크기분포 (build_p32_pilot_summary.SITE_SET_CONFIG 형식)
+        #   powerlaw 추정은 dist_type만 사용하고 r0/p32_base는 쓰지 않으므로 선택적이다
+        #   (r0는 exponential 전용, p32_base는 검증용 P32_reference 전용).
         set_cfg[sid] = {
-            "p32_base": float(s["p32_base"]),
-            "dist_type": str(s["dist_type"]),
-            "r0": float(s["r0"]),
+            "p32_base": float(s.get("p32_base", float("nan"))),
+            "dist_type": str(s.get("dist_type", "powerlaw")),
+            "r0": float(s.get("r0", 0.0)),
         }
         # Fisher 방향 (estimate_radius_powerlaw_window_mc.SITE_FISHER_PARAMS 형식: (trend, plunge, kappa))
         fisher[sid] = (float(s["trend"]), float(s["plunge"]), float(s["kappa"]))
-        # 지지구간/크기 타입 (SITE_SET_SUPPORT_INFO 형식)
-        support[sid] = {"type": str(s["dist_type"]), "table_r0": float(s["r0"])}
+        # 지지구간/크기 타입 (SITE_SET_SUPPORT_INFO 형식); r0는 선택적(powerlaw 미사용)
+        support[sid] = {"type": str(s.get("dist_type", "powerlaw")), "table_r0": float(s.get("r0", 0.0))}
 
     # 기존 preset dict에 등록 (덮어쓰기가 아니라 새 site 키 추가)
     bp.SITE_SET_CONFIG[name] = set_cfg
