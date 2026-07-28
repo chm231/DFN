@@ -3,8 +3,9 @@
 터널 막장면의 2D 절리선(trace) 관측으로부터 3D DFN(Discrete Fracture Network) 파라미터를
 역산하고, 관측을 조건으로 하는 3D DFN을 생성·시각화하는 **최종 파이프라인 코드**입니다.
 
-이 폴더(`handoff/dfn_analysis/`)에는 **최종 버전으로 분류된 11개 파일만** 포함됩니다.
+이 폴더(`handoff/dfn_analysis/`)에는 **최종 버전 파이프라인 파일**이 포함됩니다(관측 역산 → 복원 → 조건부 생성).
 진단(diagnose_*)·대체(estimate_p32_combined_bootstrap, v3 radius)·보조 시각화(plot_*)는 제외했습니다.
+이번 버전에서 **복원(reconstruct)·복원 검증(visualize/LOFO)** 모듈 3종이 추가되었습니다.
 
 모든 파일은 각 코드 블록마다 한글 주석이 달려 있습니다.
 
@@ -32,8 +33,14 @@
     build_p32_pilot_summary.py              # SITE_SET_CONFIG · 지지구간 P32 스케일
     estimate_p32_mc_calibrated.py           # P32 (unit_p32_forward_mc 보정, 최종)
 
+[2.5] 관측 절리 복원 (trace → 원판 disc)   ← 이번 버전에서 handoff 에 포함
+    reconstruct_discs_from_traces.py        # 연결(검증형 응집) + 반지름(원적합/kr 축소추정)
+    visualize_reconstruction.py             # 복원 검증: 3D + 면별(관측 vs 복원 chord)
+    validate_reconstruction_lofo.py         # LOFO 외삽검증(참값 불필요, 정합성 지표)
+
 [3] 조건부 DFN 생성 + 시각화
-    generate_conditional_hidden_dfn.py      # 관측 복원 disc + 확률 hidden disc 결합
+    generate_conditional_hidden_dfn.py      # 관측 복원 disc(visible) + 확률 hidden disc 결합
+                                            #   (set별 P21 진단표 포함; Set4=visible-only)
     visualize_conditional_dfn_3d.py         # PyVista 3D 시각화 (disc + 막장면 + trace)
 ```
 
@@ -52,7 +59,10 @@
 | `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / unit_p32_forward_mc 보정계수) |
 | `export_setwise_3d_traces.py` | DFN(h5) + 거친 막장면 mesh → 3D trace 데이터셋 순방향 생성 |
 | `generate_synthetic_rough_face_mesh.py` | 합성 거친 막장면 mesh 생성 (검증용 입력) |
-| `generate_conditional_hidden_dfn.py` | 조건부 hidden DFN 생성 (remove-and-resample) |
+| `reconstruct_discs_from_traces.py` | **관측 trace → 복원 원판**. 연결=검증형 응집(결합평면 잔차+면당1chord, oracle 대비 순도 95%), 반지름=경계 원적합 / kr 축소추정(empirical-Bayes, 참R 오차 26→17%) |
+| `visualize_reconstruction.py` | 복원 검증 시각화: 3D 개요 + 면별(관측 trace vs 복원 원판 chord, 미재현 강조) |
+| `validate_reconstruction_lofo.py` | Leave-One-Face-Out 외삽검증. 참값 없이 recall/precision 로 정합성 측정(관측 P21 대비 오차의 대체 지표) |
+| `generate_conditional_hidden_dfn.py` | 조건부 hidden DFN 생성 (remove-and-resample) + **set별 P21 진단표** |
 | `visualize_conditional_dfn_3d.py` | PyVista 3D 시각화 (disc + 막장면 + 관측/조건화 trace) |
 
 ---
@@ -65,6 +75,10 @@
 - 반지름/kr은 `estimate_radius_powerlaw_window_mc.py`(v4.1 창 MC)가 최종입니다. v3(from_traces)는 제외.
 
 ## 경로 의존성 (수정 필요)
+- `reconstruct_discs_from_traces.py`는 **자립적**입니다(numpy/scipy/h5py만; 생성기·경로 의존 없음).
+- `visualize_reconstruction.py` / `validate_reconstruction_lofo.py`는 `generate_conditional_hidden_dfn`의
+  기하 함수(`visible_trace_on_face` 등)를 import 하므로, 그것과 **동일한 리포 루트 경로 의존**을 물려받습니다
+  (리포 루트 `PYTHONPATH="."`에서 실행 필요).
 - `generate_conditional_hidden_dfn.py` / `visualize_conditional_dfn_3d.py`는 원본 리포지토리 기준
   상대경로(`dfn generator v1/`, `storage/output/...`)를 참조합니다. 이 폴더만 단독 이전 시
   해당 경로를 받는 팀 환경에 맞게 조정해야 합니다.
@@ -127,7 +141,15 @@ python -m dfn_analysis.build_dataset_config_from_traces \
 ### 아직 종속인 부분
 - **조건화**(`generate_conditional_hidden_dfn`)의 `POWERLAW_SETS=(1,2,3,5)`는 여전히 고정. 임의
   데이터셋의 set 구조에 맞게 조정 필요.
-- **복원 단계**(reconstructed_discs.csv 생성)는 이 핸드오프에 없음 → 조건화 입력을 별도 확보해야 함.
+- **복원 단계**(reconstructed_discs.csv 생성)는 이제 `reconstruct_discs_from_traces.py`로 **handoff 에 포함**됨.
+  실행: `python -m dfn_analysis.reconstruct_discs_from_traces --trace-h5 <trace.h5> --out-csv <pdir>/reconstruct/reconstructed_discs.csv --target-set 1 2 3 5 --kr-summary-csv <pdir>/kr/kr_summary_by_set.csv`
+  - 연결/반지름 방법 요약: 검증형 응집 연결(순도 ~95%) + 경계 원적합/kr 축소추정 반지름.
+  - **정합성 주의**: 축소추정은 참 DFN(un-censoring)을 목표로 하므로 **관측 P21 대비 과대**가 정상이다.
+    검증은 관측 P21 오차가 아니라 **참값(합성 GT: 반지름 오차 ~17%) 또는 LOFO 외삽(recall/precision)**으로 한다.
+  - Laxemar 예시 LOFO: 축소추정이 하한보다 recall↑(14→20%)·precision 동일 → 예측력 개선 확인. 희소 set(2)은 저신뢰.
 
 ## 실행 환경
 - Python 3.9+ / numpy, scipy, h5py, matplotlib, pyvista
+- (선택) `visualize_conditional_dfn_3d.py --html` 로 대화형 HTML(vtk.js) 뷰를 만들려면
+  trame 필요: `pip install "pyvista[jupyter]"` (trame, trame-vtk, trame-vuetify).
+  미설치 시 HTML export만 건너뛰고 PNG/창 출력은 정상 동작.

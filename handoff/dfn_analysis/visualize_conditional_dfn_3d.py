@@ -14,6 +14,9 @@ Usage
 -----
     python dfn_analysis/visualize_conditional_dfn_3d.py            # interactive window + screenshot
     python dfn_analysis/visualize_conditional_dfn_3d.py --no-window  # screenshot only (headless)
+    python dfn_analysis/visualize_conditional_dfn_3d.py --no-window --html  # + interactive HTML (vtk.js)
+
+HTML export needs trame:  pip install "pyvista[jupyter]"  (trame, trame-vtk, trame-vuetify).
 """
 # ======================================================================
 # [파일 역할]
@@ -30,6 +33,9 @@ Usage
 # [주요 출력]
 #   - 대화형 PyVista 창(기본) 또는 --no-window 시 스크린샷 PNG
 #     (기본 경로: <pipeline>/conditional_hidden/conditional_dfn_3d.png)
+#   - (옵션) --html : 브라우저에서 회전·확대 가능한 대화형 HTML(vtk.js)
+#     (기본 경로: <pipeline>/conditional_hidden/conditional_dfn_3d.html)
+#     ※ trame 패키지 필요: pip install "pyvista[jupyter]" (미설치 시 안내 후 건너뜀)
 #
 # [핵심 처리 흐름]
 #   1) 조건부 DFN CSV 및 터널 폴리곤/면 x위치 로드
@@ -202,6 +208,10 @@ def main() -> None:
                     help="Render off-screen and only save the screenshot.")
     ap.add_argument("--out", type=Path, default=None,
                     help="Screenshot path (default: <pipeline>/conditional_hidden/conditional_dfn_3d.png).")
+    ap.add_argument("--html", nargs="?", const="<default>", default=None,
+                    help="대화형 HTML(vtk.js)로 export. 경로 생략 시 기본 "
+                         "<pipeline>/conditional_hidden/conditional_dfn_3d.html 에 저장. "
+                         "trame 패키지 필요: pip install \"pyvista[jupyter]\".")
     args = ap.parse_args()
 
     # 입력 CSV 경로와 출력 PNG 경로 결정 후 조건부 DFN 로드
@@ -318,6 +328,21 @@ def main() -> None:
         (mid_x, 0.0, 0.0),                                 # focal: tunnel centre
         (0, 0, 1),                                          # up = z
     ]
+
+    # (옵션) 대화형 HTML export: 브라우저에서 회전·확대 가능한 3D 뷰(vtk.js/trame).
+    #   geometry(디스크·면·트레이스)는 그대로 직렬화된다. 2D 텍스트/범례는 vtk.js
+    #   변환 특성상 생략될 수 있다. plotter.show()가 렌더 컨텍스트를 정리하므로,
+    #   export 는 반드시 show()/screenshot 이전에 호출한다.
+    if args.html is not None:
+        html_path = (out_png.with_suffix(".html") if args.html == "<default>"
+                     else Path(args.html))
+        html_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            plotter.export_html(str(html_path))
+            print(f"Interactive HTML written to {html_path}")
+        except ImportError as e:
+            print(f"[html] export 건너뜀 — 추가 패키지 필요: "
+                  f"pip install \"pyvista[jupyter]\" (trame, trame-vtk, trame-vuetify). 상세: {e}")
 
     # 헤드리스 모드면 스크린샷 저장, 아니면 대화형 창 표시
     if args.no_window:

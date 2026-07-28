@@ -5,6 +5,7 @@
 #   - 이 모듈은 JSON을 읽어 그 preset dict들에 새 dataset을 "site"처럼 등록한다.
 #     → 기존 site 기반 코드 경로를 수정 없이 임의 데이터셋에 재사용할 수 있다.
 #
+# 주요 입력: dataset config JSON 경로(아래 스키마). 다른 인자 없음(라이브러리 모듈).
 # JSON 스키마:
 # {
 #   "dataset_name": "my_dataset",
@@ -17,7 +18,14 @@
 #   - p32_base / dist_type / r0 : 크기분포 (모집단 반지름 샘플링 + support 스케일링)
 #   - trend / plunge / kappa    : Fisher 방향 (교차확률 MC)
 #
-# 주요 출력: 등록된 dataset_name (이 값을 --site 로 넘겨 사용)
+# 주요 출력: 등록된 dataset_name (이 값을 --site 로 넘겨 사용). 부수효과로 세 preset
+#           dict(SITE_SET_CONFIG / SITE_FISHER_PARAMS / SITE_SET_SUPPORT_INFO)에 항목 추가.
+#
+# 핵심 처리 흐름:
+#   1) load_dataset_config: JSON 로드 + 필수 키(dataset_name/sets) 유효성 검사
+#   2) register_dataset: set별로 크기분포/Fisher방향/지지구간 항목을 구성
+#   3) 세 preset dict에 dataset_name 키로 주입(덮어쓰기 아닌 새 site 추가)
+#   4) load_and_register: 위 두 단계를 한 번에 수행하고 dataset_name 반환
 # =============================================================================
 from __future__ import annotations
 
