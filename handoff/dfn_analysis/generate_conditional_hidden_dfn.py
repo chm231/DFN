@@ -446,7 +446,7 @@ def conditioned_traces(
 #   - 반환: 없음(표준출력). P21은 (트레이스 총길이 / 관측창 총면적).
 def print_diagnostics(
     face_xs, poly_ccw, observed, cond, obs_len_by_set, n_visible, n_hidden_gen,
-    n_hidden_removed, n_hidden_kept, params, target_sets,
+    n_hidden_removed, n_hidden_kept, params, target_sets, visible=None,
 ):
     # 관측창 총면적 = 한 면 면적 × 관측면 개수
     window_area = _polygon_area(poly_ccw) * len(face_xs)
@@ -454,6 +454,14 @@ def print_diagnostics(
     cond_len = sum(np.linalg.norm(p1 - p0) for segs in cond.values() for p0, p1 in segs)
     n_obs = sum(len(s) for s in observed.values())
     n_cond = sum(len(s) for s in cond.values())
+
+    # set별 복원(visible) 재생성 길이 (P21 을 set 별로 공정 비교하기 위함)
+    cond_len_by_set: Dict[int, float] = defaultdict(float)
+    for d in (visible or []):
+        for xf in face_xs:
+            seg = visible_trace_on_face(d["center"], d["normal"], d["radius"], xf, poly_ccw)
+            if seg is not None:
+                cond_len_by_set[int(d["set_id"])] += float(np.linalg.norm(seg[1] - seg[0]))
 
     obs_len_all = sum(obs_len_by_set.values())
     # Conditioned traces come only from the conditioned sets, so the fair P21
@@ -486,6 +494,26 @@ def print_diagnostics(
         err = (p21_cond - p21_obs_matched) / p21_obs_matched * 100
         print(f"    P21 error (matched)    : {err:+.1f} %")
     print(f"  target P32 (sets {sorted(target_sets)}) : {p32_target:.3f} 1/m")
+
+    # set별 P21 (관측 vs 복원 visible) — set 을 섞지 않는 공정 비교.
+    # 혼합 'matched' 비교는 conditioned(전 set visible)와 observed(target set만)의
+    # 비대칭 때문에 왜곡될 수 있어, set 별 표를 권장 지표로 함께 출력한다.
+    if visible is not None:
+        ts = set(target_sets)
+        all_sets = sorted(set(obs_len_by_set) | set(cond_len_by_set))
+        print("  " + "-" * 40)
+        print("  per-set P21 [1/m]  (관측 vs 복원 visible):")
+        print(f"    {'set':>4} {'observed':>9} {'reconstructed':>13} {'err':>8}  role")
+        for s in all_sets:
+            po = obs_len_by_set.get(s, 0.0) / window_area if window_area else 0.0
+            pc = cond_len_by_set.get(s, 0.0) / window_area if window_area else 0.0
+            role = "conditioned(visible+hidden)" if s in ts else "visible-only"
+            err_s = f"{(pc - po) / po * 100:+.1f}%" if po > 0 else "  n/a"
+            print(f"    {s:>4} {po:>9.3f} {pc:>13.3f} {err_s:>8}  {role}")
+        if p21_obs_all > 0:
+            err_all = (p21_cond - p21_obs_all) / p21_obs_all * 100
+            print(f"    {'ALL':>4} {p21_obs_all:>9.3f} {p21_cond:>13.3f} {err_all:>+7.1f}%  "
+                  f"(대칭: 전 set vs 전 set)")
     print("-" * 64)
 
 
@@ -650,7 +678,8 @@ def main() -> None:
     # 진단 출력 후 최종 DFN CSV와 비교 그림 저장
 
     print_diagnostics(face_xs, poly_ccw, observed, cond, obs_len_by_set, len(visible),
-                      len(hidden_all), n_removed, len(hidden_kept), params, target_sets)
+                      len(hidden_all), n_removed, len(hidden_kept), params, target_sets,
+                      visible=visible)
     out_dir = pdir / "conditional_hidden"
     write_dfn_csv(visible, hidden_kept, out_dir / "conditional_dfn.csv")
     plot_fig(observed, cond, face_xs, poly_ccw, hidden_kept,
