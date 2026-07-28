@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제6장 보고서 수정안 — 코드 기반 (2026-07 통화 결정 반영)</title>
+<script>
+MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$','$$']] } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; max-width: 900px;
+         margin: 2rem auto; padding: 0 1.2rem; line-height: 1.75; color: #222; }
+  h1 { font-size: 1.5rem; border-bottom: 3px solid #234; padding-bottom: .5rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.2rem; border-left: 6px solid #368; padding-left: .6rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.6rem; }
+  table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: .92rem; }
+  th, td { border: 1px solid #999; padding: .35rem .6rem; text-align: center; }
+  th { background: #eef2f6; }
+  td.l { text-align: left; }
+  .box { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;
+         padding: .8rem 1rem; margin: 1rem 0; }
+  .warn { background: #fff8e6; border-color: #e0c060; }
+  .del { color: #a33; text-decoration: line-through; }
+  .add { color: #063; font-weight: 600; }
+  .small { font-size: .85rem; color: #555; }
+  code { background: #f0f0f0; padding: .1rem .3rem; border-radius: 3px; font-size: .88em; }
+  .eq { margin: .6rem 0; }
+</style>
+</head>
+<body>
+
+<h1>제6장 보고서 수정안 — 코드 기반<br>
+<span class="small">(2026-07 클라이언트 통화 결정 반영 · 최종 파이프라인 코드와 일치하도록 어긋난 절만 수정)</span></h1>
+
+<div class="box">
+<b>수정 범위 요약</b> — 보고서 전체가 아니라 코드/결정사항과 어긋난 부분만 수정한다.
+<table>
+<tr><th>위치</th><th>기존 서술</th><th>수정 내용</th><th>근거</th></tr>
+<tr><td>제2절 (식 6.16)</td><td class="l">2차원 방향각 $\theta_{2D}$ 정의·사용</td>
+    <td class="l">외부 제공 <b>3차원 방향</b>으로 대체, $\theta_{2D}$ 삭제</td><td>결정 ③</td></tr>
+<tr><td>제3절 1.1 (식 6.19–6.26)</td><td class="l">polyline 3점법 국소 법선 추정</td>
+    <td class="l"><b>삭제</b> — 방향은 외부(측량팀) 제공값 사용, 코드 반영 완료</td><td>결정 ①</td></tr>
+<tr><td>제3절 2·3 (kr·P32 MC)</td><td class="l">forward MC로만 서술</td>
+    <td class="l"><b>해석적 수식화 보완</b> 소절 추가 (닫힌형 유도 + 하이브리드 제안)</td><td>결정 ④</td></tr>
+<tr><td>제4절 (식 6.15)</td><td class="l">가중합 정합점수 $S=\sum w_i E_i$</td>
+    <td class="l">실제 구현( <b>게이트 + 증분 검증</b> ) 기준으로 재서술</td><td>결정 ② / 코드</td></tr>
+</table>
+</div>
+
+<!-- ================================================================ -->
+<h2>수정 1 — 제2절 절리 전처리: 2차원 방향각 삭제, 외부 3차원 방향 사용</h2>
+
+<p><span class="del">절리선 양 끝점으로부터 2차원 방향각 $\theta_{2D}=\mathrm{atan2}(z_2-z_1,\,y_2-y_1)$을
+계산하여 1차 분류와 동일 균열 후보 선별의 보조 변수로 사용한다(구 식 6.16).</span></p>
+
+<p class="add">각 절리선의 방향 정보는 막장면 좌표계의 2차원 방향각이 아니라, 절리면의
+<b>3차원 방향(단위 법선 벡터)</b>으로 직접 취급한다. 3차원 방향은 절리선 자료와 함께
+외부(3D 매핑·측량 담당) 모듈에서 제공되며, 파이프라인 내부에서는 이를 재추정하지 않고
+그대로 입력으로 사용한다. 따라서 전처리 단계의 산출물은 절리선별
+(길이 $L$, 중심점 $C$, <b>3차원 단위 법선</b> $\hat n$, 절단등급 $c$)이다.</p>
+
+<p>동일 균열 후보 선별(제4절)도 2차원 방향각이 아니라 3차원 법선의
+<b>축각(axial angle)</b> $\angle_{ax}(\hat n_i,\hat n_j)=\arccos\lvert \hat n_i\cdot\hat n_j\rvert$
+을 사용한다. 이는 최종 구현(<code>reconstruct_discs_from_traces.py</code>)과 일치한다.</p>
+
+<!-- ================================================================ -->
+<h2>수정 2 — 제3절 1항: 3점법 삭제, 외부 3차원 방향 입력으로 대체</h2>
+
+<h3>2.1 수정된 서술 (구 1.1 「3점법 국소 법선 벡터」 전체 대체)</h3>
+
+<p><span class="del">막장면 요철로 인한 polyline 굴곡을 이용해 현 벡터와 최대 이탈점의 외적으로
+국소 법선을 추정한다(구 식 6.19–6.26, 3점법).</span></p>
+
+<p class="add">절리선별 3차원 방향(절리면 단위 법선 $\hat n_i$)은 3D 매핑 측량 모듈(제5장,
+연속 굴진면 지질 매핑)에서 절리선 자료와 함께 제공된다. 본 장의 역산 파이프라인은 이
+방향을 <b>입력 자료</b>로 받으며 내부에서 재추정하지 않는다. 절리군별 평균 방향과
+Fisher 집중도 $\kappa$ 추정(1.2항 축성 평균, 식 6.27–6.32)은 이 입력 법선 집합에 그대로
+적용되므로 변경이 없다.</p>
+
+<div class="box">
+<b>구현 반영</b> — <code>export_setwise_3d_traces.py</code>에
+<code>--trace-normal-source {external | 3pt}</code> 옵션을 추가하였다 (기본 <code>external</code>).
+<ul>
+<li><code>external</code>: 외부 제공 per-trace 3차원 방향 사용. 합성 벤치마크에서는 생성기
+    fracture 참값 법선이 외부 측량 방향의 역할을 한다. 실측 적용 시 이 지점에 외부 방향
+    입력만 매핑하면 하류 모듈(방향·κ 추정, config 생성, 원판 복원)은 수정이 필요 없다.</li>
+<li><code>3pt</code>: 기존 polyline 3점법 (legacy, 비교·재현용으로만 유지).</li>
+</ul>
+polyline 자체는 방향 추정에서 제외되며, 3차원 시각화와 원판 복원 시 경계점 원적합에만 사용된다.
+</div>
+
+<h3>2.2 검증 — 방향 소스 교체 전후 비교 (Laxemar 벤치마크, 막장면 4개)</h3>
+
+<p>동일 DFN·동일 막장면 메쉬에서 방향 소스만 바꿔 절리군별 평균 방향과 $\kappa$를
+추정하고 참값과 비교하였다. $\alpha$는 참값 pole 대비 축 각도차(식 6.32)이다.</p>
+
+<table>
+<tr><th rowspan="2">절리군</th><th rowspan="2">방향 소스</th><th rowspan="2">유효 법선 수<br>/ 절리선 수</th>
+    <th colspan="2">역산 trend / plunge</th><th rowspan="2">역산 $\kappa$</th>
+    <th rowspan="2">$\alpha$ (축각차)</th><th rowspan="2">$\kappa$ 오차</th></tr>
+<tr><th>trend</th><th>plunge</th></tr>
+<tr><td rowspan="2">1</td><td>3점법 (구)</td><td>54 / 178</td><td>338.7°</td><td>8.4°</td><td>14.32</td><td>3.9°</td><td>+9.7%</td></tr>
+<tr><td class="add">외부 방향 (신)</td><td class="add">178 / 178</td><td>340.1°</td><td>5.8°</td><td>13.24</td><td class="add">2.4°</td><td class="add">+1.4%</td></tr>
+<tr><td rowspan="2">2</td><td>3점법 (구)</td><td>27 / 44</td><td>107.5°</td><td>0.2°</td><td>17.88</td><td>7.1°</td><td>−8.9%</td></tr>
+<tr><td class="add">외부 방향 (신)</td><td class="add">44 / 44</td><td>108.4°</td><td>0.0°</td><td>16.45</td><td>8.0°</td><td>−16.1%</td></tr>
+<tr><td rowspan="2">3</td><td>3점법 (구)</td><td>70 / 139</td><td>209.4°</td><td>2.2°</td><td>9.47</td><td>3.7°</td><td>−9.4%</td></tr>
+<tr><td class="add">외부 방향 (신)</td><td class="add">139 / 139</td><td>208.6°</td><td>2.1°</td><td>9.91</td><td>4.5°</td><td class="add">−5.3%</td></tr>
+<tr><td rowspan="2">5</td><td>3점법 (구)</td><td>80 / 180</td><td>241.1°</td><td>25.0°</td><td>25.27</td><td>1.8°</td><td>+7.4%</td></tr>
+<tr><td class="add">외부 방향 (신)</td><td class="add">180 / 180</td><td>239.4°</td><td>26.2°</td><td>25.57</td><td>3.7°</td><td>+8.7%</td></tr>
+</table>
+<p class="small">참값: Set1 338.1°/4.5°, κ13.06 · Set2 100.4°/0.2°, κ19.62 · Set3 212.9°/0.9°, κ10.46 · Set5 243.0°/24.4°, κ23.52</p>
+
+<p><b>해석.</b> (i) 3점법은 요철이 작아 polyline이 직선에 가까운 절리선(전체의 40–70%)의
+법선을 버리지만, 외부 방향은 <b>전 절리선에서 유효</b>하여 표본 손실이 없다.
+(ii) 방향·κ 정확도는 동등하거나 개선된다(Set1 축각차 3.9°→2.4°, κ오차 +9.7%→+1.4%).
+(iii) 잔여 편차(예: Set2 축각차 8.0°)는 방향 <i>측정</i> 오차가 아니라, 관측창과 교차한
+균열 표본이 절리군 모집단을 대표하지 못하는 <b>표본화 효과</b>다 — 벤치마크의 외부 방향은
+참값 법선이므로 측정 오차가 0이기 때문이다. 실측 적용 시에는 여기에 측량 방향의
+측정 불확실성이 더해진다.</p>
+
+<p><b>하류 검증.</b> 외부 방향 기반 trace 데이터셋으로 원판 복원
+(<code>reconstruct_discs_from_traces</code>, agglomerative)을 수행한 결과 377개 복원 원판,
+다면 관통 84개, 결합 평면 잔차 median 0.000 m로 정상 동작함을 확인하였다(정밀 방향
+덕분에 연결 군집의 공면성이 개선됨).</p>
+
+<!-- ================================================================ -->
+<h2>수정 3 — 제3절 2·3항 보완: forward MC의 해석적 수식화</h2>
+
+<p>기존 서술의 forward MC 절차는 유지하되, "어디까지 닫힌형(closed-form)으로 표현되고
+MC가 정확히 무엇을 보정하는가"를 명시하는 보완 소절을 추가한다.</p>
+
+<h3>3.1 공통 보조정리 — 단일 원판의 현길이 적분</h3>
+<p>반지름 $R$, 법선 $\hat n$인 원판을 법선 $\hat e_x$의 평행 관측면들이 $x$를 따라 쓸고
+지나갈 때, 면별 현 길이 $\ell(x)$의 총적분은</p>
+<div class="eq">$$\int \ell(x)\,dx \;=\; \pi R^2 \sin\phi, \qquad
+\cos\phi=\lvert \hat n\cdot\hat e_x\rvert .$$</div>
+<p class="small">(원판 평면 내 교선 수직좌표 $s$에 대해 $dx=\sin\phi\,ds$이므로
+$\int\ell\,dx=\sin\phi\cdot\pi R^2$.)</p>
+
+<h3>3.2 $P_{32}$ 보정계수의 닫힌형</h3>
+<p>Poisson 중심 배치(수밀도 $n$), $R\perp\hat n$ 독립이면 관측면 단위면적당 기대 절리선
+총길이는</p>
+<div class="eq">$$E[P_{21}] \;=\; n\,\pi\,E[R^2]\,E[\sin\phi] \;=\; P_{32}\cdot E[\sin\phi],$$</div>
+<p>따라서 이상(무한 관측면) 조건의 보정계수는</p>
+<div class="eq">$$\boxed{\,C \;=\; E[\sin\phi] \;=\; E\!\left[\sqrt{1-n_x^2}\right]\,},\qquad
+\widehat{P_{32}}=\frac{P_{21}^{obs}}{C}.$$</div>
+<p>즉 <b>이상 조건의 $C$는 반지름 분포와 무관하며 방향 분포만의 함수</b>다. Fisher 분포에서
+$E[\sin\phi]$는 1차원 구면 적분으로 계산되고, 극한은
+$\kappa\to\infty$에서 $C\to\sin\Theta$($\Theta$=평균 pole–관측면 법선 사잇각),
+$\kappa\to 0$(등방)에서 $C\to\pi/4\approx0.785$이다.
+실제 구현의 unit-$P_{32}$ forward MC가 추가로 반영하는 것은
+(i) 터널 다각형 관측창 클리핑, (ii) 요철 막장면 면적이며, 이는 곱셈형 창 보정
+$\eta_{win}\lesssim1$로 작용한다: $C = E[\sin\phi]\cdot\eta_{win}$.</p>
+
+<h3>3.3 $k_r$ — 이상 조건 절리선 길이 분포의 닫힌형</h3>
+<p>고정 반지름 $R$에서 현길이 밀도는 $f_\ell(\ell\mid R)=\dfrac{\ell}{4R\sqrt{R^2-(\ell/2)^2}}$
+($\ell\in[0,2R]$)이고, 크기 편향 반지름 밀도 $g_R(r)\propto r\,f_R(r)\propto r^{-k_r}$로
+주변화하면 절단 구간에서 불완전 베타(초기하) 함수로 닫힌다. 무절단 극한
+($r_{\min}\to0,\ r_{\max}\to\infty$)에서는</p>
+<div class="eq">$$\boxed{\,f_\ell(\ell)\ \propto\ \ell^{-k_r}\,}\qquad\Longleftrightarrow\qquad
+P(L>\ell)\ \propto\ \ell^{-(k_r-1)},$$</div>
+<p>즉 <b>절리선 길이는 반지름과 동일한 멱지수의 멱법칙</b>을 따른다. 따라서 forward MC가
+실제로 보정하는 것은 이 이상 법칙으로부터의 이탈, 곧 (i) 임의 다각형 관측창 클리핑,
+(ii) 절단등급 $c\in\{0,1,2\}$ 분포, (iii) 적합 하한 $\ell_{\min,fit}$ 효과다.</p>
+
+<h3>3.4 수식화 결론 및 하이브리드 제안</h3>
+<table>
+<tr><th>구성 요소</th><th>해석적 표현</th><th>MC 필요 여부</th></tr>
+<tr><td class="l">방향 편향 $E[\sin\phi]$</td><td class="l">Fisher 1차원 적분 (닫힘)</td><td>불필요</td></tr>
+<tr><td class="l">크기 편향 $g_R\propto r^{-k_r}$</td><td class="l">닫힘</td><td>불필요</td></tr>
+<tr><td class="l">이상 현길이 분포 $f_\ell(\ell\mid k_r)$</td><td class="l">불완전 베타 (닫힘)</td><td>불필요</td></tr>
+<tr><td class="l">임의 다각형 창 클리핑</td><td class="l">직사각형 창만 해석적 보정 존재</td><td><b>필요</b></td></tr>
+<tr><td class="l">절단등급 분포</td><td class="l">일반적으로 닫히지 않음</td><td><b>필요</b></td></tr>
+</table>
+<p>따라서 "MC 전량 시뮬레이션"을 <b>해석식 + 소량의 경계 보정 MC(하이브리드 우도)</b>로
+재구성할 수 있다: 길이 성분 우도는 닫힌형 pdf로 직접 평가하고(MC 분산 제거,
+프로파일 우도 곡선 평활화), 창 클리핑·절단등급 성분만 MC로 유지한다. 완전한 closed-form의
+유일한 장벽은 임의 터널 다각형 창이다.</p>
+
+<!-- ================================================================ -->
+<h2>수정 4 — 제4절: 정합 점수(구 식 6.15)를 실제 구현 기준으로 재서술</h2>
+
+<h3>4.1 수정된 서술</h3>
+<p><span class="del">후보 조합의 정합도를 가중합
+$S=w_1E_{plane}+w_2E_{direction}+w_3E_{normal}+w_4E_{radius}+w_5E_{con}$ 하나의 스칼라로
+평가하고 임계값 이하만 연결한다(구 식 6.15).</span></p>
+
+<p class="add">최종 구현은 가중합 스칼라를 사용하지 않는다. 대신 (1) 후보쌍을 물리적으로
+해석 가능한 <b>하드 게이트</b>로 거르고, (2) 게이트를 통과한 후보 간선을 공면 거리
+오름차순으로 <b>증분(agglomerative) 병합</b>하되, 매 병합마다 두 개의 <b>하드 수용 검사</b>를
+통과할 때만 확정한다. 튜닝 자유 가중치가 없어 과적합·연쇄 병합에 강하며, oracle(참
+fracture id) 대비 절리선 연결 순도 약 95%를 얻는다.</p>
+
+<p><b>(1단계) 후보 간선 게이트</b> — 절리선 쌍 $(i,j)$는 다음 네 조건을 모두 만족할 때만 병합 후보가 된다.</p>
+<div class="eq">$$s_i=s_j,\qquad
+\angle_{ax}(\hat n_i,\hat n_j)=\arccos\lvert\hat n_i\cdot\hat n_j\rvert\le\theta_{ang},\qquad
+\lVert c_i-c_j\rVert\le s_{max},$$
+$$\max\big(\lvert(c_j-c_i)\cdot\hat n_i\rvert,\ \lvert(c_i-c_j)\cdot\hat n_j\rvert\big)\le d_{cop}
+\qquad (\text{기본 } \theta_{ang}=15^\circ,\ d_{cop}=0.15\,\mathrm{m},\ s_{max}=2\,\mathrm{m}).$$</div>
+
+<p><b>(2단계) 증분 병합의 두 수용 검사</b> — 병합 후보 군집 $M$에 대해:</p>
+<p>(a) <b>결합 평면 잔차</b>: 군집의 모든 절리선 점에 SVD 평면적합 후
+$$\mathrm{resid}(M)=\sqrt{\tfrac1{|M|}\textstyle\sum_{p\in M}\big((p-\bar p)\cdot\hat n_M\big)^2}\ \le\ \varepsilon_{res}\quad(\text{기본 }0.08\,\mathrm{m}).$$</p>
+<p>(b) <b>한 균열 = 면당 현 1개 물리제약</b>: 하나의 원판은 한 막장면과 하나의 현으로만
+교차하므로, 같은 면에 속한 군집 멤버들의 중점은 현 수직 면내축
+$\hat u=\hat n_M\times\hat d$ ($\hat d=\hat n_M\times\hat e_x/\lVert\cdot\rVert$) 방향으로
+$$\max_{m\in M_f}(m\cdot\hat u)-\min_{m\in M_f}(m\cdot\hat u)\ \le\ \tau_{chord}
+\quad(\text{기본 }0.25\,\mathrm{m})$$
+이내로 모여 있어야 한다. 벌어져 있으면 서로 다른 균열로 보고 병합을 기각한다.</p>
+
+<h3>4.2 구 식 6.15의 5개 항과 실제 구현의 대응</h3>
+<table>
+<tr><th>구 식 6.15 항</th><th>실제 구현</th><th>비고</th></tr>
+<tr><td>$E_{plane}$</td><td class="l">공면 게이트($\le0.15$ m) + 병합 잔차 검사($\le0.08$ m)</td><td class="l">후보/군집 두 수준으로 분리</td></tr>
+<tr><td>$E_{direction},E_{normal}$</td><td class="l">법선 축각 게이트($\le15^\circ$)</td><td class="l">하나의 축각 조건으로 통합</td></tr>
+<tr><td>$E_{con}$</td><td class="l">면당 현 1개 제약 + 공면거리 오름차순 병합</td><td class="l">가중항이 아닌 하드 물리제약</td></tr>
+<tr><td>$E_{radius}$</td><td class="l">연결 단계에서 미사용</td><td class="l">반지름 타당성은 복원 단계(원적합 호 커버리지·$k_r$ 축소추정) 소관</td></tr>
+<tr><td>$S\le\tau$ (가중합)</td><td class="l">미사용</td><td class="l">자유 가중치 없음 → 재현성·강건성 확보</td></tr>
+</table>
+
+<p class="small">참고: 막장면 간 연속성을 명시적 비용으로 쓰는 대안 모드
+(<code>predictive</code>: 원판–평면 교선의 $x$-선형 이동으로 다음 면 현 위치를 예측하고
+예측선까지 수직거리를 비용으로 한 면간 1:1 Hungarian 매칭)도 구현되어 있으며, 구 식 6.63의
+연속성 비용 서술은 이 모드에 대응한다. 기본 모드는 위의 검증형 응집이다.</p>
+
+<hr>
+<p class="small">본 수정안은 최종 파이프라인 코드(<code>dfn_analysis/</code>, 2026-07-28 기준
+main 브랜치)와 2026-07 클라이언트 통화 결정(①③ 외부 3차원 방향 사용·polyline 방향추정 폐기,
+② 정합 판정 서술 명확화, ④ MC 수식화)을 근거로 작성되었다. 수식 렌더링: MathJax
+(인터넷 연결 필요).</p>
+
+</body>
+</html>

@@ -790,8 +790,17 @@ def write_hdf5(
 # 모든 face x fracture 조합을 순회하며 trace를 추출해 전체 trace 레코드 리스트를 만든다.
 #   인자:  data - DFN dict, face_contexts - precompute된 face context 리스트.
 #   반환:  CSV/HDF5로 저장할 trace 레코드 dict 리스트(trace_id는 전체에서 1부터 연속 부여).
-def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[dict]:
-    """rough mode trace 레코드 생성."""
+def build_rows_rough_faces(
+    data: dict, face_contexts: Sequence[dict], trace_normal_source: str = "external"
+) -> List[dict]:
+    """rough mode trace 레코드 생성.
+
+    trace_normal_source:
+      - "external": 외부(측량팀) 제공 per-trace 3D 방향을 사용한다는 결정(2026-07 통화)의
+        구현. 합성 벤치마크에서는 생성기 fracture 참값 법선이 외부 방향의 역할을 한다.
+        (실측 적용 시 이 지점에서 외부 방향 입력을 매핑하면 하류는 수정 불필요.)
+      - "3pt": (legacy) polyline 3점법으로 국소 법선 추정 (estimate_trace_normal_3pt).
+    """
     rows = []
     trace_id = 1
     total_fractures = len(data["radii"])
@@ -831,9 +840,18 @@ def build_rows_rough_faces(data: dict, face_contexts: Sequence[dict]) -> List[di
             )
             graph_time += time.perf_counter() - t_graph_start
 
-            # 각 trace component마다 3점 기반 법선을 추정하고 한 개의 레코드 행으로 만든다.
+            # 각 trace component마다 방향(법선)을 정하고 한 개의 레코드 행으로 만든다.
             for component_id, seg in enumerate(components):
-                normal_est = estimate_trace_normal_3pt(seg["polyline_xyz"])
+                normal_est: dict
+                if trace_normal_source == "external":
+                    # 외부 제공 3D 방향 (벤치마크: fracture 참값 법선이 그 역할)
+                    ext_n = np.asarray(data["normals"][fracture_id], dtype=np.float64)
+                    ext_n = ext_n / np.linalg.norm(ext_n)
+                    normal_est = {
+                        "normal": ext_n, "valid": 1, "quality": 1.0, "reason": "external",
+                    }
+                else:  # "3pt" (legacy): polyline 3점법
+                    normal_est = estimate_trace_normal_3pt(seg["polyline_xyz"])
                 rows.append(
                     {
                         "trace_id": trace_id,
@@ -939,6 +957,11 @@ def main() -> None:
     parser.add_argument("--outdir", default="storage/output/trace_dataset_collection", help="Output directory")
     parser.add_argument("--tunnel-dat", help="Optional tunnel polygon .dat file when HDF5 has no tunnel polygon")
     parser.add_argument("--rough-mesh-h5", help="Optional HDF5 containing /rough_faces or legacy /rough_face")
+    parser.add_argument(
+        "--trace-normal-source", choices=["external", "3pt"], default="external",
+        help="trace 방향 소스. external(기본)=외부 제공 3D 방향(벤치마크: fracture 참값 법선), "
+             "3pt=legacy polyline 3점법. (2026-07 결정: polyline 미사용, 외부 방향 사용)",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -968,7 +991,8 @@ def main() -> None:
     # 각 face의 삼각형/경계 정보를 미리 계산하고, 모든 face에 대해 trace 레코드를 만든다.
     print(f"[*] Using face-wise rough face collection from: {rough_face_source}")
     face_contexts = [precompute_face_mesh(face) for face in rough_faces]
-    rows = build_rows_rough_faces(data, face_contexts)
+    print(f"[*] trace normal source: {args.trace_normal_source}")
+    rows = build_rows_rough_faces(data, face_contexts, args.trace_normal_source)
     face_x = np.array([ctx["face_x"] for ctx in face_contexts], dtype=np.float64)
 
     # 결과를 CSV와 HDF5로 저장한다.

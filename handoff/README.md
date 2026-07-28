@@ -57,7 +57,7 @@
 | `build_p32_pilot_summary.py` | 사이트/set 설정, 지지구간 스케일 P32 헬퍼 |
 | `summarize_setwise_trace_statistics.py` | set별 trace 길이/개수 통계 |
 | `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / unit_p32_forward_mc 보정계수) |
-| `export_setwise_3d_traces.py` | DFN(h5) + 거친 막장면 mesh → 3D trace 데이터셋 순방향 생성 |
+| `export_setwise_3d_traces.py` | DFN(h5) + 거친 막장면 mesh → 3D trace 데이터셋 순방향 생성. `--trace-normal-source external`(기본)=외부 제공 3D 방향 사용(2026-07 결정; 벤치마크는 fracture 참값 법선이 그 역할), `3pt`=legacy polyline 3점법 |
 | `generate_synthetic_rough_face_mesh.py` | 합성 거친 막장면 mesh 생성 (검증용 입력) |
 | `reconstruct_discs_from_traces.py` | **관측 trace → 복원 원판**. 연결=검증형 응집(결합평면 잔차+면당1chord, oracle 대비 순도 95%), 반지름=경계 원적합 / kr 축소추정(empirical-Bayes, 참R 오차 26→17%) |
 | `visualize_reconstruction.py` | 복원 검증 시각화: 3D 개요 + 면별(관측 trace vs 복원 원판 chord, 미재현 강조) |
