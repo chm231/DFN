@@ -12,7 +12,7 @@
 #     hybrid = 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변
 #     MC 커널 1회로 분해. 프로파일 평활·lmin 불변·속도가 강점(해석/민감도 스캔용).
 #     20시드 검증에서 최종 추정 효율(RMSE)은 window_mc + per-set lmin 선택이
-#     우위여서 기본값은 window_mc 를 유지한다(판정: docs/MC수식화_검토_kr_P32.md §4.6).
+#     우위여서 기본값은 window_mc 를 유지한다(판정: docs/제6장_수정안_통합본.md 제3부 §4.6).
 #     hybrid 는 lmin_fit 미지정 시 전 set 공통 0.5 m 고정을 기본으로 한다(§4.4).
 #   - (검증용) site 프리셋 또는 --kr-true-map 으로 주어지는 kr 참값
 #
@@ -212,7 +212,7 @@ def main() -> None:
     #   hybrid    → [0.5] 고정(전 set 공통). hybrid 는 lmin 에 대한 kr_hat 요동이
     #               ≤0.05~0.30 수준으로 작고 잡음이 없어 후보 탐색의 실익이 없으며,
     #               0.5 m 는 mesh 해상도(0.2 m)·검출한계 위의 안정 구간이다
-    #               (민감도 근거: docs/MC수식화_검토_kr_P32.md §4.4).
+    #               (민감도 근거: docs/제6장_수정안_통합본.md 제3부 §4.4).
     parser.add_argument("--lmin-fit-values", nargs="+", type=float, default=None,
                         help="적합 길이 하한 후보 [m]. 미지정 시 window_mc=[0.1,0.2,0.3,0.5,0.75], hybrid=[0.5]")
     parser.add_argument("--allow-rmin-mismatch", action="store_true")
