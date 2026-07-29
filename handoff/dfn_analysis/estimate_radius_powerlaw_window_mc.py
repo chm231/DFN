@@ -673,6 +673,73 @@ def sample_true_chords(radii: np.ndarray, rng: np.random.Generator) -> np.ndarra
     return 2.0 * np.sqrt(np.maximum(radii * radii - offsets * offsets, 0.0))
 
 
+# ---------------------------------------------------------------------------
+# [hybrid 우도] 참(true) 현길이 분포의 닫힌형(해석식) 평가.
+#   이상조건(무한 관측면)에서 크기편향 절단멱법칙 g_R(r) ∝ r^-kr 을 주변화한
+#   참 현길이 비정규화 pdf:  f(ℓ) = ∫_{max(a,rmin)}^{rmax} r^-kr · ℓ/(4r√(r²-a²)) dr,
+#   a=ℓ/2. 적분 특이점(r=a)은 r=a+t² 치환으로 제거한다. 정규화 상수는 최종
+#   확률표 정규화에서 상쇄되므로 계산하지 않는다.
+HYBRID_TRUE_BINS = 64                 # 참 현길이 로그 bin 수 (커널 축)
+HYBRID_KERNEL_SAMPLES_PER_BIN = 3000  # 커널 MC 표본 수 / bin
+
+
+def _true_chord_pdf_unnorm(ell: float, kr: float, rmin: float, rmax: float, nt: int = 200) -> float:
+    a = 0.5 * ell
+    lo = max(a, rmin)
+    if lo >= rmax or ell <= 0.0:
+        return 0.0
+    t = np.linspace(np.sqrt(max(lo - a, 0.0)), np.sqrt(rmax - a), nt)
+    r = a + t * t
+    return float(np.trapezoid(r ** (-kr) * ell / (2.0 * r * np.sqrt(2.0 * a + t * t + 1e-300)), t))
+
+
+# kr 후보에 대해 참 현길이 bin 질량 w_j(kr) = ∫_bin_j f(ℓ)dℓ 를 해석식으로 계산.
+# (kr 격자 순회에서 유일하게 kr에 의존하는 부분 — MC 잡음이 전혀 없다)
+def analytic_true_chord_bin_masses(kr: float, rmin: float, rmax: float, true_edges: np.ndarray) -> np.ndarray:
+    masses = np.zeros(len(true_edges) - 1, dtype=np.float64)
+    for j in range(len(masses)):
+        sub = np.geomspace(true_edges[j], true_edges[j + 1], 5)
+        pdf = [_true_chord_pdf_unnorm(x, kr, rmin, rmax) for x in sub]
+        masses[j] = float(np.trapezoid(pdf, sub))
+    return masses
+
+
+# [hybrid 우도] 주어진 '참 현길이' 표본에 방향·중심 배치·창 클리핑만 적용한다.
+#   simulate_window_samples 와 동일한 관측 변환이지만 반지름/현길이 표집이 없다
+#   (커널 사전계산용: 창·절단 변환은 kr 과 무관하므로 1회만 계산하면 된다).
+def simulate_window_from_true_chords(
+    polygon_yz: np.ndarray,
+    directions_yz: np.ndarray,
+    true_lengths: np.ndarray,
+    rng: np.random.Generator,
+    window_mode: str = "polygon",
+    direction_mode: str = "empirical_trace",
+    set_id: int = 0,
+    site: str = "",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    bbox_min = np.min(polygon_yz, axis=0)
+    bbox_max = np.max(polygon_yz, axis=0)
+    w_bbox = bbox_max[0] - bbox_min[0]
+    h_bbox = bbox_max[1] - bbox_min[1]
+    n_samples = len(true_lengths)
+
+    if direction_mode == "orientation_conditioned":
+        dir_pool = orientation_conditioned_trace_directions_yz(set_id, site, n_samples * 3, rng)
+        directions = dir_pool[rng.integers(0, len(dir_pool), size=n_samples)]
+    else:
+        directions = directions_yz[rng.integers(0, len(directions_yz), size=n_samples)]
+
+    proposal_areas = (w_bbox + true_lengths * np.abs(directions[:, 0])) * (h_bbox + true_lengths * np.abs(directions[:, 1]))
+    expand = 0.5 * true_lengths[:, None]
+    centers = rng.uniform(bbox_min - expand, bbox_max + expand)
+    if window_mode == "bbox":
+        visible_lengths, classes = clip_segments_to_bbox_vectorized(centers, directions, true_lengths, bbox_min, bbox_max)
+    else:
+        visible_lengths, classes = clip_segments_to_convex_polygon_vectorized(centers, directions, true_lengths, polygon_yz)
+    accepted = (classes >= 0) & (visible_lengths > 0.0)
+    return visible_lengths[accepted], classes[accepted], proposal_areas[accepted]
+
+
 # 주어진 반경 표본에 대해 관측창에서 채택된 가시 트레이스를 시뮬레이션한다.
 # 처리: 참 현 길이 표본 → 방향 표본 → 창 안 무작위 중심 배치 → 창 클리핑 → 채택 필터.
 # 인자: 폴리곤, 방향풀, 반경, rng, window_mode(polygon/bbox), direction_mode, set_id, site.
@@ -816,6 +883,20 @@ def marginal_length_probability(joint_prob: np.ndarray) -> np.ndarray:
 # 결합 확률표에서 검열등급 주변확률(길이 방향 합)을 구한다.
 def marginal_class_probability(joint_prob: np.ndarray) -> np.ndarray:
     return np.sum(joint_prob, axis=0)
+
+
+# [hybrid 우도] bin 확률(prob)과 bin 경계(edges)로부터 분위수를 선형보간으로 계산.
+def quantile_from_binned(prob: np.ndarray, edges: np.ndarray, q: float) -> float:
+    total = float(np.sum(prob))
+    if total <= 0.0:
+        return float("nan")
+    cum = np.cumsum(prob) / total
+    idx = int(np.searchsorted(cum, q))
+    if idx >= len(prob):
+        return float(edges[-1])
+    prev = cum[idx - 1] if idx > 0 else 0.0
+    frac = (q - prev) / max(cum[idx] - prev, 1e-12)
+    return float(edges[idx] + frac * (edges[idx + 1] - edges[idx]))
 
 
 # 관측 카운트와 모델 확률표로 결합 로그우도를 계산한다(log 0 방지 클립).
@@ -977,6 +1058,7 @@ def fit_set_lmin(
     oracle_radius_mode: str = "none",
     run_bootstrap: bool = False,
     n_bootstrap: int = 100,
+    likelihood_mode: str = "window_mc",
 ) -> tuple[dict, List[dict], List[dict], List[dict]]:
     # 관측 길이/등급을 배열로 모으고, lmin_fit 이상만 적합에 사용(관측 히스토그램/주변 카운트 준비).
     lengths_all = np.asarray([float(row["observed_length_m"]) for row in set_rows], dtype=np.float64)
@@ -1003,7 +1085,30 @@ def fit_set_lmin(
     
     # Store precomputed likelihood summaries for bootstrap and decomposition
     grid_prob_summaries = []
-    
+
+    # [hybrid] 창·절단 변환 커널 K[j,i,c] 를 kr 격자 밖에서 1회만 MC 계산.
+    #   j: 참 현길이 bin, i: 가시길이 bin, c: 절단등급. 창 변환은 kr 과 무관하므로
+    #   kr 순회에서는 해석식 bin 질량 w_j(kr) 와의 결합(tensordot)만 수행한다.
+    hybrid_true_edges = None
+    hybrid_kernel = None
+    hybrid_kernel_accepted = 0
+    if likelihood_mode == "hybrid" and oracle_radius_mode != "observed_trace_radii":
+        hybrid_true_edges = np.geomspace(lmin_fit, 2.0 * rmax, HYBRID_TRUE_BINS + 1)
+        hybrid_kernel = np.zeros((HYBRID_TRUE_BINS, len(edges) - 1, 3), dtype=np.float64)
+        rng_k = np.random.default_rng(rng_base + 777)
+        for j in range(HYBRID_TRUE_BINS):
+            tl = rng_k.uniform(hybrid_true_edges[j], hybrid_true_edges[j + 1],
+                               size=HYBRID_KERNEL_SAMPLES_PER_BIN)
+            vis, cls, areas = simulate_window_from_true_chords(
+                polygon_yz, directions, tl, rng_k,
+                window_mode=window_mode, direction_mode=direction_mode,
+                set_id=set_id, site=site,
+            )
+            k_used = vis >= lmin_fit
+            hybrid_kernel_accepted += int(np.sum(k_used))
+            k_w = areas[k_used] if center_weighting == "proposal_area" else None
+            hybrid_kernel[j] = binned_counts(vis[k_used], cls[k_used], edges, weights=k_w) / HYBRID_KERNEL_SAMPLES_PER_BIN
+
     # kr 격자를 순회하며 각 후보에 대해 창-MC 시뮬레이션과 로그우도를 계산.
     for idx, kr in enumerate(kr_grid):
         rng = np.random.default_rng(rng_base + idx)
@@ -1022,6 +1127,12 @@ def fit_set_lmin(
                 set_id=set_id,
                 site=site,
             )
+        elif likelihood_mode == "hybrid":
+            # [hybrid] kr 의존부는 해석식 bin 질량뿐 — MC 재표집 없이 확률표 구성.
+            sim_radii = None
+            sim_lengths = np.empty(0, dtype=np.float64)
+            sim_classes = np.empty(0, dtype=np.int32)
+            sim_areas = np.empty(0, dtype=np.float64)
         else:
             sim_radii = None
             sim_lengths, sim_classes, sim_areas = simulate_window_observations(
@@ -1035,12 +1146,23 @@ def fit_set_lmin(
         sim_classes_used = sim_classes[sim_used]
         sim_areas_used = sim_areas[sim_used]
         sim_radii_used = sim_radii[sim_used] if sim_radii is not None else None
-        
+
         # Determine weighting
         weights = sim_areas_used if center_weighting == "proposal_area" else None
-        
-        # 시뮬레이션으로 모델 확률표(결합/길이/등급)를 만들고, 관측 카운트와 로그우도 계산.
-        prob_joint, n_model_used = probability_table(sim_lengths_used, sim_classes_used, edges, weights=weights)
+
+        # 모델 확률표(결합/길이/등급)를 만들고, 관측 카운트와 로그우도 계산.
+        #   hybrid: w_j(kr) [해석식] ⊗ 창커널 K[j,i,c] [kr불변 MC] → 확률표
+        #   window_mc: kr별 전량 시뮬레이션 표본의 가중 히스토그램 → 확률표
+        if likelihood_mode == "hybrid" and hybrid_kernel is not None and hybrid_true_edges is not None:
+            joint_unnorm = np.tensordot(
+                analytic_true_chord_bin_masses(float(kr), rmin, rmax, hybrid_true_edges),
+                hybrid_kernel, axes=1)
+            total_mass = float(np.sum(joint_unnorm))
+            prob_joint = (joint_unnorm / total_mass if total_mass > 0.0
+                          else np.full_like(joint_unnorm, 1.0 / joint_unnorm.size))
+            n_model_used = float(hybrid_kernel_accepted)
+        else:
+            prob_joint, n_model_used = probability_table(sim_lengths_used, sim_classes_used, edges, weights=weights)
         prob_length = marginal_length_probability(prob_joint)
         prob_class = marginal_class_probability(prob_joint)
 
@@ -1056,13 +1178,19 @@ def fit_set_lmin(
         )
 
         # 관측/모델의 검열등급 비율 차이(L1)와 길이 분위수비(q90,q95)로 적합도 진단.
+        #   hybrid: MC 표본이 없으므로 모델 확률표에서 직접 계산(가중 표본과 동일 의미).
         obs_unc, obs_one, obs_two = fraction_by_class(obs_classes)
-        mod_unc, mod_one, mod_two = fraction_by_class(sim_classes_used)
+        if likelihood_mode == "hybrid" and len(sim_classes_used) == 0:
+            mod_unc, mod_one, mod_two = (float(prob_class[c]) for c in range(3))
+            q90_mod = quantile_from_binned(prob_length, edges, 0.90)
+            q95_mod = quantile_from_binned(prob_length, edges, 0.95)
+        else:
+            mod_unc, mod_one, mod_two = fraction_by_class(sim_classes_used)
+            q90_mod = float(np.percentile(sim_lengths_used, 90)) if len(sim_lengths_used) else float("nan")
+            q95_mod = float(np.percentile(sim_lengths_used, 95)) if len(sim_lengths_used) else float("nan")
         class_l1 = float(abs(obs_unc - mod_unc) + abs(obs_one - mod_one) + abs(obs_two - mod_two))
         q90_obs = float(np.percentile(obs_lengths, 90)) if len(obs_lengths) else float("nan")
         q95_obs = float(np.percentile(obs_lengths, 95)) if len(obs_lengths) else float("nan")
-        q90_mod = float(np.percentile(sim_lengths_used, 90)) if len(sim_lengths_used) else float("nan")
-        q95_mod = float(np.percentile(sim_lengths_used, 95)) if len(sim_lengths_used) else float("nan")
         q90_ratio = q90_mod / q90_obs if q90_obs > 0.0 else float("nan")
         q95_ratio = q95_mod / q95_obs if q95_obs > 0.0 else float("nan")
 
@@ -1122,6 +1250,22 @@ def fit_set_lmin(
     for row in profile_rows:
         row["max_loglik"] = profile_summary["max_loglik"]
         row["delta_loglik"] = profile_summary["max_loglik"] - float(row["loglik"])
+
+    # [hybrid] 진단·사후예측용 표본 보충: 최적 kr에서 고전 시뮬레이션을 1회만 수행해
+    #   best 후보의 표본 필드를 채운다(우도는 이미 해석식+커널로 평가됨; 여기서는
+    #   면적 지표·분위수·등급비율 진단이 실제 표본 기반이 되도록 한다).
+    if likelihood_mode == "hybrid" and len(best["sim_lengths"]) == 0:
+        rng_pp = np.random.default_rng(rng_base + 555)
+        pp_lengths, pp_classes, pp_areas = simulate_window_observations(
+            float(best["kr"]), rmin, rmax, polygon_yz, directions, mc_samples_per_grid, rng_pp,
+            window_mode=window_mode, direction_mode=direction_mode, set_id=set_id, site=site,
+        )
+        pp_used = pp_lengths >= lmin_fit
+        best["sim_lengths"] = pp_lengths[pp_used]
+        best["sim_classes"] = pp_classes[pp_used]
+        best["sim_areas"] = pp_areas[pp_used]
+        pp_unc, pp_one, pp_two = fraction_by_class(best["sim_classes"])
+        best["mod_unc"], best["mod_one"], best["mod_two"] = pp_unc, pp_one, pp_two
 
     # Compute proposal area metrics on the best model's simulation
     best_areas = best["sim_areas"]

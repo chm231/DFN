@@ -206,6 +206,9 @@ def main() -> None:
     parser.add_argument("--length-bin-count", type=int, default=40)
     parser.add_argument("--length-bin-mode", choices=["log", "linear"], default="log")
     parser.add_argument("--direction-mode", choices=["empirical_trace", "orientation_conditioned"], default="empirical_trace")
+    parser.add_argument("--likelihood-mode", choices=["window_mc", "hybrid"], default="window_mc",
+                        help="window_mc(기본)=kr별 전량 MC 시뮬레이션. hybrid=참 현길이 분포는 "
+                             "닫힌형(해석식), 창·절단 변환만 kr불변 MC 커널로 1회 계산(분산↓·속도↑).")
     parser.add_argument("--center-weighting", choices=["unweighted", "proposal_area"], default="proposal_area")
     parser.add_argument("--likelihood-component", choices=["joint", "length_only", "class_only"], default="joint")
     parser.add_argument("--class-likelihood-weight", type=float, default=1.0)
@@ -295,6 +298,7 @@ def main() -> None:
                 oracle_radius_mode=args.oracle_radius_mode,
                 run_bootstrap=bool(args.run_bootstrap),
                 n_bootstrap=int(args.n_bootstrap),
+                likelihood_mode=args.likelihood_mode,
             )
             # 적합/프로파일/사후예측 모든 행에 붙일 공통 메타데이터 구성
             metadata = {
