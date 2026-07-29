@@ -53,7 +53,7 @@
 | `estimate_mean_orientation.py` | 절리 normal의 축성(axial) 평균 방향, trend/plunge(NED) 변환 |
 | `estimate_fisher_kappa.py` | Fisher 분포 집중도 κ 추정, 3점법 trace normal 추정 |
 | `estimate_radius_powerlaw_window_mc.py` | 반지름 멱법칙 우도 + 유한 창 MC 보정 (v4.1, kr/P32 공통 핵심) |
-| `estimate_kr.py` | set별 반지름 멱법칙 지수 kr 추정 진입점 |
+| `estimate_kr.py` | set별 반지름 멱법칙 지수 kr 추정 진입점. `--likelihood-mode {window_mc(기본)|hybrid}` — hybrid는 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변 MC 커널 1회로 분해(프로파일 잡음 수십배↓, lmin 안정성↑, 2.7×; 원리·검증: docs/MC수식화_검토_kr_P32.md §4) |
 | `build_p32_pilot_summary.py` | 사이트/set 설정, 지지구간 스케일 P32 헬퍼 |
 | `summarize_setwise_trace_statistics.py` | set별 trace 길이/개수 통계 |
 | `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / unit_p32_forward_mc 보정계수) |

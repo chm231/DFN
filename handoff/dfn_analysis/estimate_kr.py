@@ -8,6 +8,9 @@
 #   - 트레이스 데이터: --trace-h5(HDF5) 또는 --trace-csv(CSV) 중 하나
 #   - 관측 윈도우 폴리곤: HDF5의 /meta/tunnel_poly_yz 또는 --tunnel-dat
 #   - 추정 파라미터: rmin/rmax, set-rmin-mode, kr 격자 범위, lmin_fit 후보 등
+#   - --likelihood-mode {window_mc(기본)|hybrid}: 우도 계산 방식.
+#     hybrid = 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변
+#     MC 커널 1회로 분해(원리/검증: docs/MC수식화_검토_kr_P32.md §4).
 #   - (검증용) site 프리셋 또는 --kr-true-map 으로 주어지는 kr 참값
 #
 # 주요 출력(--outdir 하위 CSV/JSON):
@@ -20,7 +23,8 @@
 # 핵심 처리 흐름:
 #   1) CLI 인자 파싱 및 입력(트레이스/윈도우 폴리곤) 로드
 #   2) 세트별로 그룹화하고 생성 rmin 메타데이터/일관성 확인
-#   3) 각 세트 x 각 lmin_fit 후보에 대해 window-MC 우도로 kr 적합(fit_set_lmin)
+#   3) 각 세트 x 각 lmin_fit 후보에 대해 kr 적합(fit_set_lmin;
+#      window-MC 우도 또는 hybrid 해석식+커널 우도)
 #   4) 세트별 최적 행 선정(best_row) 후 요약 생성
 #   5) CSV/JSON 출력 및 콘솔 요약 출력
 # =============================================================================
