@@ -8,11 +8,12 @@
 #   - 트레이스 데이터: --trace-h5(HDF5) 또는 --trace-csv(CSV) 중 하나
 #   - 관측 윈도우 폴리곤: HDF5의 /meta/tunnel_poly_yz 또는 --tunnel-dat
 #   - 추정 파라미터: rmin/rmax, set-rmin-mode, kr 격자 범위, lmin_fit 후보 등
-#   - --likelihood-mode {window_mc(기본)|hybrid}: 우도 계산 방식.
+#   - --likelihood-mode {window_mc(기본·최종 추정용)|hybrid(보조)}: 우도 계산 방식.
 #     hybrid = 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변
-#     MC 커널 1회로 분해(원리/검증: docs/MC수식화_검토_kr_P32.md §4).
-#     hybrid 는 lmin_fit 미지정 시 전 set 공통 0.5 m 고정을 기본으로 한다
-#     (per-set 후보 탐색 불필요; 근거는 같은 문서 §4.4).
+#     MC 커널 1회로 분해. 프로파일 평활·lmin 불변·속도가 강점(해석/민감도 스캔용).
+#     20시드 검증에서 최종 추정 효율(RMSE)은 window_mc + per-set lmin 선택이
+#     우위여서 기본값은 window_mc 를 유지한다(판정: docs/MC수식화_검토_kr_P32.md §4.6).
+#     hybrid 는 lmin_fit 미지정 시 전 set 공통 0.5 m 고정을 기본으로 한다(§4.4).
 #   - (검증용) site 프리셋 또는 --kr-true-map 으로 주어지는 kr 참값
 #
 # 주요 출력(--outdir 하위 CSV/JSON):
