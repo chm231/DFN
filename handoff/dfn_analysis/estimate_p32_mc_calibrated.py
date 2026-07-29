@@ -1,9 +1,14 @@
 # =====================================================================
 # 이 파일의 역할:
 #   관측된 트레이스 강도(P21)로부터 3D 균열 면적강도 P32를 추정하는 최종 추정기.
-#   핵심은 unit_p32_forward_mc 보정 방식으로, "단위 P32(=P32 1)"를 가정한
-#   순방향 몬테카를로(Monte Carlo) 시뮬레이션을 돌려 보정계수 C(=P21/P32)를 구한다.
-#   그 뒤 P32_hat = 관측 P21 / C 로 P32를 역산한다.
+#   P32_hat = 관측 P21 / 보정계수 C 로 역산하며, C 계산 방식이 모드로 나뉜다:
+#   - analytic_esinphi (기본·최종, 2026-07-29 채택): C = E[sinφ] 를 명시적
+#     Fisher 적분식의 결정론적 구적으로 계산(표집 0, ~2초). 평균 P21에는
+#     창 보정이 불필요하다는 스테레올로지 항등식에 근거하며, 관측 정의와
+#     정합함이 결정 실험으로 확인됨(통합본 md 제3부 §2.3–2.5).
+#   - unit_p32_forward_mc (legacy·진단): "단위 P32(=1)" 가정 순방향 MC.
+#     분자(다각형 클리핑)/분모(mesh 면적, −3.85%) 기준 불일치로 C가 +2~4%
+#     과대(P32 과소)한 알려진 편향이 있다(§2.5).
 #
 # 주요 입력(주로 CLI 인자 및 HDF5/CSV):
 #   - --trace-h5   : export_setwise_3d_traces.py 가 만든 트레이스 HDF5 (관측 트레이스, 터널 폴리곤 등)
@@ -19,9 +24,10 @@
 # 핵심 처리 흐름(main):
 #   1) kr 요약/부트스트랩 CSV, 트레이스/러프메시 HDF5, 배향계수 로드.
 #   2) 세트별로 보정계수 C 추정:
-#        - unit 모드: estimate_unit_p32_forward_mc (순방향 MC, 최종 방식)
+#        - analytic 모드(기본): analytic_esinphi_calibration (결정론적 구적, kr 무관)
+#        - unit 모드: estimate_unit_p32_forward_mc (순방향 MC; kr CI 하/상한으로
+#          C를 재계산해 P32 CI 전파)
 #        - proxy 모드: estimate_calibration_factor (해석적 근사 스캐폴드)
-#      kr의 CI 하/상한으로도 C를 각각 계산해 P32 CI 전파.
 #   3) P32_hat = 관측 P21 / C 로 역산하고, 참조 P32와의 오차/상태 분류 후 CSV 기록.
 # =====================================================================
 import argparse
@@ -647,9 +653,10 @@ def main() -> None:
         "--calibration-factor-mode",
         choices=[CALIBRATION_FACTOR_MODE_PROXY, CALIBRATION_FACTOR_MODE_UNIT,
                  CALIBRATION_FACTOR_MODE_ANALYTIC],
-        default=CALIBRATION_FACTOR_MODE_PROXY,
-        help="proxy=스캐폴드, unit_p32_forward_mc=순방향 MC(최종), "
-             "analytic_esinphi=수식 기반 C=E[sinφ] 구적(결정론·창보정 η_win 미포함).",
+        default=CALIBRATION_FACTOR_MODE_ANALYTIC,
+        help="analytic_esinphi(기본·최종)=수식 기반 C=E[sinφ] 결정론적 구적, "
+             "unit_p32_forward_mc=legacy 순방향 MC(면적 기준 불일치로 C +2~4% 과대), "
+             "proxy=스캐폴드.",
     )
     parser.add_argument("--unit-p32-mc-replicates", type=int, default=32, help="Number of MC replicates for unit_p32_forward_mc mode.")
     parser.add_argument(

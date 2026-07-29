@@ -31,7 +31,7 @@
     estimate_kr.py                          # kr 멱법칙 지수 추정 (진입점)
     summarize_setwise_trace_statistics.py   # set별 trace 통계
     build_p32_pilot_summary.py              # SITE_SET_CONFIG · 지지구간 P32 스케일
-    estimate_p32_mc_calibrated.py           # P32 (unit_p32_forward_mc 보정, 최종)
+    estimate_p32_mc_calibrated.py           # P32 (analytic_esinphi 수식 보정, 최종)
 
 [2.5] 관측 절리 복원 (trace → 원판 disc)   ← 이번 버전에서 handoff 에 포함
     reconstruct_discs_from_traces.py        # 연결(검증형 응집) + 반지름(원적합/kr 축소추정)
@@ -56,7 +56,7 @@
 | `estimate_kr.py` | set별 반지름 멱법칙 지수 kr 추정 진입점. `--likelihood-mode {window_mc(기본·**최종 추정용**)|hybrid(보조)}` — hybrid는 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변 MC 커널 1회로 분해. 프로파일 평활·lmin 불변·2.7× 속도가 강점이라 **프로파일 해석·민감도 스캔용**이며, 20시드 검증에서 최종 추정 효율(RMSE)은 window_mc+per-set 선택이 우위라 기본값을 유지한다. hybrid는 lmin_fit 미지정 시 전 set 공통 0.5 m 고정. 원리·검증·판정: docs/제6장_수정안_통합본.md 제3부 §4 |
 | `build_p32_pilot_summary.py` | 사이트/set 설정, 지지구간 스케일 P32 헬퍼 |
 | `summarize_setwise_trace_statistics.py` | set별 trace 길이/개수 통계 |
-| `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / 보정계수 C). `--calibration-factor-mode`: `unit_p32_forward_mc`(순방향 MC, 최종) 또는 `analytic_esinphi`(**수식 기반** C=E[sinφ] 결정론적 구적 — 정확도 MC 동급, ~2초). 두 모드의 2~4% 차이는 unit-MC의 면적 기준 불일치(분자=다각형 클리핑, 분모=mesh 면적이 −3.85% 작음) 편향으로 판명 — 관측 정의와 정합하는 쪽은 해석식(유도·검증·결정실험: docs/제6장_수정안_통합본.md 제3부 §2.3–2.5) |
+| `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / 보정계수 C). `--calibration-factor-mode`: `analytic_esinphi`(**수식 기반** C=E[sinφ] 결정론적 구적, **기본·최종**, ~2초) 또는 `unit_p32_forward_mc`(legacy 순방향 MC). 두 모드의 2~4% 차이는 unit-MC의 면적 기준 불일치(분자=다각형 클리핑, 분모=mesh 면적이 −3.85% 작음) 편향으로 판명 — 관측 정의와 정합하는 쪽은 해석식(유도·검증·결정실험: docs/제6장_수정안_통합본.md 제3부 §2.3–2.5) |
 | `export_setwise_3d_traces.py` | DFN(h5) + 거친 막장면 mesh → 3D trace 데이터셋 순방향 생성. `--trace-normal-source external`(기본)=외부 제공 3D 방향 사용(2026-07 결정; 벤치마크는 fracture 참값 법선이 그 역할), `3pt`=legacy polyline 3점법 |
 | `generate_synthetic_rough_face_mesh.py` | 합성 거친 막장면 mesh 생성 (검증용 입력) |
 | `reconstruct_discs_from_traces.py` | **관측 trace → 복원 원판**. 연결=검증형 응집(결합평면 잔차+면당1chord, oracle 대비 순도 95%), 반지름=경계 원적합 / kr 축소추정(empirical-Bayes, 참R 오차 26→17%) |
@@ -71,7 +71,10 @@
 - **GT(ground truth)는 검증 전용**입니다. 추정기 설계·보정에 truth를 사용하지 않습니다 (정책 D013).
 - **하나의 parsimonious 추정기**를 모든 set에 동일 적용합니다. set별 보정계수·fudge factor 금지.
 - **Laxemar Set 4는 지수분포**라 멱법칙 역산·조건화에서 제외됩니다 (D002).
-- 최종 P32는 `unit_p32_forward_mc` 방식입니다 (D004). combined_bootstrap은 대체 방식으로 제외.
+- 최종 P32 보정계수는 `analytic_esinphi`(수식 기반 C=E[sinφ], 기본값) 방식입니다 —
+  2026-07-29 결정으로 종전 `unit_p32_forward_mc`(D004)를 대체. unit-MC는 legacy/진단용으로
+  유지되며, 면적 기준 불일치로 C가 +2~4% 과대(P32 과소)한 알려진 편향이 있습니다
+  (근거: docs/제6장_수정안_통합본.md 제3부 §2.5). combined_bootstrap은 대체 방식으로 제외.
 - 반지름/kr은 `estimate_radius_powerlaw_window_mc.py`(v4.1 창 MC)가 최종입니다. v3(from_traces)는 제외.
 
 ## 경로 의존성 (수정 필요)
@@ -115,7 +118,7 @@
 python -m dfn_analysis.estimate_p32_mc_calibrated \
   --trace-h5 <trace.h5> --config configs/my_dataset.json --site my_dataset \
   --target-set 1 2 5 --kr-summary-csv <kr_summary.csv> --dfn-h5 <dfn.h5> \
-  --calibration-factor-mode unit_p32_forward_mc --outcsv <out.csv>
+  --calibration-factor-mode analytic_esinphi --outcsv <out.csv>
 ```
 (`--site`는 config의 `dataset_name`과 일치해야 하며, 내장 preset이 아니면 `--dfn-h5` 명시 필수)
 
