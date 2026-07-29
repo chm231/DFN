@@ -70,6 +70,48 @@ DEFAULT_DFN_H5 = {
 #  - UNIT : 단위 P32 순방향 MC 기반 최종 보정 모드(권장/최종).
 CALIBRATION_FACTOR_MODE_PROXY = "conditional_visible_trace_proxy"
 CALIBRATION_FACTOR_MODE_UNIT = "unit_p32_forward_mc"
+# [수식 기반] C = E[sinφ] 해석식(결정론적 구적법) 모드. 통합본 md 제3부 §2 참조.
+CALIBRATION_FACTOR_MODE_ANALYTIC = "analytic_esinphi"
+
+
+# [ANALYTIC 모드] Fisher(trend, plunge, κ) 방향분포에서 E[sinφ]=E[√(1-n_x²)] 를
+# 결정론적 구적법(표집 없음)으로 계산한다. 이상(무한 관측면) 조건에서 C=E[sinφ]가
+# 정확한 보정계수이며(통합본 제3부 §2), 유한창·요철 보정 η_win(≈1.01~1.03)은
+# 생략된다 → unit-MC 대비 C가 1~3% 작게(P32는 1~3% 크게) 나오는 것이 정상.
+#
+# 유도: 평균 pole과 터널축의 사잇각 Θ (cosΘ=|μ_x|), Fisher 극각 u=cosθ 의
+#   누적분포 역함수 u(t)=1+ln(t+(1-t)e^{-2κ})/κ 로 치환하면
+#     E[sinφ] = ∫₀¹ A(a(t), b(t)) dt,   a=cosΘ·u,  b=sinΘ·√(1-u²),
+#   방위각 평균 A(a,b) = (1/2π)∮ √(1-(a+b·cosψ)²) dψ  (완전타원적분류; 주기함수라
+#   사다리꼴 구적이 지수 수렴). t: Gauss–Legendre, ψ: 균등 사다리꼴로 평가한다.
+# 성질: kr(반지름 분포)와 무관 → kr CI 가 C 에 전파되지 않는다(C_low=C_high=C).
+def analytic_esinphi_calibration(site: str, set_id: int,
+                                 n_t: int = 128, n_psi: int = 256) -> float:
+    params = SITE_FISHER_PARAMS.get(site, {}).get(set_id)
+    if params is None:
+        raise ValueError(f"Missing Fisher parameters for analytic_esinphi: site={site}, set_id={set_id}")
+    trend, plunge, kappa = params
+    mean_pole = mean_pole_from_trend_plunge(trend, plunge)
+    mu_x = abs(float(mean_pole[0]))          # sinφ는 축성 대칭 → |μ_x|만 필요
+    cos_T = np.clip(mu_x, 0.0, 1.0)
+    sin_T = math.sqrt(max(1.0 - cos_T * cos_T, 0.0))
+
+    # Gauss–Legendre 노드 (t ∈ [0,1]) — Fisher 극각의 역CDF 치환으로 균등화
+    t_nodes, t_weights = np.polynomial.legendre.leggauss(n_t)
+    t = 0.5 * (t_nodes + 1.0)
+    w = 0.5 * t_weights
+    if kappa > 1e-9:
+        u = 1.0 + np.log(t + (1.0 - t) * math.exp(-2.0 * kappa)) / kappa
+    else:
+        u = 2.0 * t - 1.0                     # κ→0: 등방(u 균등)
+    u = np.clip(u, -1.0, 1.0)
+    a = cos_T * u                             # (n_t,)
+    b = sin_T * np.sqrt(np.maximum(1.0 - u * u, 0.0))
+
+    psi = np.linspace(0.0, 2.0 * math.pi, n_psi, endpoint=False)
+    nx = a[:, None] + b[:, None] * np.cos(psi)[None, :]     # (n_t, n_psi)
+    A = np.mean(np.sqrt(np.clip(1.0 - nx * nx, 0.0, 1.0)), axis=1)
+    return float(np.sum(w * A))
 
 
 # CSV 파일을 읽어 각 행을 dict로 담은 리스트로 반환.
@@ -528,8 +570,8 @@ def classify_p32_status(
     kr_ci_high: float,
     calibration_factor_mode: str,
 ) -> str:
-    # UNIT(최종) 모드가 아니면 스캐폴드 전용 상태로 처리.
-    if calibration_factor_mode != CALIBRATION_FACTOR_MODE_UNIT:
+    # UNIT(최종)·ANALYTIC(수식 기반) 외 모드는 스캐폴드 전용 상태로 처리.
+    if calibration_factor_mode not in (CALIBRATION_FACTOR_MODE_UNIT, CALIBRATION_FACTOR_MODE_ANALYTIC):
         return "p32_scaffold_only"
     # kr이 기각되면 보류(hold). 잠정채택 + 계통편향이면 별도 라벨.
     if adoption_status == "rejected":
@@ -603,9 +645,11 @@ def main() -> None:
     parser.add_argument("--mc-samples", type=int, default=50000)
     parser.add_argument(
         "--calibration-factor-mode",
-        choices=[CALIBRATION_FACTOR_MODE_PROXY, CALIBRATION_FACTOR_MODE_UNIT],
+        choices=[CALIBRATION_FACTOR_MODE_PROXY, CALIBRATION_FACTOR_MODE_UNIT,
+                 CALIBRATION_FACTOR_MODE_ANALYTIC],
         default=CALIBRATION_FACTOR_MODE_PROXY,
-        help="Proxy scaffold mode or unit-P32 forward MC calibration mode.",
+        help="proxy=스캐폴드, unit_p32_forward_mc=순방향 MC(최종), "
+             "analytic_esinphi=수식 기반 C=E[sinφ] 구적(결정론·창보정 η_win 미포함).",
     )
     parser.add_argument("--unit-p32-mc-replicates", type=int, default=32, help="Number of MC replicates for unit_p32_forward_mc mode.")
     parser.add_argument(
@@ -729,6 +773,26 @@ def main() -> None:
                 rng_seed=base_seed + 2,
                 window_mode=args.window_mode,
             )["calibration_factor_C"] if np.isfinite(kr_ci_high) else float("nan")
+        # ---- ANALYTIC(수식 기반) 모드: C = E[sinφ] 결정론적 구적 ----
+        #  - 표집이 없어 재현 완전 결정론적, C의 통계 산포 0.
+        #  - C 가 반지름 분포(kr)와 무관하므로 kr CI 는 C 에 전파되지 않는다
+        #    (C_low = C_high = C; 통합본 제3부 §2 — 이상조건 C는 방향분포만의 함수).
+        #  - 유한창·요철 보정 η_win(≈1.01~1.03)이 빠져 unit-MC 대비 P32가 1~3% 크게
+        #    나오는 것이 알려진 차이다.
+        elif calibration_mode == CALIBRATION_FACTOR_MODE_ANALYTIC:
+            c_hat = analytic_esinphi_calibration(args.site, set_id)
+            c_std = 0.0
+            c_ci_low = c_hat
+            c_ci_high = c_hat
+            c_low = c_hat
+            c_high = c_hat
+            unit_volume = float("nan")
+            # 참고용 컬럼(평균 균열면적/수밀도)은 기존과 동일하게 kr 기반 해석식으로 채움.
+            _, mean_r2 = radius_moments(args.site, set_id, kr_used, set_likelihood_rmin, 250.0)
+            mean_fracture_area = math.pi * mean_r2 if np.isfinite(mean_r2) else float("nan")
+            fracture_number_density = (1.0 / mean_fracture_area
+                                       if np.isfinite(mean_fracture_area) and mean_fracture_area > 0.0
+                                       else float("nan"))
         # ---- PROXY 모드: 해석적 근사 스캐폴드로 C(중심/하한/상한)를 추정 ----
         else:
             c_hat = estimate_calibration_factor(

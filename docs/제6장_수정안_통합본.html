@@ -880,6 +880,96 @@ $\eta_{win}$은 창이 크고 균열이 작을수록 1에 가깝다. 직사각�
 (guard-region/minus-sampling)이 알려져 있으나, 임의 다각형은 MC가 실용적이다.
 <strong>제안: $E[\sin\phi]$는 해석식으로 계산하고, MC는 $\eta_{win}$(≈1의 작은 보정)만 추정</strong> →
 분산↓·해석성↑.</p>
+<h3>2.3 $E[\sin\phi]$의 명시적 적분식과 결정론적 구적법</h3>
+<p>Fisher$(\mu,\kappa)$에서 $E[\sin\phi]$를 표집 없이 계산하는 명시식을 유도한다.
+$\sin\phi=\sqrt{1-n_x^2}$는 축성 대칭($\hat n\to-\hat n$ 불변)이므로 평균 pole과
+터널축의 사잇각 $\Theta$ ($\cos\Theta=\lvert\mu_x\rvert$)만 있으면 된다. 평균 pole 기준
+극각 $\theta$·방위각 $\psi$로 매개화하면 $n_x=\cos\Theta\cos\theta+\sin\Theta\sin\theta\cos\psi$
+이고, Fisher의 극각 주변분포는 $u=\cos\theta$에 대해 밀도
+$p(u)=\kappa e^{\kappa u}/(2\sinh\kappa)$를 갖는다. 누적분포 역함수 치환</p>
+<p>$$u(t)=1+\frac{1}{\kappa}\ln\big(t+(1-t)e^{-2\kappa}\big),\qquad t\in[0,1]$$</p>
+<p>을 쓰면 (수치적으로 안정하며 $\kappa\to0$에서 $u=2t-1$로 극한 이행)</p>
+<p>$$\boxed{\;E[\sin\phi]=\int_0^1 A\big(a(t),\,b(t)\big)\,dt\;},\qquad
+a=\cos\Theta\cdot u,\quad b=\sin\Theta\sqrt{1-u^2},$$</p>
+<p>$$A(a,b)=\frac{1}{2\pi}\oint\sqrt{1-(a+b\cos\psi)^2}\,d\psi$$</p>
+<p>로 정리된다. 방위각 평균 $A$는 완전타원적분류로 표현되는 양이며, 주기함수이므로 균등
+사다리꼴 구적이 지수적으로 수렴한다. 구현은 $t$: Gauss–Legendre 128점, $\psi$: 256점 —
+<strong>표집이 전혀 없는 결정론적 계산</strong>이다(<code>analytic_esinphi_calibration</code>).</p>
+<p><strong>검증 3종.</strong>
+(i) <em>표집 대조</em>: 어제의 20만-표본 Fisher 표집값과 4개 set 모두 ±0.0006 이내 일치
+(표집 잡음 수준).
+(ii) <em>극한</em>: $\kappa\to0$에서 $\pi/4=0.78540$ 정확 재현, $\kappa=10^6$·$\Theta=90°$에서
+$1.00000$; $\Theta=0$의 잔차 $0.00125$는 구적 오차가 아니라 유한 $\kappa$의 실제 기대값
+($E[\theta]\sim\sqrt{\pi/2\kappa}$)이다.
+(iii) <em>구적 수렴</em>: 노드 수를 절반으로 줄여도 소수 4자리 불변.</p>
+<h3>2.4 수식 기반 P32 모드 구현·검증 (<code>--calibration-factor-mode analytic_esinphi</code>)</h3>
+<p>위 구적법을 handoff 배포 코드(<code>estimate_p32_mc_calibrated.py</code>)에 세 번째 보정 모드로
+구현하였다: $C=E[\sin\phi]$ (창보정 $\eta_{win}$ 미포함, 완전 결정론). $C$가 반지름
+분포와 무관하므로 $k_r$ CI가 $C$에 전파되지 않는 것도 수식의 성질 그대로 반영된다.
+Laxemar external 데이터셋(막장면 4개, preset 방향)에서 unit-MC 모드와 비교:</p>
+<table>
+<thead>
+<tr>
+<th>set</th>
+<th>$C$ (unit-MC)</th>
+<th>$C$ (해석)</th>
+<th>$\eta_{win}$</th>
+<th>$P_{32}$ MC</th>
+<th>$P_{32}$ 해석</th>
+<th>참값</th>
+<th>해석 오차</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.847</td>
+<td>0.828</td>
+<td>1.023</td>
+<td>0.944</td>
+<td>0.966</td>
+<td>0.914</td>
+<td>+5.7%</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.328</td>
+<td>0.314</td>
+<td>1.042</td>
+<td>0.734</td>
+<td>0.765</td>
+<td>1.026</td>
+<td>−25.5%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.817</td>
+<td>0.789</td>
+<td>1.036</td>
+<td>0.943</td>
+<td>0.977</td>
+<td>0.975</td>
+<td><strong>+0.2%</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.616</td>
+<td>0.597</td>
+<td>1.032</td>
+<td>1.002</td>
+<td>1.034</td>
+<td>0.980</td>
+<td>+5.6%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>판정.</strong> (i) 정확도는 MC와 동급이다 — 참값 대비 평균 $|$오차$|$ 9.3%(해석) vs
+9.4%(MC); $\eta_{win}$ 생략에 따른 +2~4%의 알려진 상방 이동은 표본화 산포보다 작다.
+(ii) 실행이 <strong>전 set 합산 ~2초·완전 결정론</strong>(unit-MC 32반복 대비 수십 배 빠르고 시드
+무관 재현). (iii) Set 2 과소추정은 해석 모드에서도 동일 — 방향·보정 방식이 아니라 관측
+$P_{21}$ 표본 변동이 원인임을 재확인(모든 경로 공통). 즉 <strong>$P_{32}$는 "수식화된 방법으로
+직접 추정"이 실용 수준에서 성립</strong>하며, 남는 개선 여지는 $\eta_{win}$의 해석적 근사
+(직사각형 창 가장자리 보정) 하나다.</p>
 <h2>3. $k_r$ 우도 — 이상 조건 trace 길이 분포의 닫힌 형</h2>
 <h3>3.1 단일 반지름의 현길이 분포</h3>
 <p>Poisson 중심 → 원판 중심의 면-수직 오프셋 $d$는 $[0,R]$ 균등. 현길이 $\ell=2\sqrt{R^2-d^2}$이므로</p>
@@ -1295,7 +1385,9 @@ hybrid는 후보들이 거의 동일해(산포 ≤0.3) 선택으로 얻을 이�
 <h2>5. 결론 요약</h2>
 <ol>
 <li><strong>$P_{32}$</strong>: 이상 보정계수는 $C=E[\sqrt{1-n_x^2}]$ (방향만의 함수, 반지름 무관)로 <strong>정확히
-   수식화</strong>됨. 수치 검증에서 파이프라인 MC 보정계수의 97–99%를 설명($\eta_{win}=1.01$–$1.03$).</li>
+   수식화</strong>됨. 수치 검증에서 파이프라인 MC 보정계수의 97–99%를 설명($\eta_{win}=1.01$–$1.04$).
+   나아가 <strong>수식 기반 추정 모드</strong>(<code>analytic_esinphi</code>: 명시적 적분식의 결정론적 구적, §2.3–2.4)를
+   배포 코드에 구현 — 정확도 MC 동급(평균 $|$오차$|$ 9.3% vs 9.4%), 실행 ~2초·완전 재현.</li>
 <li><strong>$k_r$</strong>: 이상 trace 길이 분포는 $f_\ell\propto\ell^{-k_r}$로 <strong>닫힌 형</strong>(절단 시 불완전베타).
    MC는 <strong>창 클리핑+검열</strong>의 이상법칙 이탈 보정에만 필요(제거 시 +0.4~+1.2 편향 확인).</li>
 <li><strong>하이브리드 우도 구현·검증 완료</strong>(§4): 단일 실현에서는 프로파일 평활·lmin 안정·속도
