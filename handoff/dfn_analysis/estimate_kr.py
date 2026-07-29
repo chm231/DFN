@@ -11,6 +11,8 @@
 #   - --likelihood-mode {window_mc(기본)|hybrid}: 우도 계산 방식.
 #     hybrid = 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변
 #     MC 커널 1회로 분해(원리/검증: docs/MC수식화_검토_kr_P32.md §4).
+#     hybrid 는 lmin_fit 미지정 시 전 set 공통 0.5 m 고정을 기본으로 한다
+#     (per-set 후보 탐색 불필요; 근거는 같은 문서 §4.4).
 #   - (검증용) site 프리셋 또는 --kr-true-map 으로 주어지는 kr 참값
 #
 # 주요 출력(--outdir 하위 CSV/JSON):
@@ -203,7 +205,15 @@ def main() -> None:
     parser.add_argument("--p32-label", default="P32_r_ge_0p5m")
     parser.add_argument("--kr-min", type=float, default=1.5)
     parser.add_argument("--kr-max", type=float, default=5.5)
-    parser.add_argument("--lmin-fit-values", nargs="+", type=float, default=[0.1, 0.2, 0.3, 0.5, 0.75])
+    # lmin_fit 기본값은 우도 방식에 따라 다르다(--likelihood-mode 참조):
+    #   window_mc → [0.1,0.2,0.3,0.5,0.75] 후보에서 set별 선택(기존 동작; per-set 선택이
+    #               격자 재표집 잡음 회피 역할을 겸하므로 후보 탐색이 필요)
+    #   hybrid    → [0.5] 고정(전 set 공통). hybrid 는 lmin 에 대한 kr_hat 요동이
+    #               ≤0.05~0.30 수준으로 작고 잡음이 없어 후보 탐색의 실익이 없으며,
+    #               0.5 m 는 mesh 해상도(0.2 m)·검출한계 위의 안정 구간이다
+    #               (민감도 근거: docs/MC수식화_검토_kr_P32.md §4.4).
+    parser.add_argument("--lmin-fit-values", nargs="+", type=float, default=None,
+                        help="적합 길이 하한 후보 [m]. 미지정 시 window_mc=[0.1,0.2,0.3,0.5,0.75], hybrid=[0.5]")
     parser.add_argument("--allow-rmin-mismatch", action="store_true")
     parser.add_argument("--profile-grid-size", type=int, default=81)
     parser.add_argument("--mc-samples-per-grid", type=int, default=50000)
@@ -222,6 +232,10 @@ def main() -> None:
     parser.add_argument("--kr-true-map", nargs="+", metavar="SET_ID:KR_TRUE")
     parser.add_argument("--outdir", required=True)
     args = parser.parse_args()
+
+    # --- lmin_fit 기본값 결정(미지정 시): hybrid=0.5 고정, window_mc=후보 탐색 ---
+    if args.lmin_fit_values is None:
+        args.lmin_fit_values = [0.5] if args.likelihood_mode == "hybrid" else [0.1, 0.2, 0.3, 0.5, 0.75]
 
     # --- 입력 검증: 트레이스 소스는 H5/CSV 중 정확히 하나만 허용 ---
     if bool(args.trace_h5) == bool(args.trace_csv):
