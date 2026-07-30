@@ -1,11 +1,24 @@
-# DFN 역산 파이프라인 — 핸드오프 (최종 버전)
+# DFN 역산 파이프라인 — 핸드오프 v1 (2026-07-30)
 
 터널 막장면의 2D 절리선(trace) 관측으로부터 3D DFN(Discrete Fracture Network) 파라미터를
-역산하고, 관측을 조건으로 하는 3D DFN을 생성·시각화하는 **최종 파이프라인 코드**입니다.
+역산하고, 관측을 조건으로 하는 3D DFN을 생성·시각화하는 **배포용 파이프라인 코드**입니다.
 
-이 폴더(`handoff/dfn_analysis/`)에는 **최종 버전 파이프라인 파일**이 포함됩니다(관측 역산 → 복원 → 조건부 생성).
+## v1 변경 요약 (구 handoff 대비)
+
+| 항목 | v0 (구) | **v1 (본 패키지)** |
+|------|---------|--------------------|
+| trace 방향 소스 | polyline 3점법 | **외부 제공 3D 방향** (`--trace-normal-source external` 기본; 벤치마크는 참값 법선이 대역) |
+| P32 보정계수 | unit-P32 forward MC | **수식 기반 `analytic_esinphi`** (C=E[sinφ] 결정론적 구적, ~2초; unit-MC는 legacy — 면적 기준 불일치로 C +2~4% 과대 편향 확인) |
+| kr 우도 | window_mc 전량 MC | **hybrid** (해석식 길이분포 + kr불변 창커널; lmin 전 set 공통 0.5 m 고정) — 참값 미사용(blind) 20시드 재판정 RMSE 3승 1무로 채택 |
+| kr lmin 선택 | 참값 사용(오라클, D013 위반) | **참값 미사용** (fit상태→class_l1→q90; 벤치마크·실측 동일 동작) |
+| 복원·조건화·시각화 | — | 동일 (reconstruct / LOFO / conditional / 3D 시각화, `--html` 옵션 포함) |
+
+**알려진 한계(v1)**: kr 모델의 클리핑 창(터널 다각형)과 관측 footprint(mesh, 경계 −3.85%)
+불일치 — 기준 일치 시 전 set kr 오차 ≤0.04 회수를 확인했으며 차기 버전 개선 항목입니다.
+모든 판정·근거: `docs/제6장_수정안_통합본.md` (제3부 §2.3–2.5, §4.7).
+
+이 폴더(`handoffv1/dfn_analysis/`)에는 **최종 파이프라인 파일**이 포함됩니다(관측 역산 → 복원 → 조건부 생성).
 진단(diagnose_*)·대체(estimate_p32_combined_bootstrap, v3 radius)·보조 시각화(plot_*)는 제외했습니다.
-이번 버전에서 **복원(reconstruct)·복원 검증(visualize/LOFO)** 모듈 3종이 추가되었습니다.
 
 모든 파일은 각 코드 블록마다 한글 주석이 달려 있습니다.
 
