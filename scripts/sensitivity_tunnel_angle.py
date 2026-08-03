@@ -200,7 +200,7 @@ def _process_one(py, env, sets, label, args, a, sd, wd, base_h5, report=None):
           "--target-set", *sets, "--kr-summary-csv", kr_sum,
           "--bootstrap-csv", kr_sum, "--dfn-h5", rot_h5,
           "--rough-mesh-h5", args.mesh_h5,
-          "--calibration-factor-mode", "unit_p32_forward_mc",
+          "--calibration-factor-mode", "analytic_esinphi",
           "--mc-samples", str(args.p32_mc_samples),
           "--unit-p32-mc-replicates", str(args.p32_replicates),
           "--outcsv", p32_csv], env, "p32"); step("p32✓ ")

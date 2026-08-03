@@ -38,6 +38,13 @@ def main():
     plt.rcParams["font.family"] = "Malgun Gothic"
     plt.rcParams["axes.unicode_minus"] = False
 
+    # 선택 인자: [angle_csv] [out_dir]  (미지정 시 기존 v0 경로)
+    global ANGLE_CSV, OUT_DIR
+    if len(sys.argv) > 1:
+        ANGLE_CSV = sys.argv[1]
+    if len(sys.argv) > 2:
+        OUT_DIR = sys.argv[2]
+
     sys.argv = ["x"]  # build_ground_truth 가 argparse 안 건드리도록
     from scripts.sensitivity_tunnel_angle import build_ground_truth
     gt = build_ground_truth("laxemar", [int(s) for s in SETS], 0.5, 250.0)

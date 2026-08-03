@@ -151,7 +151,7 @@ def process_one(py, env, sets, label, args, d, sd, wd, mesh_h5):
           "--trace-h5", tr_h5, "--config", cfg, "--site", label,
           "--target-set", *sets, "--kr-summary-csv", kr_sum, "--bootstrap-csv", kr_sum,
           "--dfn-h5", base, "--rough-mesh-h5", mesh_h5,
-          "--calibration-factor-mode", "unit_p32_forward_mc",
+          "--calibration-factor-mode", "analytic_esinphi",
           "--mc-samples", str(args.p32_mc_samples),
           "--unit-p32-mc-replicates", str(args.p32_replicates),
           "--outcsv", p32_csv], env, "p32")
