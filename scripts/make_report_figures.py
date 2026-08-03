@@ -22,7 +22,7 @@ import h5py
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Arc
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
 try:
     plt.rcParams["font.family"] = "Malgun Gothic"
@@ -102,14 +102,13 @@ def block1(base, tr, out):
     axa.set_title("(a) Rough face mesh → 절리 trace 추출 (막장면 1, y-z)")
     axa.legend(loc="upper right", fontsize=8, ncol=2)
 
-    # (b) 길이 · 중심점 · 2D 방향각 (실측 trace 1개 주석)
+    # (b) 길이 · 중심점 (실측 trace 1개 주석) — 2D 방향각(θ)은 v1에서 미사용이라 표기 제거
     axb = ax[0, 1]
     cand = [i for i in sel if tr["censoring"][i] == 0 and tr["length"][i] > 2.0]
     i = max(cand, key=lambda k: tr["length"][k]) if cand else sel[int(np.argmax(tr["length"][sel]))]
     p0 = tr["p0"][i, 1:3]; p1 = tr["p1"][i, 1:3]
     c = 0.5 * (p0 + p1)
     L = float(np.hypot(*(p1 - p0)))
-    theta = float(np.degrees(np.arctan2(p1[1] - p0[1], p1[0] - p0[0])))
     axb.plot(poly[:, 0], poly[:, 1], color="0.7", lw=1.2)
     axb.plot([p0[0], p1[0]], [p0[1], p1[1]], "-", color="#1f4e79", lw=2.5)
     axb.plot(*p0, "o", color="#1f4e79", ms=7); axb.plot(*p1, "o", color="#1f4e79", ms=7)
@@ -118,15 +117,10 @@ def block1(base, tr, out):
     axb.annotate("P2=(y2,z2)", p1, textcoords="offset points", xytext=(6, 8), fontsize=9)
     axb.annotate(f"중심 C\n({c[0]:.2f}, {c[1]:.2f})", c, textcoords="offset points",
                  xytext=(8, -22), fontsize=9, color="#c00000")
-    axb.annotate("", xy=p0 + np.array([1.2, 0.0]), xytext=p0,
-                 arrowprops=dict(arrowstyle="->", color="0.4"))
-    arc = Arc(p0, 1.6, 1.6, angle=0, theta1=0, theta2=theta, color="0.4")
-    axb.add_patch(arc)
-    axb.text(p0[0] + 1.0, p0[1] + 0.35, f"θ = {theta:.1f}°", fontsize=10, color="0.3")
     axb.text(c[0], c[1] + 0.9, f"L = {L:.2f} m", fontsize=11, ha="center",
              color="#1f4e79", fontweight="bold")
     axb.set_aspect("equal"); axb.set_xlabel("y (m)"); axb.set_ylabel("z (m)")
-    axb.set_title("(b) 길이 L · 중심점 C · 2D 방향각 θ 정의 (실측 trace 예)")
+    axb.set_title("(b) 길이 L · 중심점 C 정의 (실측 trace 예)")
 
     # (c) censoring class 분류
     axc = ax[1, 0]
