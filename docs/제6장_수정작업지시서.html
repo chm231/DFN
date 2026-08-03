@@ -131,8 +131,8 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <tr>
 <td>34–36</td>
 <td>제5절 1–3 (3계층, remove-and-resample, 출력)</td>
-<td><strong>유지</strong></td>
-<td>표 6-3의 개수(52/339/55)는 v1 재실행 시 갱신 필요 — D-3</td>
+<td><strong>수치 갱신</strong></td>
+<td><strong>표 6-3 개수를 v1 값으로 교체: determined 52 / shrinkage 330(약 76%) / lower_bound 50, 총 432개</strong> (v1 복원 재실행 완료 — D-3). 그림 6-12는 <code>fig_recon_discs_set4_v1.png</code>(흰색 위주)·<code>fig_recon_discs_set5_v1.png</code>(주황+초록)로 교체</td>
 </tr>
 <tr>
 <td>37</td>
@@ -190,6 +190,10 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <li>p.28 "프로파일 우도 기반 신뢰구간 기반 신뢰구간으로 사용한다" → 중복 구절 정리</li>
 <li>p.31 절 번호 "5. Kaplan–Meier 진단" → <strong>4.</strong> (제3절 내 4번째 항목)</li>
 <li>경미한 오탈: p.13 "즉, 즉," / p.14 "못한지만"→"못하지만" / p.7 "다.다만" 띄어쓰기</li>
+<li><strong>p.35 그림 6-12 캡션 좌/우 검토</strong>: 캡션은 "set 4(좌), 5(우)"인데 패널 내용은 왼쪽이
+    주황(shrinkage — k_r 보유 절리군에서만 나옴), 오른쪽이 흰색(lower_bound — Set 4는
+    k_r 미보유라 전부 하한값)으로 보임 → 좌/우가 뒤바뀐 것으로 판단됨. v1 교체 그림
+    기준으로는 set 4 = 흰색 위주, set 5 = 주황+초록이므로 캡션과 패널을 맞춰 배치할 것</li>
 </ol>
 <hr />
 <h2>C. 그림·표 제작 목록</h2>
@@ -224,8 +228,8 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 </tr>
 <tr>
 <td>C-5</td>
-<td>그림 6-12 / 표 6-3 (복원 계층 개수 52/339/55)</td>
-<td>미착수 — v1 trace(외부 방향)로 복원 재실행 후 갱신 (D-3)</td>
+<td>그림 6-12 / 표 6-3 (복원 계층 개수)</td>
+<td><strong>완성</strong> — v1 복원 재실행(D-3): 표 6-3 = 52/330/50(총 432), 그림 = <code>fig_recon_discs_set4_v1.png</code>·<code>fig_recon_discs_set5_v1.png</code> (생성: <code>scripts/make_fig_recon_discs.py</code>)</td>
 </tr>
 <tr>
 <td>C-6</td>
@@ -254,9 +258,43 @@ handoffv1의 estimate_kr(blind best_row·hybrid 기본·lmin 0.5)·
 estimate_radius_powerlaw_window_mc(hybrid 커널)·estimate_p32_mc_calibrated(analytic
 기본)를 루트 <code>dfn_analysis/</code>로 이식. 스모크 테스트로 배포본과 동일 결과 확인
 (kr 2.70/3.25/3.50/3.90). 민감도 스크립트 2종도 analytic P32로 전환.</p>
-<p><strong>D-3. 복원 단계 v1 재실행 — 미결(사용자 결정 대기).</strong> 표 6-3 개수(52/339/55)·그림
-6-12를 외부 방향 기준 trace로 갱신할지. 외부 방향에서 유효 법선이 100%가 되므로 연결
-게이트(법선 축각) 통과 구성이 달라져 계층별 개수가 이동할 수 있음.</p>
+<p><strong>D-3. 복원 단계 v1 재실행 — ✅ 완료 (2026-08-03).</strong> 외부 방향 trace + v1 kr 요약으로
+전 절리군(1–5) 복원:</p>
+<table>
+<thead>
+<tr>
+<th>계층</th>
+<th>v0 (보고서 표 6-3)</th>
+<th><strong>v1 (교체값)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>determined (경계점 원 적합)</td>
+<td>52</td>
+<td><strong>52</strong></td>
+</tr>
+<tr>
+<td>shrinkage (kr 축소추정)</td>
+<td>339</td>
+<td><strong>330</strong> (전체의 약 76%)</td>
+</tr>
+<tr>
+<td>lower_bound (하한값 부여)</td>
+<td>55</td>
+<td><strong>50</strong></td>
+</tr>
+<tr>
+<td>합계</td>
+<td>446</td>
+<td><strong>432</strong></td>
+</tr>
+</tbody>
+</table>
+<p>절리군별: Set 1 122 / Set 2 37 / Set 3 77 / Set 4 52(전부 하한값+determined 2) /
+Set 5 144. 다면 관통 disc 116개, 평면 잔차 median≈0(외부 법선이 참값 대역이므로 기대대로).
+본문 "축소 추정이 339개(전체의 약 76%)" → "<strong>330개(전체의 약 76%)</strong>"로 숫자만 교체하면
+서술 구조는 그대로 유효하다. 그림 6-12 교체 파일과 캡션 주의사항은 §G·B-10 참조.</p>
 <hr />
 <h2>E. 참고 — 수치 대조 (기존 표 6-5 ↔ v1)</h2>
 <table>
@@ -500,5 +538,115 @@ PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
 </code></pre>
 <p>(v1 전체 소요: 각도 39분 + 간격 12분, 28코어 기준. CV/편향 계산 관례는 v0 표와 동일 —
 모집단 표준편차, 간격·각도는 그룹별 평균값들 사이의 CV.)</p>
+<hr />
+<h2>G. 그림·표 교체 총괄표 — "이 파일을 보고서의 여기에"</h2>
+<p>준비된 신규 산출물 전체와 보고서 내 교체 대상의 1:1 매핑. 모든 그림 파일은
+<code>docs/figures/</code>에 있다.</p>
+<h3>G-1. 그림 (파일 갈아끼우기)</h3>
+<table>
+<thead>
+<tr>
+<th>보고서 그림 (쪽)</th>
+<th>현재 내용</th>
+<th><strong>교체 파일</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>그림 6-1 (p.6)</td>
+<td>전체 파이프라인 개요 (구버전)</td>
+<td><code>fig_pipeline_overview_v1.png</code></td>
+</tr>
+<tr>
+<td>그림 6-4 (p.16)</td>
+<td>2차원 방향각 정의</td>
+<td><strong>삭제</strong> (교체 없음 — 식 6.16과 함께 제거)</td>
+</tr>
+<tr>
+<td>그림 6-5 (p.16)</td>
+<td>전처리 4패널 ((b)에 θ 표기)</td>
+<td><code>fig_block1_preprocessing.png</code> (재생성판 — (b)에서 θ 제거)</td>
+</tr>
+<tr>
+<td>그림 6-10 (p.22)</td>
+<td>3점법 국소 법선</td>
+<td><strong>삭제</strong> (3점법 절 삭제와 함께)</td>
+</tr>
+<tr>
+<td>그림 6-11 (p.29)</td>
+<td>P32 unit-MC 보정 모식도</td>
+<td><code>fig_p32_analytic_schematic.png</code> (해석식 흐름)</td>
+</tr>
+<tr>
+<td>그림 6-12 (p.35)</td>
+<td>복원 균열 3D (set 4 / set 5)</td>
+<td><code>fig_recon_discs_set4_v1.png</code> + <code>fig_recon_discs_set5_v1.png</code> — <strong>캡션 좌/우 주의 (B-10)</strong>: set 4 = 흰색 위주, set 5 = 주황+초록</td>
+</tr>
+<tr>
+<td>그림 6-14 (p.38)</td>
+<td>벤치마크-역산 비교 막대</td>
+<td><code>fig_validation_bars_v1.png</code></td>
+</tr>
+<tr>
+<td>그림 6-15 (p.40)</td>
+<td>시드 30개 boxplot</td>
+<td><code>fig_sensitivity_seed_v1.png</code></td>
+</tr>
+<tr>
+<td>그림 6-16 (p.41)</td>
+<td>굴착 간격 boxplot</td>
+<td><code>fig_sensitivity_face_interval_v1.png</code></td>
+</tr>
+<tr>
+<td>그림 6-17 (p.43)</td>
+<td>방위각 민감도 – P32</td>
+<td><code>fig_sensitivity_angle_p32_v1.png</code></td>
+</tr>
+<tr>
+<td>그림 6-18 (p.43)</td>
+<td>방위각 민감도 – k_r</td>
+<td><code>fig_sensitivity_angle_kr_v1.png</code></td>
+</tr>
+<tr>
+<td>그림 6-19 (p.44)</td>
+<td>방위각 민감도 – κ</td>
+<td><code>fig_sensitivity_angle_kappa_v1.png</code></td>
+</tr>
+</tbody>
+</table>
+<p>변경 없음(유지): 그림 6-2, 6-3, 6-6, 6-7, 6-8, 6-9, 6-13. (그림 6-6 모식도의
+"estimate_* (kr, kappa, P32)" 라벨 등은 v1에서도 유효.)</p>
+<h3>G-2. 표 (수치 교체)</h3>
+<table>
+<thead>
+<tr>
+<th>보고서 표 (쪽)</th>
+<th><strong>새 수치 출처</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>표 6-3 (p.36) 복원 계층 개수</td>
+<td>D-3의 표: 52 / 330 / 50 (총 432)</td>
+</tr>
+<tr>
+<td>표 6-5 (p.37) 역산 결과</td>
+<td>[검증표] 표 V-1·V-2·V-3 (k_r는 v1 열만, P32 CI 생략 — A표 p.37 행 참조)</td>
+</tr>
+<tr>
+<td>표 6-7 (p.40) 시드 민감도</td>
+<td>§F-2</td>
+</tr>
+<tr>
+<td>표 6-8 (p.42) 간격 민감도</td>
+<td>§F-3</td>
+</tr>
+<tr>
+<td>표 6-9 (p.44) 각도 민감도</td>
+<td>§F-4</td>
+</tr>
+</tbody>
+</table>
+<p>변경 없음(유지): 표 6-1, 6-2, 6-4(→번호 참조만 정정, B-3), 6-6(참값 표).</p>
 </body>
 </html>
