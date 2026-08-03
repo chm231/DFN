@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제6장 보고서 수정안 — 통합본 (코드 기반)</title>
+<script>
+MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$','$$']] } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; max-width: 900px;
+         margin: 2rem auto; padding: 0 1.2rem; line-height: 1.75; color: #222; }
+  h1 { font-size: 1.45rem; border-bottom: 3px solid #234; padding-bottom: .5rem; margin-top: 2.5rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.2rem; border-left: 6px solid #368; padding-left: .6rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.6rem; }
+  table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: .92rem; }
+  th, td { border: 1px solid #999; padding: .35rem .6rem; text-align: center; }
+  th { background: #eef2f6; }
+  blockquote { background: #f6f8fa; border: 1px solid #d0d7de; border-left: 6px solid #d0d7de;
+               border-radius: 6px; padding: .6rem 1rem; margin: 1rem 0; color: #222; }
+  del { color: #a33; }
+  code { background: #f0f0f0; padding: .1rem .3rem; border-radius: 3px; font-size: .88em; }
+  pre code { display: block; padding: .8rem; overflow-x: auto; }
+  hr { border: none; border-top: 2px solid #ccd; margin: 2rem 0; }
+</style>
+</head>
+<body>
+<h1>제6장 검증표 — v1 파이프라인 재생성 결과 (2026-08-03)</h1>
+<blockquote>
+<p><strong>목적.</strong> 보고서 제6장의 검증표 수치는 v0 파이프라인(3점법 방향 · window_mc $k_r$ ·
+unit-MC $P_{32}$ 보정)으로 산출된 값이다. 본문 방법론을 v1(외부 3D 방향 · hybrid $k_r$ ·
+해석식 $P_{32}$ 보정)으로 수정할 경우 표의 수치도 함께 갱신되어야 하므로, 동일 벤치마크
+입력에 v1 파이프라인을 적용해 재생성한 결과를 정리한다.</p>
+<p><strong>동일 조건.</strong> DFN 참값(<code>dfn_export_for_python.h5</code>, 균열 18,483,834개)과 거친 막장면
+mesh를 v0 실행과 <strong>동일 파일로 고정</strong>하고, 방법(추정기)만 v1으로 교체했다. 따라서 아래
+차이는 전부 방법 변경에 기인한다. 대상: Laxemar 벤치마크, 막장면 4매(x = 0/1/2/3 m),
+절리군 1·2·3·5 (Set 4는 지수분포이므로 멱법칙 역산 대상에서 제외, 정책 D002).</p>
+<p><strong>재현 명령</strong>은 문서 말미 §5에 수록.</p>
+</blockquote>
+<hr />
+<h2>1. 방향·집중도 검증</h2>
+<h3>표 V-1. 절리군별 평균 방향·집중도</h3>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>관측 절리선</th>
+<th>유효 법선 v0</th>
+<th>유효 법선 <strong>v1</strong></th>
+<th>trend 참값</th>
+<th>trend v0</th>
+<th>trend <strong>v1</strong></th>
+<th>plunge 참값</th>
+<th>plunge v0</th>
+<th>plunge <strong>v1</strong></th>
+<th>각오차 v0</th>
+<th>각오차 <strong>v1</strong></th>
+<th>κ 참값</th>
+<th>κ v0</th>
+<th>κ <strong>v1</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>182</td>
+<td>99 (54%)</td>
+<td><strong>182 (100%)</strong></td>
+<td>338.1°</td>
+<td>338.8°</td>
+<td><strong>339.9°</strong></td>
+<td>4.5°</td>
+<td>6.8°</td>
+<td><strong>5.9°</strong></td>
+<td>2.4°</td>
+<td><strong>2.3°</strong></td>
+<td>13.06</td>
+<td>12.67</td>
+<td><strong>12.84</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>46</td>
+<td>35 (76%)</td>
+<td><strong>46 (100%)</strong></td>
+<td>100.4°</td>
+<td>107.9°</td>
+<td><strong>109.2°</strong></td>
+<td>0.2°</td>
+<td>−0.4°</td>
+<td><strong>−1.2°</strong></td>
+<td>7.5°</td>
+<td><strong>8.9°</strong></td>
+<td>19.62</td>
+<td>17.06</td>
+<td><strong>18.09</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>140</td>
+<td>94 (67%)</td>
+<td><strong>140 (100%)</strong></td>
+<td>212.9°</td>
+<td>210.4°</td>
+<td><strong>209.5°</strong></td>
+<td>0.9°</td>
+<td>2.4°</td>
+<td><strong>3.6°</strong></td>
+<td>2.9°</td>
+<td><strong>4.3°</strong></td>
+<td>10.46</td>
+<td>9.19</td>
+<td><strong>9.86</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>186</td>
+<td>128 (69%)</td>
+<td><strong>186 (100%)</strong></td>
+<td>243.0°</td>
+<td>239.4°</td>
+<td><strong>239.3°</strong></td>
+<td>24.4°</td>
+<td>25.5°</td>
+<td><strong>26.3°</strong></td>
+<td>3.5°</td>
+<td><strong>3.8°</strong></td>
+<td>23.52</td>
+<td>25.07</td>
+<td><strong>23.79</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>집중도 κ는 전 절리군에서 개선</strong>되었다(평균 절대오차 8.7% → <strong>4.1%</strong>):
+Set 1 3.0%→<strong>1.7%</strong>, Set 2 13.0%→<strong>7.8%</strong>, Set 3 12.1%→<strong>5.7%</strong>, Set 5 6.6%→<strong>1.1%</strong>.</p>
+<p><em>해석.</em> v0의 3점법은 절리선 polyline의 세 점으로 법선을 역산하므로 (i) 굴곡이 작은
+절리선에서는 법선이 정의되지 않아 <strong>유효 법선이 54–76%에 그쳤고</strong>, (ii) 산출된 법선에도
+기하 잡음이 실려 방향 산포가 실제보다 크게 보였다. 잡음은 분산을 부풀리므로 κ를
+<strong>과소추정</strong>하게 되며, 실제로 v0는 Set 1·2·3에서 κ를 일관되게 낮게 추정했다. 외부 제공
+3D 방향을 쓰는 v1에서는 두 문제가 함께 해소된다.</p>
+<p><em>평균 pole 각오차는 4.1° → 4.8°로 소폭 증가</em>했는데, 이는 방향 정보의 품질 저하가 아니라
+<strong>표본 구성의 변화</strong> 때문이다. v0는 3점법이 성공한 절리선(전체의 54–76%)만으로 평균을
+냈고, v1은 관측된 모든 절리선을 사용한다. 막장면과 만나는 절리 표본 자체가 면에 수직인
+절리를 과대표집하는 구조적 편향(교차확률 편향)을 갖고 있어, 표본을 늘린다고 평균 pole이
+참값에 더 가까워지지는 않는다. 각오차는 전 절리군 8.9° 이하로 v0와 같은 수준을 유지하며,
+방향 품질의 실질 지표인 κ가 개선된 것이 방법 교체의 성과다.</p>
+<hr />
+<h2>2. 반지름 멱법칙 지수 $k_r$ 검증</h2>
+<h3>표 V-2. 절리군별 $k_r$</h3>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>$k_r$ 참값</th>
+<th>v0 $\hat k_r$</th>
+<th>v0 $\ell_{min}$</th>
+<th>v0 오차</th>
+<th><strong>v1 $\hat k_r$</strong></th>
+<th><strong>v1 $\ell_{min}$</strong></th>
+<th><strong>v1 95% CI</strong></th>
+<th><strong>v1 오차</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>2.85</td>
+<td>2.80</td>
+<td>0.50</td>
+<td>−1.8%</td>
+<td><strong>2.70</strong></td>
+<td><strong>0.50</strong></td>
+<td><strong>[2.50, 2.95]</strong></td>
+<td><strong>−5.3%</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>3.04</td>
+<td>3.05</td>
+<td>0.30</td>
+<td>+0.3%</td>
+<td><strong>3.25</strong></td>
+<td><strong>0.50</strong></td>
+<td><strong>[2.52, 4.33]</strong></td>
+<td><strong>+6.9%</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>3.01</td>
+<td>3.05</td>
+<td>0.75</td>
+<td>+1.3%</td>
+<td><strong>3.50</strong></td>
+<td><strong>0.50</strong></td>
+<td><strong>[3.17, 4.08]</strong></td>
+<td><strong>+16.3%</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>3.60</td>
+<td>3.70</td>
+<td>0.30</td>
+<td>+2.8%</td>
+<td><strong>3.90</strong></td>
+<td><strong>0.50</strong></td>
+<td><strong>[3.55, 4.43]</strong></td>
+<td><strong>+8.3%</strong></td>
+</tr>
+</tbody>
+</table>
+<p>평균 절대 상대오차: v0 1.6% → <strong>v1 9.2%</strong>. 95% 신뢰구간의 참값 포함: <strong>4개 중 3개</strong>
+(Set 3만 미포함).</p>
+<h3>2.1 ⚠ 이 표를 그대로 "성능 저하"로 읽어서는 안 되는 이유</h3>
+<p><strong>v0의 1.6%는 실제로 달성 가능한 정확도가 아니다.</strong> v0는 절리군마다 $\ell_{min}$(우도
+적합에 쓰는 최소 절리선 길이)을 다르게 선택했는데(표 V-2의 0.50/0.30/0.75/0.30),
+이 선택이 <strong>참값 $k_r$에 가장 가까운 후보를 고르는 방식</strong>으로 이루어져 있었다. 즉 정답을
+보고 하이퍼파라미터를 고른 결과이며, 참값을 모르는 실제 현장에서는 재현할 수 없는
+수치다(정책 D013 위반 — 2026-07-30 발견, 커밋 <code>c696703</code>에서 수정).</p>
+<p>v1은 $\ell_{min}$을 전 절리군 공통 0.5 m로 고정하고 선택 절차에서 참값을 완전히
+배제했다. <strong>표 V-2의 두 열은 같은 조건의 비교가 아니라, "정답을 본 추정"과 "정답을 보지
+않은 추정"의 비교다.</strong> 참값을 배제한 동일 조건에서 두 방법을 20개 시드로 비교한 재판정
+결과는 다음과 같으며, hybrid(v1)가 3승 1무로 우세하다.</p>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>window_mc (blind) RMSE</th>
+<th><strong>hybrid (blind) RMSE</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.319</td>
+<td><strong>0.248</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.444</td>
+<td><strong>0.447</strong> (무승부)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.325</td>
+<td><strong>0.244</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.365</td>
+<td><strong>0.325</strong></td>
+</tr>
+</tbody>
+</table>
+<p>(근거: <code>docs/kr_selector_seed_sweep_perlmin.csv</code>, 판정: <code>docs/제6장_수정안_통합본.md</code> 제3부 §4.7)</p>
+<h3>2.2 본 시드의 위치</h3>
+<p>표 V-2는 <strong>단일 시드</strong>의 결과이므로 위 RMSE 대역과 대조해 읽어야 한다. 절대오차는
+Set 1 0.15, Set 2 0.21, Set 3 0.49, Set 5 0.30으로, Set 1·2·5는 해당 절리군의 RMSE
+이내이고 <strong>Set 3만 RMSE(0.244)의 두 배로 벗어난 불리한 추출</strong>이다. Set 3이 유일하게
+95% CI에 참값을 담지 못한 것도 같은 이유다.</p>
+<p>Set 3의 계통 편향에는 v1의 알려진 한계도 함께 작용한다 — 모델은 절리선을 터널 단면
+<strong>다각형</strong>으로 자르는데 관측 절리선은 요철 mesh의 <strong>footprint</strong>로 잘려 있어 기준이
+어긋나며(mesh 면적이 다각형 대비 −3.85%), 기준을 일치시킨 실험에서는 전 절리군 $k_r$
+오차가 0.04 이하로 회수되었다. 차기 버전 개선 항목이다(통합본 §4.7).</p>
+<h3>2.3 보고서 반영 시 권고</h3>
+<p>표 V-2를 그대로 싣는 경우 <strong>v0 열은 삭제하거나 각주로 내리고</strong>, v1 열만 본표로 제시할
+것을 권한다. 두 열을 나란히 두면 "방법을 바꿔 정확도가 나빠졌다"는 오해를 부르는데,
+실제로는 v0 수치가 검증 기준을 위반해 산출된 값이기 때문이다. 대신 §2.1의 20시드 blind
+RMSE 표를 방법 비교 근거로 싣는 것이 정확하다.</p>
+<hr />
+<h2>3. 체적 절리밀도 $P_{32}$ 검증</h2>
+<h3>표 V-3. 절리군별 $P_{32}$</h3>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>$P_{32}$ 참조값</th>
+<th>v0 $\widehat{P_{32}}$</th>
+<th>v0 오차</th>
+<th><strong>v1 $\widehat{P_{32}}$</strong></th>
+<th><strong>v1 오차</strong></th>
+<th><strong>관측 $P_{21}$</strong></th>
+<th>v0 보정계수 $C$</th>
+<th><strong>v1 보정계수 $C$</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.914</td>
+<td>0.948</td>
+<td>+3.7%</td>
+<td><strong>0.967</strong></td>
+<td><strong>+5.8%</strong></td>
+<td>0.8008</td>
+<td>0.8445</td>
+<td><strong>0.8284</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>1.026</td>
+<td>0.726</td>
+<td>−29.2%</td>
+<td><strong>0.763</strong></td>
+<td><strong>−25.7%</strong></td>
+<td>0.2398</td>
+<td>0.3303</td>
+<td><strong>0.3144</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.975</td>
+<td>0.945</td>
+<td>−3.1%</td>
+<td><strong>0.968</strong></td>
+<td><strong>−0.7%</strong></td>
+<td>0.7635</td>
+<td>0.8080</td>
+<td><strong>0.7885</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.980</td>
+<td>1.012</td>
+<td>+3.3%</td>
+<td><strong>1.041</strong></td>
+<td><strong>+6.3%</strong></td>
+<td>0.6219</td>
+<td>0.6144</td>
+<td><strong>0.5972</strong></td>
+</tr>
+</tbody>
+</table>
+<p>평균 절대 상대오차: v0 9.8% → <strong>v1 9.6%</strong> (Set 2 제외 시 v0 3.4% → <strong>v1 4.3%</strong>).</p>
+<p><em>해석.</em> $P_{32}$는 두 방법이 실질적으로 동등하다. 보정계수 $C$는 v1(해석식)이 v0(unit-MC)
+대비 <strong>일관되게 1.9–5.0% 작으며</strong>, 이는 unit-MC의 $C$가 면적 기준 불일치로 +2~4% 과대
+추정된다는 기존 규명(통합본 제3부 §2.5)과 부호·크기가 모두 일치한다. $C$가 작아진 만큼
+$\widehat{P_{32}} = P_{21}^{obs}/C$는 커지며, 참조값 대비 과소추정이던 Set 2·3은
+개선되고 이미 과대추정이던 Set 1·5는 오차가 소폭 늘었다. 방법의 우열이 아니라
+<strong>계통 편향 제거의 결과가 절리군별 부호에 따라 다르게 나타난 것</strong>이다.</p>
+<p>Set 2의 −25.7%는 두 방법 공통이며 방법 문제가 아니다 — 관측 절리선이 46개로 가장
+희소하고(다음으로 적은 Set 3의 1/3), 평균 pole이 터널축과 이루는 각이 작아 교차확률이
+낮은($C = 0.31$로 최소) 절리군이라 관측 $P_{21}$ 자체의 표본 변동이 크다.</p>
+<h3>3.1 ⚠ 미해결 사항 — v1의 $P_{32}$ 신뢰구간</h3>
+<p>v1의 해석식 보정은 <strong>결정론적 구적</strong>이라 $C$에 표집 불확실성이 없고, $C$는 $k_r$과도
+무관하다. 그 결과 현재 구현은 $\widehat{P_{32}}$의 상·하한이 점추정값과 동일한
+<strong>퇴화(degenerate) 구간</strong>을 출력한다(표에서 CI 열을 뺀 이유).</p>
+<p>다만 v0의 CI도 통계적 신뢰구간은 아니었다 — MC 복제 간 산포(즉 시뮬레이션 잡음)일 뿐이며,
+실제로 Set 2에서는 v0 CI [0.735, 0.750]이 점추정값 0.726을 포함하지 못하는 모순도 있었다.
+따라서 <strong>두 버전 모두 $P_{32}$의 참된 불확실성을 제시하지 못하고 있다.</strong></p>
+<p>보고서에 CI를 실으려면 관측 $P_{21}$의 표본 변동(막장면 수·절리선 수 유한성)을
+전파하는 별도 절차가 필요하다. 본 표에서는 CI 열을 생략하고 점추정만 제시할 것을 권한다.</p>
+<hr />
+<h2>4. 요약</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>v0 → v1</th>
+<th>판정</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>유효 법선 비율</td>
+<td>54–76% → <strong>100%</strong></td>
+<td><strong>개선</strong></td>
+</tr>
+<tr>
+<td>방향 집중도 κ</td>
+<td>평균오차 8.7% → <strong>4.1%</strong> (전 절리군 개선)</td>
+<td><strong>개선</strong></td>
+</tr>
+<tr>
+<td>평균 pole 각오차</td>
+<td>4.1° → 4.8°</td>
+<td>동등 (표본 구성 변화, §1)</td>
+</tr>
+<tr>
+<td>$k_r$</td>
+<td>표면상 1.6% → 9.2%</td>
+<td><strong>비교 불가</strong> — v0는 참값 사용(오라클). 동일 조건 20시드 재판정은 v1 우세(§2.1)</td>
+</tr>
+<tr>
+<td>$P_{32}$</td>
+<td>평균오차 9.8% → <strong>9.6%</strong></td>
+<td>동등, 보정계수 계통 편향 제거</td>
+</tr>
+<tr>
+<td>$P_{32}$ 신뢰구간</td>
+<td>MC 잡음 → 퇴화</td>
+<td><strong>미해결</strong> (§3.1)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>보고서 반영 시 유의.</strong> $k_r$ 표(V-2)는 v1 열만 싣고, 방법 비교 근거로는 §2.1의 20시드
+blind RMSE를 사용할 것. $P_{32}$ 표(V-3)는 CI 열을 생략할 것.</p>
+<hr />
+<h2>5. 재현 명령</h2>
+<p>작업 디렉터리는 <code>handoffv1/</code>(v1 패키지가 <code>dfn_analysis</code>로 로드되도록), 경로는 리포 루트 기준.</p>
+<pre><code class="language-bash"># 1) 절리선 재추출 (외부 3D 방향)
+python -m dfn_analysis.export_setwise_3d_traces \
+  --input   &lt;ROOT&gt;/storage/output/pipeline_test_laxemar/dfn_export_for_python.h5 \
+  --rough-mesh-h5 &lt;ROOT&gt;/storage/output/pipeline_test_laxemar/rough_face_mesh/rough_face_mesh_collection.h5 \
+  --outdir  &lt;ROOT&gt;/storage/output/pipeline_v1_laxemar/trace_dataset \
+  --trace-normal-source external
+
+# 2) kr (hybrid 기본, lmin 0.5 고정, 참값 미사용 선택)
+python -m dfn_analysis.estimate_kr \
+  --trace-h5 &lt;ROOT&gt;/storage/output/pipeline_v1_laxemar/trace_dataset/trace_dataset_3d.h5 \
+  --site laxemar --target-set 1 2 3 5 \
+  --kr-true-map 1:2.85 2:3.04 3:3.01 5:3.60 \
+  --run-bootstrap --n-bootstrap 100 \
+  --outdir &lt;ROOT&gt;/storage/output/pipeline_v1_laxemar/kr
+
+# 3) P32 (해석식 보정)
+python -m dfn_analysis.estimate_p32_mc_calibrated \
+  --trace-h5 &lt;ROOT&gt;/storage/output/pipeline_v1_laxemar/trace_dataset/trace_dataset_3d.h5 \
+  --dfn-h5   &lt;ROOT&gt;/storage/output/pipeline_test_laxemar/dfn_export_for_python.h5 \
+  --rough-mesh-h5 &lt;ROOT&gt;/storage/output/pipeline_test_laxemar/rough_face_mesh/rough_face_mesh_collection.h5 \
+  --site laxemar --target-set 1 2 3 5 \
+  --kr-summary-csv &lt;ROOT&gt;/storage/output/pipeline_v1_laxemar/kr/kr_summary_by_set.csv \
+  --bootstrap-csv  &lt;ROOT&gt;/storage/output/benchmark1_parsimonious/inputs/final_kr_bootstrap_summary_effective_rmin.csv \
+  --calibration-factor-mode analytic_esinphi \
+  --outcsv &lt;ROOT&gt;/storage/output/pipeline_v1_laxemar/p32/p32_summary.csv
+
+# 4) 참값 대조표 (리포 루트에서 실행)
+python scripts/compare_pipeline_to_laxemar.py --base storage/output/pipeline_v1_laxemar
+</code></pre>
+<p><code>--kr-true-map</code>은 CSV의 검증 열을 채우기 위한 것으로, 추정 자체에는 사용되지 않는다(D013).
+출력: <code>storage/output/pipeline_v1_laxemar/comparison_vs_laxemar.csv</code></p>
+</body>
+</html>
