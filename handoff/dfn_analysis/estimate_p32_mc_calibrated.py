@@ -78,6 +78,10 @@ CALIBRATION_FACTOR_MODE_PROXY = "conditional_visible_trace_proxy"
 CALIBRATION_FACTOR_MODE_UNIT = "unit_p32_forward_mc"
 # [수식 기반] C = E[sinφ] 해석식(결정론적 구적법) 모드. 통합본 md 제3부 §2 참조.
 CALIBRATION_FACTOR_MODE_ANALYTIC = "analytic_esinphi"
+# C_lmin = E[sinφ]·η_det 를 순방향 모사에서 **직접** 계산하는 모드(2026-08-07 결정).
+#   unit_p32_forward_mc 와 절차는 같고, 관측자료와 동일한 최소 길이 기준(lmin)을
+#   가상 절리선에도 적용한다는 점만 다르다. 두 성분을 분리 산정하지 않는다.
+CALIBRATION_FACTOR_MODE_CLMIN = "forward_mc_lmin"
 
 
 # [ANALYTIC 모드] Fisher(trend, plunge, κ) 방향분포에서 E[sinφ]=E[√(1-n_x²)] 를
@@ -249,10 +253,31 @@ def mean_intersection_chord_length(site: str, set_id: int, kr: float, rmin: floa
 #  - 트레이스 행과 러프 페이스 컬렉션을 읽어 세트별 P21 요약 행을 구성.
 #  - 인자 trace_h5: 트레이스 HDF5, rough_mesh_h5: 관측면 메시 HDF5.
 #  - 반환: (set_id -> 요약행 dict, 총 관측 면적 m^2).
-def load_p21_summary(trace_h5: str, rough_mesh_h5: str) -> Tuple[Dict[int, dict], float]:
+def load_p21_summary(trace_h5: str, rough_mesh_h5: str,
+                     lmin: float = 0.0) -> Tuple[Dict[int, dict], float]:
+    """관측 P21 요약과 총 관측면적을 만든다.
+
+    관측면적 우선순위:
+      1) trace HDF5의 /meta/observation_area_m2 (평면 막장면 생성기가 기록한
+         터널 단면 다각형 면적 x 막장면 수 — 모델 창 기준과 정확히 일치)
+      2) 없으면 요철 mesh 삼각형 면적 합 (legacy; 격자 이산화로 다각형 대비
+         면적이 작아져 모델 창 기준과 어긋난다)
+
+    lmin > 0 이면 최소 길이 기준을 통과한 절리선만으로 P21_ret 을 계산한다.
+    보정계수 산정용 가상자료에도 **동일한** lmin 을 적용해야 한다(2026-08-07 결정).
+    """
     rows = load_trace_rows_from_h5(trace_h5)
-    rough_faces = load_rough_face_collection_from_h5(rough_mesh_h5)
-    observation_area_m2 = compute_total_observation_area(rough_faces)
+    if lmin > 0.0:
+        rows = [r for r in rows if float(r["observed_length_m"]) >= lmin]
+
+    observation_area_m2 = None
+    with h5py.File(trace_h5, "r") as f:
+        if "meta/observation_area_m2" in f:
+            observation_area_m2 = float(np.asarray(f["meta/observation_area_m2"]).ravel()[0])
+    if observation_area_m2 is None:
+        rough_faces = load_rough_face_collection_from_h5(rough_mesh_h5)
+        observation_area_m2 = compute_total_observation_area(rough_faces)
+
     summary_rows = build_summary_rows(rows, observation_area_m2)
     return {int(row["set_id"]): row for row in summary_rows}, float(observation_area_m2)
 
@@ -415,6 +440,7 @@ def estimate_unit_p32_forward_mc(
     mc_replicates: int,
     rng_seed: int,
     window_mode: str,
+    lmin: float = 0.0,
 ) -> dict:
     # 관측 면적이 0 이하이면 계산 불가 -> 모든 결과를 NaN으로 반환.
     if total_observation_area <= 0.0:
@@ -539,7 +565,11 @@ def estimate_unit_p32_forward_mc(
                 raise ValueError(f"Unsupported window mode: {window_mode}")
 
             # 관측창 내부에 실제로 보이는(가시길이>0) 교차만 채택.
+            # lmin > 0 이면 **관측자료와 동일한 최소 길이 기준**을 가상 절리선에도 적용한다
+            # (2026-08-07 결정: C_lmin = E[sinφ]·η_det 를 순방향 모사에서 직접 계산).
             accepted = (classes >= 0) & (visible_lengths > 0.0)
+            if lmin > 0.0:
+                accepted &= visible_lengths >= lmin
             if not np.any(accepted):
                 continue
 
@@ -577,7 +607,8 @@ def classify_p32_status(
     calibration_factor_mode: str,
 ) -> str:
     # UNIT(최종)·ANALYTIC(수식 기반) 외 모드는 스캐폴드 전용 상태로 처리.
-    if calibration_factor_mode not in (CALIBRATION_FACTOR_MODE_UNIT, CALIBRATION_FACTOR_MODE_ANALYTIC):
+    if calibration_factor_mode not in (CALIBRATION_FACTOR_MODE_UNIT, CALIBRATION_FACTOR_MODE_ANALYTIC,
+                                      CALIBRATION_FACTOR_MODE_CLMIN):
         return "p32_scaffold_only"
     # kr이 기각되면 보류(hold). 잠정채택 + 계통편향이면 별도 라벨.
     if adoption_status == "rejected":
@@ -652,12 +683,15 @@ def main() -> None:
     parser.add_argument(
         "--calibration-factor-mode",
         choices=[CALIBRATION_FACTOR_MODE_PROXY, CALIBRATION_FACTOR_MODE_UNIT,
-                 CALIBRATION_FACTOR_MODE_ANALYTIC],
-        default=CALIBRATION_FACTOR_MODE_ANALYTIC,
+                 CALIBRATION_FACTOR_MODE_ANALYTIC, CALIBRATION_FACTOR_MODE_CLMIN],
+        default=CALIBRATION_FACTOR_MODE_CLMIN,
         help="analytic_esinphi(기본·최종)=수식 기반 C=E[sinφ] 결정론적 구적, "
              "unit_p32_forward_mc=legacy 순방향 MC(면적 기준 불일치로 C +2~4% 과대), "
              "proxy=스캐폴드.",
     )
+    parser.add_argument("--lmin", type=float, default=0.0,
+                        help="최소 절리선 길이 [m]. forward_mc_lmin 모드에서 관측·가상 "
+                             "양쪽에 동일 적용된다(2026-08-07 결정). 0이면 필터 없음.")
     parser.add_argument("--unit-p32-mc-replicates", type=int, default=32, help="Number of MC replicates for unit_p32_forward_mc mode.")
     parser.add_argument(
         "--outcsv",
@@ -701,7 +735,7 @@ def main() -> None:
             grouped_rows.setdefault(set_id, []).append(row)
 
     # ---- 관측 P21 요약/관측 면적, 배향계수, 관측면 x위치 로드 ----
-    p21_summary_map, total_observation_area = load_p21_summary(args.trace_h5, args.rough_mesh_h5)
+    p21_summary_map, total_observation_area = load_p21_summary(args.trace_h5, args.rough_mesh_h5, lmin=args.lmin)
     orientation_map = load_orientation_factors(dfn_h5)
     face_x_positions = load_face_x_positions(args.trace_h5)
 
@@ -727,7 +761,8 @@ def main() -> None:
         # 재현 가능한 난수 시드 구성(세트/인덱스별로 분리).
         base_seed = 260000 + set_id * 100 + idx * 10000
         # ---- UNIT(최종) 모드: 순방향 MC로 C를 추정하고, kr CI 하/상한으로 C의 CI도 계산 ----
-        if calibration_mode == CALIBRATION_FACTOR_MODE_UNIT:
+        if calibration_mode in (CALIBRATION_FACTOR_MODE_UNIT, CALIBRATION_FACTOR_MODE_CLMIN):
+            mc_lmin = args.lmin if calibration_mode == CALIBRATION_FACTOR_MODE_CLMIN else 0.0
             unit_main = estimate_unit_p32_forward_mc(
                 site=args.site,
                 set_id=set_id,
@@ -741,6 +776,7 @@ def main() -> None:
                 mc_replicates=args.unit_p32_mc_replicates,
                 rng_seed=base_seed,
                 window_mode=args.window_mode,
+                lmin=mc_lmin,
             )
             # 중심 kr에 대한 C 및 부가 통계 추출.
             c_hat = float(unit_main["calibration_factor_C"])
@@ -764,6 +800,7 @@ def main() -> None:
                 mc_replicates=args.unit_p32_mc_replicates,
                 rng_seed=base_seed + 1,
                 window_mode=args.window_mode,
+                lmin=mc_lmin,
             )["calibration_factor_C"] if np.isfinite(kr_ci_low) else float("nan")
             # kr CI 상한으로 C_high 계산(kr CI가 유한할 때만).
             c_high = estimate_unit_p32_forward_mc(
@@ -779,6 +816,7 @@ def main() -> None:
                 mc_replicates=args.unit_p32_mc_replicates,
                 rng_seed=base_seed + 2,
                 window_mode=args.window_mode,
+                lmin=mc_lmin,
             )["calibration_factor_C"] if np.isfinite(kr_ci_high) else float("nan")
         # ---- ANALYTIC(수식 기반) 모드: C = E[sinφ] 결정론적 구적 ----
         #  - 표집이 없어 재현 완전 결정론적, C의 통계 산포 0.
@@ -884,7 +922,7 @@ def main() -> None:
                 "observed_P21": observed_p21,
                 "calibration_factor_C": c_hat,
                 "calibration_factor_mode": calibration_mode,
-                "unit_p32_mc_replicates": args.unit_p32_mc_replicates if calibration_mode == CALIBRATION_FACTOR_MODE_UNIT else 0,
+                "unit_p32_mc_replicates": args.unit_p32_mc_replicates if calibration_mode in (CALIBRATION_FACTOR_MODE_UNIT, CALIBRATION_FACTOR_MODE_CLMIN) else 0,
                 "unit_p32_mc_volume": unit_volume,
                 "mean_fracture_area": mean_fracture_area,
                 "fracture_number_density_for_unit_p32": fracture_number_density,

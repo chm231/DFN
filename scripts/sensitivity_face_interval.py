@@ -137,8 +137,10 @@ def process_one(py, env, sets, label, args, d, sd, wd, mesh_h5):
 
     _run([py, GENERATOR, "--site", args.site, "--seed", str(sd),
           "--output-dir", wd], env, "generate_dfn")
-    _run([py, "dfn_analysis/export_setwise_3d_traces.py",
-          "--input", base, "--rough-mesh-h5", mesh_h5, "--outdir", tr_dir], env, "traces")
+    face_x = [args.base_x + i * d for i in range(args.num_faces)]
+    _run([py, "-m", "dfn_analysis.export_flat_face_traces",
+          "--dfn-h5", base, "--face-x", *[f"{x:g}" for x in face_x],
+          "--outdir", tr_dir], env, "traces")
     _run([py, "dfn_analysis/estimate_kr.py", "--trace-h5", tr_h5,
           "--dfn-model", label, "--target-set", *sets,
           "--mc-samples-per-grid", str(args.kr_mc_samples),
@@ -151,7 +153,7 @@ def process_one(py, env, sets, label, args, d, sd, wd, mesh_h5):
           "--trace-h5", tr_h5, "--config", cfg, "--site", label,
           "--target-set", *sets, "--kr-summary-csv", kr_sum, "--bootstrap-csv", kr_sum,
           "--dfn-h5", base, "--rough-mesh-h5", mesh_h5,
-          "--calibration-factor-mode", "analytic_esinphi",
+          "--calibration-factor-mode", "forward_mc_lmin", "--lmin", str(args.lmin),
           "--mc-samples", str(args.p32_mc_samples),
           "--unit-p32-mc-replicates", str(args.p32_replicates),
           "--outcsv", p32_csv], env, "p32")
@@ -229,8 +231,8 @@ def run_pipeline(args):
         fcsv.close()
         return out_csv
 
-    # 간격별 mesh 사전 생성(공유)
-    mesh_map = generate_meshes(py, env, args, intervals, os.path.join(work, "meshes"))
+    # v2: 평면 막장면 → 간격별 mesh 사전 생성 불필요(face-x 목록으로 간격 표현)
+    mesh_map = {d: "" for d in intervals}
 
     import time
     t0 = time.time()
@@ -400,6 +402,8 @@ def build_argparser():
     p.add_argument("--kr-grid-size", type=int, default=61)
     p.add_argument("--p32-mc-samples", type=int, default=10000)
     p.add_argument("--p32-replicates", type=int, default=16)
+    p.add_argument("--lmin", type=float, default=0.5,
+                   help="최소 절리선 길이 [m] — 관측·가상 양쪽에 동일 적용")
     p.add_argument("--estimation-rmin", type=float, default=0.5)
     p.add_argument("--rmax", type=float, default=250.0)
     p.add_argument("--out-dir", default=DEFAULT_OUT)

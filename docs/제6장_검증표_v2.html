@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제6장 보고서 수정안 — 통합본 (코드 기반)</title>
+<script>
+MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$','$$']] } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; max-width: 900px;
+         margin: 2rem auto; padding: 0 1.2rem; line-height: 1.75; color: #222; }
+  h1 { font-size: 1.45rem; border-bottom: 3px solid #234; padding-bottom: .5rem; margin-top: 2.5rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.2rem; border-left: 6px solid #368; padding-left: .6rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.6rem; }
+  table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: .92rem; }
+  th, td { border: 1px solid #999; padding: .35rem .6rem; text-align: center; }
+  th { background: #eef2f6; }
+  blockquote { background: #f6f8fa; border: 1px solid #d0d7de; border-left: 6px solid #d0d7de;
+               border-radius: 6px; padding: .6rem 1rem; margin: 1rem 0; color: #222; }
+  del { color: #a33; }
+  code { background: #f0f0f0; padding: .1rem .3rem; border-radius: 3px; font-size: .88em; }
+  pre code { display: block; padding: .8rem; overflow-x: auto; }
+  hr { border: none; border-top: 2px solid #ccd; margin: 2rem 0; }
+</style>
+</head>
+<body>
+<h1>제6장 검증표 — v2 파이프라인 재생성 결과 (2026-08-07 결정 반영)</h1>
+<blockquote>
+<p><strong>v2에서 바뀐 것 두 가지</strong> (「0807 샌드박스」)</p>
+<ol>
+<li><strong>관측 기준</strong>: 제6장 범위가 "제5장 전달 2차원 절리선"부터로 축소되면서, 검증용
+   합성 절리선도 <strong>평면 막장면 × 터널 단면 다각형</strong>으로 생성한다
+   (<code>export_flat_face_traces</code>). 관측면적 $A_{obs}$ = 다각형 면적 × 막장면 수로
+   <strong>모델 창 기준과 정확히 일치</strong>한다.</li>
+<li><strong>P32 보정계수</strong>: 순수 해석식 $C=E[\sin\phi]$ 대신
+   $C_{\ell_{\min}}=E[\sin\phi]\cdot\eta_{det}$ 를 <strong>순방향 모사에서 직접</strong> 산정한다
+   (<code>--calibration-factor-mode forward_mc_lmin --lmin 0.5</code>). 관측자료와 가상자료에
+   <strong>동일한 최소 길이 기준</strong>을 적용한다.</li>
+</ol>
+<p>입력 DFN 참값은 v0/v1과 <strong>동일 파일</strong>로 고정했으므로, 아래 차이는 전부 관측 기준과
+보정 정의의 변경에 기인한다. 대상: Laxemar, 막장면 4매(x = 0/1/2/3 m), 절리군 1·2·3·5.</p>
+</blockquote>
+<hr />
+<h2>1. 종합 검증표 (표 6-5 교체용)</h2>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>절리선 수</th>
+<th>trend 참값/역산</th>
+<th>plunge 참값/역산</th>
+<th>각오차</th>
+<th>κ 참값/역산</th>
+<th>$k_r$ 참값/역산 (오차)</th>
+<th>$P_{32}$ 참조/역산 (오차)</th>
+<th>$C_{\ell_{\min}}$</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>170</td>
+<td>338.1° / 340.3°</td>
+<td>4.5° / 6.7°</td>
+<td>3.1°</td>
+<td>13.06 / 14.28</td>
+<td>2.85 / <strong>2.75</strong> (−3.5%)</td>
+<td>0.914 / <strong>0.968</strong> (+5.9%)</td>
+<td>0.791</td>
+</tr>
+<tr>
+<td>2</td>
+<td>39</td>
+<td>100.4° / 107.3°</td>
+<td>0.2° / −1.0°</td>
+<td>7.0°</td>
+<td>19.62 / 16.19</td>
+<td>3.04 / <strong>2.85</strong> (−6.2%)</td>
+<td>1.026 / <strong>0.791</strong> (−22.9%)</td>
+<td>0.311</td>
+</tr>
+<tr>
+<td>3</td>
+<td>132</td>
+<td>212.9° / 208.3°</td>
+<td>0.9° / 2.1°</td>
+<td>4.8°</td>
+<td>10.46 / 9.94</td>
+<td>3.01 / <strong>3.20</strong> (+6.3%)</td>
+<td>0.975 / <strong>0.987</strong> (+1.2%)</td>
+<td>0.771</td>
+</tr>
+<tr>
+<td>5</td>
+<td>171</td>
+<td>243.0° / 239.6°</td>
+<td>24.4° / 25.7°</td>
+<td>3.4°</td>
+<td>23.52 / 26.48</td>
+<td>3.60 / <strong>3.75</strong> (+4.2%)</td>
+<td>0.980 / <strong>1.015</strong> (+3.6%)</td>
+<td>0.566</td>
+</tr>
+</tbody>
+</table>
+<p>평균: 각오차 4.6°, κ 오차 11.1%, <strong>$k_r$ 오차 5.0%</strong>, $P_{32}$ 오차 8.4%
+(Set 2 제외 시 $P_{32}$ 오차 3.6%). 전 절리군 $k_r$ 채택등급 <strong>accepted</strong>.</p>
+<h2>2. 버전별 비교</h2>
+<table>
+<thead>
+<tr>
+<th>지표</th>
+<th>v0 (요철 mesh·오라클 lmin·unit-MC)</th>
+<th>v1 (요철 mesh·hybrid·해석식)</th>
+<th><strong>v2 (평면 다각형·hybrid·$C_{\ell_{\min}}$)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$k_r$ 평균 절대오차</td>
+<td>1.6%★</td>
+<td>9.2%</td>
+<td><strong>5.0%</strong></td>
+</tr>
+<tr>
+<td>$k_r$ 절대오차 (set별)</td>
+<td>—</td>
+<td>0.15 / 0.21 / 0.49 / 0.30</td>
+<td><strong>0.10 / 0.19 / 0.19 / 0.15</strong></td>
+</tr>
+<tr>
+<td>$k_r$ 채택등급</td>
+<td>—</td>
+<td>accepted 2 / provisional 2</td>
+<td><strong>accepted 4</strong></td>
+</tr>
+<tr>
+<td>$P_{32}$ 평균 절대오차</td>
+<td>9.8%</td>
+<td>9.6%</td>
+<td><strong>8.4%</strong></td>
+</tr>
+<tr>
+<td>$P_{32}$ 신뢰구간</td>
+<td>MC 잡음(부정합 사례 존재)</td>
+<td><strong>퇴화</strong>(폭 0)</td>
+<td><strong>정상 산출</strong></td>
+</tr>
+<tr>
+<td>관측면적 기준</td>
+<td>mesh (다각형 −3.85%)</td>
+<td>mesh (동일)</td>
+<td><strong>다각형 (모델 창과 일치)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>★ v0의 1.6%는 절리군별 $\ell_{\min}$을 참값으로 고른 오라클 수치이므로 달성 가능한
+정확도가 아니다(검증표 v1 §2.1). <strong>비교는 v1 ↔ v2 사이에서만 유효하다.</strong></p>
+<p><strong>$k_r$가 실질적으로 개선되었다.</strong> 절대오차 평균 0.288 → <strong>0.158</strong>로 거의 반감했고,
+v1에서 가장 나빴던 Set 3(0.49)이 0.19로 줄었다. v1에서 2개 절리군이 받던
+<code>provisional_accepted</code> 등급도 전부 <code>accepted</code>가 되었다. 원인은 관측 기준 정합이다 —
+v1은 모델이 절리선을 <strong>다각형</strong>으로 자르는데 관측 절리선은 <strong>mesh 격자 경계</strong>(계단형)로
+잘려 있어 창 기준이 어긋나 있었고, v2에서 양쪽이 다각형으로 통일되면서 이 편향이
+제거되었다.</p>
+<h2>3. $P_{32}$ 신뢰구간이 복원되었다</h2>
+<p>v1의 해석식 보정은 결정론적 구적이라 $C$에 표집 불확실성이 없어 신뢰구간이
+점추정값과 같아지는 <strong>퇴화</strong> 상태였다(검증표 v1 §3.1의 미해결 항목). v2는 $B$회
+반복 모사의 산포로 $C$의 분산을 얻으므로 구간이 정상 산출된다.</p>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>$\widehat{P_{32}}$</th>
+<th>95% CI</th>
+<th>폭</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.968</td>
+<td>[0.910, 0.972]</td>
+<td>0.062</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.791</td>
+<td>[0.798, 0.801]</td>
+<td>0.003</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.987</td>
+<td>[0.988, 0.992]</td>
+<td>0.004</td>
+</tr>
+<tr>
+<td>5</td>
+<td>1.015</td>
+<td>[1.016, 1.016]</td>
+<td>0.000</td>
+</tr>
+</tbody>
+</table>
+<p>⚠ <strong>다만 이 구간은 아직 "$k_r$ 불확실성 전파 + MC 반복 산포"만 담고 있고 관측
+$P_{21}$ 자체의 표본 변동은 포함하지 않는다.</strong> 그 결과 Set 2·3·5처럼 구간이 매우
+좁아 점추정값을 겨우 벗어나는 사례가 생긴다(Set 2: 추정 0.791, 구간 [0.798, 0.801]).
+보고서에 구간을 실을 경우 <strong>이 한계를 명시</strong>하거나, 관측 $P_{21}$의 표본 변동을
+포함한 구간으로 확장한 뒤 싣는 것이 정확하다. 현 시점 권고는 <strong>점추정만 제시</strong>다.</p>
+<h2>4. 최소 길이 기준의 자기정합성 확인</h2>
+<p>$\ell_{\min}$을 0 → 0.5 m로 바꿨을 때 분자($P_{21}^{ret}$)와 분모($C_{\ell_{\min}}$)가
+함께 줄어 $\widehat{P_{32}}$는 거의 변하지 않는다. 이는 "관측자료와 가상자료에 동일한
+기준을 적용한다"는 원칙이 실제로 작동함을 보여주는 검증이다.</p>
+<table>
+<thead>
+<tr>
+<th>절리군</th>
+<th>$\ell_{\min}=0$: $C$ / $\widehat{P_{32}}$</th>
+<th>$\ell_{\min}=0.5$: $C$ / $\widehat{P_{32}}$</th>
+<th>$P_{32}$ 변화</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.8420 / 1.123</td>
+<td>0.8245 / 1.114</td>
+<td>−0.8%</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.3148 / 0.905</td>
+<td>0.3109 / 0.886</td>
+<td>−2.1%</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.7856 / 0.944</td>
+<td>0.7712 / 0.945</td>
+<td>+0.1%</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.5939 / 1.017</td>
+<td>0.5656 / 1.023</td>
+<td>+0.6%</td>
+</tr>
+</tbody>
+</table>
+<p>(위 표는 중간 점검용으로 남긴 초기 실행값이며, 최종 §1 표와는 절리선 생성기 수정
+이전 자료라 절대값이 다르다. 여기서 읽을 것은 <strong>$\ell_{\min}$ 변화에 대한 $P_{32}$의
+둔감성</strong>뿐이다.)</p>
+<h2>5. 복원 단계 (표 6-3 교체용)</h2>
+<table>
+<thead>
+<tr>
+<th>계층</th>
+<th>v1 (요철 mesh)</th>
+<th><strong>v2 (평면 다각형)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>determined (경계점 원 적합)</td>
+<td>52</td>
+<td><strong>48</strong></td>
+</tr>
+<tr>
+<td>shrinkage ($k_r$ 축소추정)</td>
+<td>330</td>
+<td><strong>329</strong></td>
+</tr>
+<tr>
+<td>lower_bound (하한값 부여)</td>
+<td>50</td>
+<td><strong>41</strong></td>
+</tr>
+<tr>
+<td>합계</td>
+<td>432</td>
+<td><strong>418</strong></td>
+</tr>
+</tbody>
+</table>
+<p>절리군별: Set 1 120 / Set 2 37 / Set 3 78 / Set 4 43 / Set 5 140. 다면 관통 disc 111개,
+평면 잔차 median ≈ 0. 본문의 "축소 추정이 전체의 약 76%" 서술은 v2에서도 유효하다
+(329/418 = 78.7%).</p>
+<h2>6. 재현 명령</h2>
+<pre><code class="language-bash"># 1) 검증용 합성 절리선 (평면 막장면 × 터널 단면 다각형)
+python -m dfn_analysis.export_flat_face_traces \
+  --dfn-h5 storage/output/pipeline_test_laxemar/dfn_export_for_python.h5 \
+  --face-x 0 1 2 3 --outdir storage/output/pipeline_v2_laxemar/trace_dataset
+
+# 2) kr (hybrid, lmin 0.5 고정, 참값 미사용 선택)
+python -m dfn_analysis.estimate_kr \
+  --trace-h5 storage/output/pipeline_v2_laxemar/trace_dataset/trace_dataset_3d.h5 \
+  --site laxemar --target-set 1 2 3 5 --kr-true-map 1:2.85 2:3.04 3:3.01 5:3.60 \
+  --run-bootstrap --n-bootstrap 100 \
+  --outdir storage/output/pipeline_v2_laxemar/kr
+
+# 3) P32 (C_lmin = E[sinφ]·η_det, 관측·가상 동일 lmin)
+python -m dfn_analysis.estimate_p32_mc_calibrated \
+  --trace-h5 storage/output/pipeline_v2_laxemar/trace_dataset/trace_dataset_3d.h5 \
+  --dfn-h5 storage/output/pipeline_test_laxemar/dfn_export_for_python.h5 \
+  --rough-mesh-h5 storage/output/flat_face_mesh/flat_face_collection.h5 \
+  --site laxemar --target-set 1 2 3 5 \
+  --kr-summary-csv storage/output/pipeline_v2_laxemar/kr/kr_summary_by_set.csv \
+  --bootstrap-csv storage/output/benchmark1_parsimonious/inputs/final_kr_bootstrap_summary_effective_rmin.csv \
+  --calibration-factor-mode forward_mc_lmin --lmin 0.5 \
+  --outcsv storage/output/pipeline_v2_laxemar/p32/p32_summary.csv
+
+# 4) 복원 + 참값 대조표
+python -m dfn_analysis.reconstruct_discs_from_traces \
+  --trace-h5 storage/output/pipeline_v2_laxemar/trace_dataset/trace_dataset_3d.h5 \
+  --kr-summary-csv storage/output/pipeline_v2_laxemar/kr/kr_summary_by_set.csv \
+  --out-csv storage/output/pipeline_v2_laxemar/reconstruct/reconstructed_discs.csv
+python scripts/compare_pipeline_to_laxemar.py --base storage/output/pipeline_v2_laxemar
+</code></pre>
+<p><code>--rough-mesh-h5</code>는 관측면적 대체 경로일 뿐이며, 평면 생성기가 기록한
+<code>/meta/observation_area_m2</code>가 있으면 그 값이 우선한다(즉 mesh는 실질적으로 미사용).</p>
+</body>
+</html>

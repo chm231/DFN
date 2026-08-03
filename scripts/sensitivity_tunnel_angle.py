@@ -183,8 +183,8 @@ def _process_one(py, env, sets, label, args, a, sd, wd, base_h5, report=None):
             report(m)
 
     rotate_dfn_about_z(base_h5, rot_h5, -a); step("rot✓ ")
-    _run([py, "dfn_analysis/export_setwise_3d_traces.py",
-          "--input", rot_h5, "--rough-mesh-h5", args.mesh_h5,
+    _run([py, "-m", "dfn_analysis.export_flat_face_traces",
+          "--dfn-h5", rot_h5, "--face-x", *[str(x) for x in args.face_x],
           "--outdir", tr_dir], env, "traces"); step("trace✓ ")
     _run([py, "dfn_analysis/estimate_kr.py", "--trace-h5", tr_h5,
           "--dfn-model", label, "--target-set", *sets,
@@ -200,7 +200,7 @@ def _process_one(py, env, sets, label, args, a, sd, wd, base_h5, report=None):
           "--target-set", *sets, "--kr-summary-csv", kr_sum,
           "--bootstrap-csv", kr_sum, "--dfn-h5", rot_h5,
           "--rough-mesh-h5", args.mesh_h5,
-          "--calibration-factor-mode", "analytic_esinphi",
+          "--calibration-factor-mode", "forward_mc_lmin", "--lmin", str(args.lmin),
           "--mc-samples", str(args.p32_mc_samples),
           "--unit-p32-mc-replicates", str(args.p32_replicates),
           "--outcsv", p32_csv], env, "p32"); step("p32✓ ")
@@ -502,6 +502,10 @@ def build_argparser():
     p.add_argument("--kr-grid-size", type=int, default=61)
     p.add_argument("--p32-mc-samples", type=int, default=10000)
     p.add_argument("--p32-replicates", type=int, default=16)
+    p.add_argument("--face-x", nargs="+", type=float, default=[0.0, 1.0, 2.0, 3.0],
+                   help="평면 막장면 x 위치 목록 [m] (v2: 요철 mesh 미사용)")
+    p.add_argument("--lmin", type=float, default=0.5,
+                   help="최소 절리선 길이 [m] — 관측·가상 양쪽에 동일 적용")
     p.add_argument("--estimation-rmin", type=float, default=0.5,
                    help="P32 GT 지지구간 하한(모집단 정의)")
     p.add_argument("--rmax", type=float, default=250.0)

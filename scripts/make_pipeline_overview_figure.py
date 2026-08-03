@@ -1,19 +1,19 @@
-"""DFN 역산 파이프라인 개요도 생성 (handoff v1 기준, 2026-07).
+"""DFN 역산 파이프라인 개요도 생성 (v2, 2026-08).
 
 비전공 독자(박사급이나 이 분야는 개요만 아는 독자)를 위해 각 모듈의 역할을
 평문 한국어로 풀어 쓴 개요도. 하단에 용어 설명 각주 포함.
 
-v1 현행화 내용:
-  - export_setwise_3d_traces : 외부 제공 3D 방향 기본 (3점법 legacy)
-  - estimate_kr              : hybrid 우도 기본 · lmin 0.5 m 고정 · blind 선택
-  - estimate_p32_mc_calibrated: analytic C=E[sinφ] 수식 보정 기본 (unit-MC legacy)
-  - dataset_config / build_dataset_config_from_traces (임의 데이터셋 일반화) 추가
-  - 3단계 데이터 흐름 정정: generate → disc 데이터셋 → visualize
+v2(2026-08-07 결정) 반영:
+  - 제6장 범위를 "제5장 전달 2D 절리선 데이터셋"부터로 축소
+    (요철 mesh 생성·3D polyline·3점법 법선은 범위 밖)
+  - 검증용 합성 절리선은 평면 막장면 × 터널 단면 다각형(export_flat_face_traces)
+  - estimate_kr : hybrid 우도 · lmin 0.5 m 고정 · 참값 미사용 선택
+  - estimate_p32: C(ℓmin) = E[sinφ]·η_det 를 순방향 모사에서 직접 산정
 
 실행:
     python scripts/make_pipeline_overview_figure.py
 출력:
-    docs/figures/fig_pipeline_overview_v1.png
+    docs/figures/fig_pipeline_overview_v2.png
 """
 import os
 
@@ -28,7 +28,7 @@ try:
 except Exception:
     pass
 
-C_V1_FACE = "#eaf2fb"   # v1 변경 모듈 배경
+C_V1_FACE = "#eaf2fb"   # v2 변경 모듈 배경
 C_V1_EDGE = "#1f4e79"   # v1 변경 모듈 테두리
 C_BOX_EDGE = "#555555"
 C_BAND = "#f6f6f6"
@@ -48,7 +48,7 @@ def box(ax, x, y, w, h, name, desc, v1=False, name_fs=9.0, desc_fs=8.0):
     ax.text(x + w / 2, y + 2.6 + (h - 2.6) / 2 + 0.3, desc, ha="center",
             va="center", fontsize=desc_fs, color="#333", linespacing=1.5)
     if v1:
-        ax.text(x + w - 1.2, y + 0.15, "v1", ha="center", va="center",
+        ax.text(x + w - 1.2, y + 0.15, "v2", ha="center", va="center",
                 fontsize=7, color="white", fontweight="bold",
                 bbox=dict(boxstyle="round,pad=0.28", fc=C_V1_EDGE, ec="none"))
 
@@ -87,24 +87,30 @@ def main():
     ax.set_ylim(170.5, 0)   # y 아래 방향 (위=0)
     ax.axis("off")
 
-    ax.text(50, 2.3, "DFN 역산 파이프라인 개요 — handoff v1 (2026-07)",
+    ax.text(50, 2.3, "DFN 역산 파이프라인 개요 — v2 (2026-08)",
             ha="center", va="center", fontsize=15.5, fontweight="bold")
     ax.text(50, 5.5, "터널 굴착면(막장면)에서 관측한 2차원 절리선으로부터 3차원 절리망(DFN)의 통계를 역산하고, "
                      "관측과 일치하는 조건부 절리망을 생성하는 과정",
             ha="center", va="center", fontsize=9.2, color="#444")
 
     # ── 1단계 ──────────────────────────────────────────────────────────
-    band(ax, 8, 29.5, "1단계 · 입력 생성 (검증용 합성 벤치마크)")
-    box(ax, 4, 13.5, 33, 13, "generate_synthetic_rough_face_mesh",
-        "검증용 가상 굴착면(막장면) 생성\n실제 발파면처럼 울퉁불퉁한 요철면을\n합성하여 알고리즘 검증에 사용", name_fs=8.4)
-    box(ax, 52, 13.5, 44, 13, "export_setwise_3d_traces",
-        "가상 절리망(DFN)과 막장면을 교차시켜, 막장면 위에\n나타나는 절리선(trace) 관측자료를 생성\n"
-        "절리 방향 정보: 외부 제공 3차원 방향 사용(기본)\n(절리선 좌표 3점으로 방향을 구하는 종전 방식은 legacy)", v1=True)
-    arrow(ax, (37, 20), (52, 20))
-    ax.text(45, 28, "※ 실제 현장 적용 시에는 1단계 대신 실측 굴착면·절리선 자료를 입력",
+    band(ax, 8, 29.5, "1단계 · 입력 — 제5장에서 전달받은 2차원 절리선 데이터셋")
+    box(ax, 4, 13.5, 33, 13, "제5장 절리선 데이터셋 (외부 입력)",
+        "절리선 끝점 P1(y,z)·P2(y,z), 막장면 위치 x,\n절리군 ID, 3차원 단위 법선벡터 n\n"
+        "(요철 mesh·polyline·3점법은 제6장 범위 밖)", v1=True, name_fs=9.0, desc_fs=7.7)
+    box(ax, 52, 13.5, 44, 13, "export_flat_face_traces  (검증 전용)",
+        "알고리즘 검증용 합성 절리선 생성기\n막장면을 x=일정 평면으로 두고 균열 원판과의\n"
+        "교선을 구한 뒤 터널 단면 다각형으로 정확히 절단\n"
+        "→ 관측면적 = 다각형 면적 (모델 창 기준과 일치)", v1=True, name_fs=8.6, desc_fs=7.6)
+    # 두 상자는 순차 흐름이 아니라 '실측 입력' 또는 '검증용 합성' 중 택일이다.
+    ax.text(44.5, 20, "또는", ha="center", va="center", fontsize=10, color="#555",
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#bbb"))
+    ax.text(50, 28, "※ 실제 현장에서는 왼쪽(제5장 전달 자료)을 쓰고, 오른쪽 생성기는 알고리즘 검증에만 쓴다",
             ha="center", va="center", fontsize=7.6, color="#666")
-    arrow(ax, (74, 26.8), (74, 33.1), label="절리선 관측 데이터셋 (trace_dataset_3d .h5/.csv)",
-          lx=-17.5, ly=0.4)
+    arrow(ax, (20, 26.8), (44, 31.5), rad=0.10)
+    arrow(ax, (74, 26.8), (52, 31.5), rad=-0.10)
+    arrow(ax, (48, 31.5), (48, 33.1), label="절리선 관측 데이터셋 (trace_dataset_3d .h5/.csv)",
+          lx=0, ly=-2.4)
 
     # ── 2단계 ──────────────────────────────────────────────────────────
     band(ax, 33.5, 92, "2단계 · 절리군별 통계 파라미터 역산")
@@ -119,12 +125,13 @@ def main():
     # 2행: 크기(kr) → 밀도(P32)
     box(ax, 4, 55.5, 29, 17, "estimate_radius_powerlaw_window_mc",
         "절리 크기 추정의 계산 엔진\n절리선이 관측창(막장면) 밖으로 잘려\n짧게 보이는 효과를 보정한 우도 계산\n"
-        "hybrid(수식+커널, v1 기본) / 전량 MC(legacy)", v1=True, name_fs=7.8, desc_fs=7.7)
+        "hybrid(수식+커널, 기본) / 전량 MC(legacy)", v1=True, name_fs=7.8, desc_fs=7.7)
     box(ax, 36, 55.5, 28, 17, "estimate_kr",
         "절리 크기(반지름) 분포 추정 진입점\n반지름 멱법칙 지수 kr를, 관측된 절리선\n길이 분포와 가장 잘 맞도록 탐색\n"
         "(최소길이 0.5 m 고정 · 정답 미사용 선택)", v1=True, desc_fs=7.7)
     box(ax, 67, 55.5, 29, 17, "estimate_p32_mc_calibrated",
-        "절리 밀도 P32 추정 (최종 산출)\n면에서 잰 밀도 P21을 부피 밀도 P32로\n환산: P32 = P21 / C, 환산계수\nC = E[sinφ]를 수식으로 계산(v1 기본)", v1=True, name_fs=8.6, desc_fs=7.7)
+        "절리 밀도 P32 추정 (최종 산출)\n환산: P32 = P21(최소길이 통과분) / C\n"
+        "환산계수 C(ℓmin) = E[sinφ]·η_det 를\n순방향 모사에서 직접 산정 (v2)", v1=True, name_fs=8.6, desc_fs=7.7)
     arrow(ax, (33, 64), (36, 64))
     arrow(ax, (64, 64), (67, 64), label="크기지수 kr", ly=-2.2)
     arrow(ax, (48, 51), (81, 55.5), label="평균 방향 · 집중도 κ", rad=0.18, lx=3, ly=-2.0)
@@ -166,11 +173,11 @@ def main():
     ax.add_patch(FancyBboxPatch((4, 154.5), 3.2, 2.2, boxstyle="round,pad=0.25",
                                 fc=C_V1_FACE, ec=C_V1_EDGE, lw=1.5))
     ax.text(9, 155.6,
-            "파란 상자 = 이번 배포판(v1, 2026-07-30)에서 변경된 모듈:  ① 절리 방향 입력을 외부 제공 3차원 방향으로 전환(종전 절리선 3점법은 legacy)",
+            "파란 상자 = v2(2026-08-07 결정)에서 변경된 모듈:  ① 제6장 범위를 '제5장 전달 절리선'부터로 축소 — 요철 mesh·polyline·3점법 삭제",
             ha="left", va="center", fontsize=8.2, color="#222")
     ax.text(9, 158.6,
-            "② 크기지수 kr 추정을 하이브리드 우도(수식+시뮬레이션 결합)로 전환 · 최소길이 0.5 m 고정   "
-            "③ P32 환산계수를 몬테카를로 대신 수식 C=E[sinφ]로 계산",
+            "② 크기지수 kr = 하이브리드 우도(수식+시뮬레이션 결합) · 최소길이 0.5 m 고정 · 참값 미사용 선택   "
+            "③ P32 환산계수 = C(ℓmin) = E[sinφ]·η_det (관측·가상에 같은 최소길이 적용)",
             ha="left", va="center", fontsize=8.2, color="#222")
     ax.text(4, 162.4,
             "용어 |  절리선(trace): 절리가 굴착면과 만나 생기는 선 · 절리군(set): 방향이 비슷한 절리 묶음 · "
@@ -181,12 +188,12 @@ def main():
             "Fisher κ: 방향 집중도(클수록 방향이 평균 주위에 모임)",
             ha="left", va="center", fontsize=7.6, color="#555")
     ax.text(4, 168.4,
-            "패키지: handoffv1/dfn_analysis (16개 모듈) · 상세 근거 문서: docs/제6장_수정안_통합본.md",
+            "패키지: handoffv1/dfn_analysis · 상세 근거: docs/제6장_수정안_통합본.md · 작업 지시: docs/제6장_수정작업지시서.md",
             ha="left", va="center", fontsize=7.6, color="#888")
 
     out_dir = os.path.join("docs", "figures")
     os.makedirs(out_dir, exist_ok=True)
-    p = os.path.join(out_dir, "fig_pipeline_overview_v1.png")
+    p = os.path.join(out_dir, "fig_pipeline_overview_v2.png")
     fig.savefig(p, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print("[*] written:", p)
