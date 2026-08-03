@@ -167,8 +167,8 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <tr>
 <td>39–45</td>
 <td><strong>제7절 민감도 분석 전체</strong></td>
-<td><strong>결정 필요</strong></td>
-<td>현 수치는 v0 추정기(3점법·window_mc·<strong>오라클 lmin</strong>·unit-MC) 기반 — D-1 참조</td>
+<td><strong>대체</strong></td>
+<td><strong>v1 재실행 완료(2026-08-03)</strong> — 그림 5장·표 3종 새 버전과 절별 재작성 지침은 <strong>§F</strong> 참조</td>
 </tr>
 <tr>
 <td>46</td>
@@ -210,17 +210,17 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <tr>
 <td>C-2</td>
 <td>그림 6-5 (b) 패널 (θ_2D 제거)</td>
-<td>미착수 — <code>scripts/make_report_figures.py</code> block1 수정 후 재실행 (요청 시 수행)</td>
+<td><strong>완성</strong> — <code>docs/figures/fig_block1_preprocessing.png</code> 재생성됨 ((b)에서 θ 화살표·호·수식 제거, 제목 "길이 L · 중심점 C 정의")</td>
 </tr>
 <tr>
 <td>C-3</td>
 <td>그림 6-14 (역산 비교 막대)</td>
-<td>미착수 — v1 comparison CSV 준비 완료, 스크립트만 실행하면 됨 (요청 시 수행)</td>
+<td><strong>완성</strong> — <code>docs/figures/fig_validation_bars_v1.png</code> (v1 수치; 생성: <code>scripts/make_fig_validation_bars.py</code>)</td>
 </tr>
 <tr>
 <td>C-4</td>
 <td>그림 6-11 (P32 보정 모식도)</td>
-<td>미착수 — unit-MC 흐름을 해석식 흐름(방향분포 → E[sinφ] 구적 → P21/C)으로 교체 (요청 시 제작)</td>
+<td><strong>완성</strong> — <code>docs/figures/fig_p32_analytic_schematic.png</code> (해석식 흐름; 생성: <code>scripts/make_fig_p32_schematic.py</code>)</td>
 </tr>
 <tr>
 <td>C-5</td>
@@ -232,33 +232,31 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <td>전체 그림·표 번호 재정렬</td>
 <td>삭제(그림 6-4, 6-10)·삽입 반영한 최종 패스</td>
 </tr>
+<tr>
+<td>C-7</td>
+<td>제7절 민감도 그림 5장 (그림 6-15~6-19)</td>
+<td><strong>완성</strong> — §F의 그림 교체표 참조 (<code>docs/figures/fig_sensitivity_*_v1.png</code>)</td>
+</tr>
 </tbody>
 </table>
 <hr />
-<h2>D. 결정 필요 사항</h2>
-<p><strong>D-1. 제7절 민감도 분석의 처리</strong> — 가장 중요한 결정.
-현 수치는 v0 추정기 기반이며, 추가로 <strong>민감도 스크립트가 호출하는 루트
-<code>dfn_analysis/estimate_kr.py</code>의 lmin 선택(best_row)이 참값을 사용하는 오라클 구버전임이
-확인</strong>되었다(blind 수정은 handoff/handoffv1에만 반영, 루트에는 hybrid 모드 자체가 없음).
-따라서 제7절의 k_r 안정성 수치(CV 1.3~4.5%, 편향 −1~−5%)에는 오라클 이득이 섞여 있다.</p>
-<ul>
-<li><strong>(a) v1 재실행</strong>: 시드 민감도(30회)는 현실적(수십 분~1시간). 굴착 간격(400회)·굴착
-  각도(1,920회)는 장시간 배경 실행 필요. <strong>선행 조건: 루트 dfn_analysis에 v1 미러링</strong>
-  (hybrid 모드 + blind best_row + analytic P32 기본값 이식) — D-2.</li>
-<li><strong>(b) 주석 처리</strong>: 제7절 서두에 "본 절의 민감도는 v0 추정기 기준이며, v1(하이브리드·
-  고정 lmin)에서는 lmin 선택 요동이 제거되어 k_r 안정성이 이보다 나쁘지 않다"는 취지의
-  주석을 달고 수치는 유지. (시드 지배 결론·P32 과소경향 등 정성 결론은 v1에서도 유효할
-  가능성이 높음)</li>
-<li><strong>권고</strong>: 최소한 시드 민감도(표 6-7)만 v1로 재실행하고, 간격·각도(표 6-8·6-9)는 (b)
-  주석 처리.</li>
-</ul>
-<p><strong>D-2. 루트 dfn_analysis v1 미러링</strong> — D-1(a) 선택 시 필수, 아니어도 권장.
+<h2>D. 결정 사항 처리 현황</h2>
+<p><strong>D-1. 제7절 민감도 분석 — ✅ v1 전면 재실행 완료 (2026-08-03).</strong>
+배경: v0 수치는 3점법·window_mc·<strong>오라클 lmin</strong>·unit-MC 기반이었고, 민감도 스크립트가
+호출하는 루트 <code>dfn_analysis/estimate_kr.py</code>의 lmin 선택이 참값을 쓰는 구버전이었음이
+확인되었다. D-2 미러링 후 세 축 모두 v1(외부 3D 방향·hybrid kr·해석식 P32)로
+재실행하였다: 시드 30개(θ=0° 부분집합), 굴착 간격 5×20=100 run, 굴착 각도
+16×30=480 run (총 1,920 분석, v0와 동일 규모·동일 시드 1–30·동일 그림 포맷).
+새 그림·표·절별 재작성 지침은 <strong>§F</strong>. 원자료: <code>docs/sensitivity_tunnel_angle_v1_results.csv</code>,
+<code>docs/sensitivity_face_interval_v1_results.csv</code>.</p>
+<p><strong>D-2. 루트 dfn_analysis v1 미러링 — ✅ 완료 (커밋 <code>84cc6c3</code>).</strong>
 handoffv1의 estimate_kr(blind best_row·hybrid 기본·lmin 0.5)·
 estimate_radius_powerlaw_window_mc(hybrid 커널)·estimate_p32_mc_calibrated(analytic
-기본)를 루트 <code>dfn_analysis/</code>로 이식. 현재 루트/배포본 동작 불일치 상태.</p>
-<p><strong>D-3. 복원 단계 v1 재실행</strong> — 표 6-3 개수(52/339/55)·그림 6-12를 외부 방향 기준
-trace로 갱신할지. 외부 방향에서 유효 법선이 100%가 되므로 연결 게이트(법선 축각)
-통과 구성이 달라져 계층별 개수가 이동할 수 있음.</p>
+기본)를 루트 <code>dfn_analysis/</code>로 이식. 스모크 테스트로 배포본과 동일 결과 확인
+(kr 2.70/3.25/3.50/3.90). 민감도 스크립트 2종도 analytic P32로 전환.</p>
+<p><strong>D-3. 복원 단계 v1 재실행 — 미결(사용자 결정 대기).</strong> 표 6-3 개수(52/339/55)·그림
+6-12를 외부 방향 기준 trace로 갱신할지. 외부 방향에서 유효 법선이 100%가 되므로 연결
+게이트(법선 축각) 통과 구성이 달라져 계층별 개수가 이동할 수 있음.</p>
 <hr />
 <h2>E. 참고 — 수치 대조 (기존 표 6-5 ↔ v1)</h2>
 <table>
@@ -304,5 +302,203 @@ trace로 갱신할지. 외부 방향에서 유효 법선이 100%가 되므로 �
 </table>
 <p>★ v0의 k_r는 절리군별 lmin을 참값 기준으로 고른 오라클 수치 — 보고서에 나란히 싣지 말 것
 ([검증표] §2.1). 표 6-5의 Set 2 v0 값은 원문 오타(2.05)가 아닌 3.05가 맞음.</p>
+<hr />
+<h2>F. 제7절 민감도 분석 — v1 재실행 결과와 절별 재작성 지침</h2>
+<p>세 축 모두 v0와 <strong>동일한 실험 설계·시드(1–30)·그림 포맷</strong>으로 v1 추정기에서 재실행했다.
+그림은 파일만 갈아끼우면 되고, 표와 본문 수치는 아래로 교체한다.</p>
+<h3>F-1. 그림 교체표</h3>
+<table>
+<thead>
+<tr>
+<th>보고서 그림</th>
+<th>새 파일 (<code>docs/figures/</code>)</th>
+<th>형식</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>그림 6-15 (시드 30개 boxplot)</td>
+<td><code>fig_sensitivity_seed_v1.png</code></td>
+<td>동일 (1×3 패널)</td>
+</tr>
+<tr>
+<td>그림 6-16 (굴착 간격 boxplot)</td>
+<td><code>fig_sensitivity_face_interval_v1.png</code></td>
+<td>동일 (4 set × 3 지표)</td>
+</tr>
+<tr>
+<td>그림 6-17 (방위각 – P32)</td>
+<td><code>fig_sensitivity_angle_p32_v1.png</code></td>
+<td>동일 (2×2 set)</td>
+</tr>
+<tr>
+<td>그림 6-18 (방위각 – k_r)</td>
+<td><code>fig_sensitivity_angle_kr_v1.png</code></td>
+<td>동일</td>
+</tr>
+<tr>
+<td>그림 6-19 (방위각 – κ)</td>
+<td><code>fig_sensitivity_angle_kappa_v1.png</code></td>
+<td>동일</td>
+</tr>
+</tbody>
+</table>
+<h3>F-2. 표 6-7 교체 — 시드 민감도 (CV% / 편향%)</h3>
+<table>
+<thead>
+<tr>
+<th>지표</th>
+<th>Set 1</th>
+<th>Set 2</th>
+<th>Set 3</th>
+<th>Set 5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>κ-CV/편향</td>
+<td>8.4%/+7.8%</td>
+<td>16.5%/−13.9%</td>
+<td>9.9%/+14.3%</td>
+<td>8.4%/+1.8%</td>
+</tr>
+<tr>
+<td>k_r-CV/편향</td>
+<td>7.2%/+2.8%</td>
+<td>12.1%/+0.4%</td>
+<td>11.6%/+1.6%</td>
+<td>8.2%/−0.7%</td>
+</tr>
+<tr>
+<td>P32-CV/편향</td>
+<td>12.7%/−12.7%</td>
+<td>19.7%/−15.9%</td>
+<td>18.1%/−7.1%</td>
+<td>10.8%/−4.1%</td>
+</tr>
+</tbody>
+</table>
+<p>(참고 v0: κ-CV 11.9–19.4%, k_r-CV 10.3–13.4%, P32-CV 10.8–22.1%)</p>
+<h3>F-3. 표 6-8 교체 — 굴착 간격 민감도 (간격별 평균값들 사이의 CV%)</h3>
+<table>
+<thead>
+<tr>
+<th>지표</th>
+<th>Set 1</th>
+<th>Set 2</th>
+<th>Set 3</th>
+<th>Set 5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>κ-CV</td>
+<td>1.2%</td>
+<td>4.3%</td>
+<td>3.1%</td>
+<td>4.3%</td>
+</tr>
+<tr>
+<td>k_r-CV</td>
+<td>1.1%</td>
+<td>2.4%</td>
+<td>1.9%</td>
+<td>2.9%</td>
+</tr>
+<tr>
+<td>P32-CV</td>
+<td>1.2%</td>
+<td>3.1%</td>
+<td>1.6%</td>
+<td>2.5%</td>
+</tr>
+</tbody>
+</table>
+<h3>F-4. 표 6-9 교체 — 굴착 각도 민감도 (각도별 평균값들 사이의 CV%)</h3>
+<table>
+<thead>
+<tr>
+<th>지표</th>
+<th>Set 1</th>
+<th>Set 2</th>
+<th>Set 3</th>
+<th>Set 5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>κ-CV</td>
+<td>10.9%</td>
+<td>9.0%</td>
+<td>11.4%</td>
+<td>1.9%</td>
+</tr>
+<tr>
+<td>k_r-CV</td>
+<td>1.8%</td>
+<td>0.8%</td>
+<td>0.6%</td>
+<td>2.4%</td>
+</tr>
+<tr>
+<td>P32-CV</td>
+<td>7.0%</td>
+<td>7.7%</td>
+<td>3.9%</td>
+<td>4.0%</td>
+</tr>
+</tbody>
+</table>
+<p>(전 각도 pooled 편향 — 본문 서술용: κ +0.2~+7.8%, k_r −4.4~+6.0%,
+P32 −18.6~−0.1%(Set 1이 최대 과소))</p>
+<h3>F-5. 본문 서술 변경 포인트 (절별)</h3>
+<p><strong>제7절 1 (시드).</strong>
+- k_r 문단: "편향 약 −1~−5%로 거의 무편향" → "<strong>편향 ±3% 이내(+2.8/+0.4/+1.6/−0.7%)로
+  거의 무편향이며, CV(7.2~12.1%)도 세 지표 중 가장 작다</strong>"로 교체. 이 안정성이 <strong>참값
+  미사용 고정 ℓ_min(0.5 m)에서 얻어진 것</strong>임을 한 문장 명기할 것(종전 수치는 오라클
+  선택 포함).
+- κ 문단: "Set 1·2·3 소폭 과소, Set 5 소폭 과대" 서술 폐기 → "Set 1·3 과대(+7.8/+14.3%),
+  표본이 가장 적은 Set 2 과소(−13.9%), Set 5 거의 무편향(+1.8%)"으로 교체.
+- P32 문단: 과소 경향(−4~−16%) 서술 유지, 수치만 갱신. "표본 수가 적은 Set 1과 Set 2에서
+  크게" → "Set 1·2에서 크게(−12.7/−15.9%)"로 유지 가능.</p>
+<p><strong>제7절 2 (간격).</strong>
+- 표 교체 후 본문 "CV 약 1.6~5.2%" → "<strong>약 1.1~4.3%</strong>", "시드 CV 10~22%보다 뚜렷하게
+  작다" → "<strong>시드 CV 7~20%보다 뚜렷하게 작다</strong>". 결론(간격 영향 제한적, 시드 지배) 유지.</p>
+<p><strong>제7절 3 (각도).</strong>
+- "각도 영향을 가장 많이 받는 값은 κ" <strong>유지</strong>하되 수치 갱신: "약 3.5~8.0%" →
+  "<strong>약 1.9~11.4%</strong>". 원인 서술 보강: 외부 3D 방향을 쓰면서 교차 표본편향(막장면에
+  수직인 절리가 과대표집되는 효과)의 각도 의존이 κ 추정에 그대로 드러난다
+  (v0의 3점법은 법선 잡음이 이 구조를 가리고 있었음).
+- k_r 문단: "CV 1.3~3.3%로 가장 안정" → "<strong>CV 0.6~2.4%로 가장 안정</strong>", "편향 ±3% 이내"
+  → "전 각도 pooled 편향 −4.4~+6.0%" 수준으로 갱신. 하이브리드 우도가 각도 변화에
+  강건함을 보여준다는 취지 유지.
+- P32 문단: "대체로 −5~−17% 과소" → "<strong>−0.1~−18.6% 과소(Set 1 최대)</strong>". unit-MC 언급
+  삭제(해석식 보정으로 교체되었으므로 "해석식 보정 하에서도 과소 경향은 관측 P21의
+  표본 변동과 방향 추정 편향(자기완결 구성)에서 기인" 취지로).</p>
+<p><strong>제7절 4 (종합).</strong>
+- "시드 변화 CV 약 10~22%" → "<strong>약 7~20%</strong>". "간격·각도 변동 대부분 8% 이하" →
+  "<strong>간격 1.1~4.3%, 각도는 k_r·P32가 8% 이하이며 κ만 최대 11.4%</strong>".
+- "지표별로는 k_r이 가장 안정적" <strong>유지</strong> — 단, "<strong>참값을 일절 쓰지 않는 v1 추정기(고정
+  ℓ_min·blind 선택)에서 확인된 결과</strong>"임을 명기(방법론 신뢰성의 핵심 근거가 됨).
+- 나머지(시드 지배, Set 5 최안정·Set 2 최불안정, 다중 실현 평균 보고 권고) 유지.</p>
+<h3>F-6. 재현 명령</h3>
+<pre><code class="language-bash"># 각도(=시드 포함) 스윕: 480 run, 병렬 10
+PYTHONPATH=. python scripts/sensitivity_tunnel_angle.py \
+  --angle-start 0 --angle-stop 180 --angle-step 12 \
+  --n-realizations 30 --seed-base 1 --jobs 10 \
+  --out-dir storage/output/sensitivity_tunnel_angle_v1
+
+# 간격 스윕: 100 run, 병렬 6
+PYTHONPATH=. python scripts/sensitivity_face_interval.py \
+  --target-set 1 2 3 5 --n-realizations 20 --seed-base 1 --jobs 6 \
+  --out-dir storage/output/sensitivity_face_interval_v1
+
+# 시드 그림(각도 CSV의 θ=0 부분집합)
+PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
+  storage/output/sensitivity_tunnel_angle_v1/sensitivity_results.csv \
+  storage/output/sensitivity_seed_v1
+</code></pre>
+<p>(v1 전체 소요: 각도 39분 + 간격 12분, 28코어 기준. CV/편향 계산 관례는 v0 표와 동일 —
+모집단 표준편차, 간격·각도는 그룹별 평균값들 사이의 CV.)</p>
 </body>
 </html>
