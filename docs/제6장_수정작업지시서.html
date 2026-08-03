@@ -34,9 +34,9 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <ul>
 <li><strong>[초안]</strong> <code>docs/제6장_보완초안.md</code> — 절별 대체 텍스트 (보완 1–7)</li>
 <li><strong>[통합본]</strong> <code>docs/제6장_수정안_통합본.md</code> — 상세 유도·판정 근거 (제1–3부, 부록 A)</li>
-<li><strong>[검증표]</strong> <code>docs/제6장_검증표_v1.md</code> — v1 재생성 수치 (표 V-1/V-2/V-3)</li>
+<li><strong>[검증표]</strong> <code>docs/제6장_검증표_v2.md</code> — <strong>v2 재생성 수치 (최종)</strong></li>
 </ul>
-<p>그림 파일: <code>docs/figures/fig_pipeline_overview_v1.png</code> (그림 6-1 교체용, 완성본).</p>
+<p>그림 파일은 모두 <code>docs/figures/</code> 의 <code>*_v2.png</code> 를 쓴다(§G 총괄표 참조).</p>
 <p>⚠ <strong>2026-08-07 「0807 샌드박스」 문서로 두 가지 상위 변경이 추가되었다</strong> — 제6장 범위
 축소(요철 mesh·polyline 계열 삭제)와 P32 보정계수 재정의(순수 해석식 → C = E[sinφ]·η_det).
 <strong>§H를 먼저 읽고 A~G절을 적용할 것.</strong> §H는 A~G의 일부 항목을 무효화·대체한다.</p>
@@ -63,7 +63,7 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <td>6</td>
 <td><strong>그림 6-1</strong> 전체 파이프라인 개요</td>
 <td><strong>교체</strong></td>
-<td><code>fig_pipeline_overview_v1.png</code> — ⚠ <strong>C-11로 재작업 필요</strong>(1단계 mesh 생성 상자 → "제5장 절리선 입력")</td>
+<td><code>fig_pipeline_overview_v2.png</code> (1단계 = 제5장 절리선 입력, P32 = C(ℓmin))</td>
 </tr>
 <tr>
 <td>7</td>
@@ -135,19 +135,19 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <td>34–36</td>
 <td>제5절 1–3 (3계층, remove-and-resample, 출력)</td>
 <td><strong>수치 갱신</strong></td>
-<td><strong>표 6-3 개수를 v1 값으로 교체: determined 52 / shrinkage 330(약 76%) / lower_bound 50, 총 432개</strong> (v1 복원 재실행 완료 — D-3). 그림 6-12는 <code>fig_recon_discs_set4_v1.png</code>(흰색 위주)·<code>fig_recon_discs_set5_v1.png</code>(주황+초록)로 교체</td>
+<td><strong>표 6-3 = determined 48 / shrinkage 329(약 79%) / lower_bound 41, 총 418개</strong> ([검증표] §5). 그림 6-12는 <code>fig_recon_discs_set4_v2.png</code>(흰색 위주)·<code>fig_recon_discs_set5_v2.png</code>(주황+초록)</td>
 </tr>
 <tr>
 <td>37</td>
 <td>제6절 <strong>표 6-5</strong></td>
 <td><strong>교체</strong></td>
-<td>[검증표] 표 V-1(방향·κ)·V-2(k_r)·V-3(P32)로 교체. <strong>k_r는 v1 열만</strong> 싣고 v0 수치는 각주 처리, <strong>P32 CI 열은 생략</strong> ([검증표] §2.3·§3.1 권고). Set 2 k_r "2.05" 오타는 교체로 자연 해소(B-1)</td>
+<td>[검증표] <strong>§1 종합 검증표</strong>로 통째 교체(방향·κ·k_r·P32·C 한 표). <strong>P32 CI 열은 생략</strong> 권고([검증표] §3). Set 2 k_r "2.05" 오타는 교체로 자연 해소(B-1)</td>
 </tr>
 <tr>
 <td>38</td>
 <td><strong>그림 6-14</strong> 벤치마크-역산 비교</td>
-<td><strong>재생성</strong></td>
-<td>v1 수치(<code>pipeline_v1_laxemar/comparison_vs_laxemar.csv</code>)로 막대그래프 재생성 — C-3</td>
+<td><strong>교체</strong></td>
+<td><code>fig_validation_bars_v2.png</code> (v2 수치)</td>
 </tr>
 <tr>
 <td>38</td>
@@ -159,19 +159,19 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <td>38–39</td>
 <td>제6절 3 해석 및 잔여 불일치</td>
 <td><strong>대체</strong></td>
-<td>[검증표] §1–§3 해석으로 교체. 특히 "k_r는 가장 안정적으로 회수된 파라미터(Set 2: 3.04→3.05)" 서술은 <strong>오라클 lmin 선택의 산물이므로 폐기</strong>하고, 참값 미사용 20시드 RMSE(hybrid 3승 1무) 근거로 교체. κ 개선(유효법선 100%)·각오차 해석·P32 Set 2 논의는 [검증표] 문안 사용</td>
+<td>[검증표] §1–§3 문안으로 교체. "k_r가 가장 안정적으로 회수(Set 2: 3.04→3.05)" 서술은 <strong>오라클 lmin 선택의 산물이므로 폐기</strong>. v2에서는 전 절리군 오차 ±6.3% 이내·전부 accepted 이고, 관측/모델 창 기준 통일이 개선 원인임을 서술</td>
 </tr>
 <tr>
 <td>39</td>
 <td>제6절 4 의의와 한계</td>
 <td><strong>보강</strong></td>
-<td>"참값 미사용" 원칙이 v1에서 lmin 선택까지 확장되었음을 명시. ⚠ <strong>H-4①</strong>: 요철 mesh 삭제로 창/footprint 기준 불일치가 해소되므로, 해당 한계 서술은 <strong>평면 재실행 후 삭제 가능</strong> — 재실행 전에는 기재하지 말 것</td>
+<td>"참값 미사용" 원칙이 lmin 선택까지 확장됨을 명시. v1의 창/footprint 불일치 한계는 <strong>v2에서 해소</strong>되었으므로 기재하지 않는다(H-4①). 남는 한계: P32 신뢰구간이 관측 P21 표본변동을 아직 포함하지 않음([검증표] §3)</td>
 </tr>
 <tr>
 <td>39–45</td>
 <td><strong>제7절 민감도 분석 전체</strong></td>
 <td><strong>대체</strong></td>
-<td><strong>v1 재실행 완료(2026-08-03)</strong> — 그림 5장·표 3종 새 버전과 절별 재작성 지침은 <strong>§F</strong> 참조</td>
+<td><strong>v2 재실행 완료(2026-08-07)</strong> — 그림 5장·표 3종과 절별 재작성 지침은 <strong>§F</strong> 참조</td>
 </tr>
 <tr>
 <td>46</td>
@@ -184,7 +184,7 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <hr />
 <h2>B. 발견된 표기 오류 (수정 여부와 무관하게 정정 필요)</h2>
 <ol>
-<li><strong>p.37 표 6-5 Set 2 역산 k_r "2.05" → 3.05.</strong> v0 출력 원본(<code>pipeline_test_laxemar/comparison_vs_laxemar.csv</code>)은 3.05이고 본문 p.39도 "3.04에 대해 3.05"로 서술 — 표만 오타. (표를 v1로 교체하면 해소; v1 값은 3.25)</li>
+<li><strong>p.37 표 6-5 Set 2 역산 k_r "2.05" → 3.05.</strong> v0 출력 원본(<code>pipeline_test_laxemar/comparison_vs_laxemar.csv</code>)은 3.05이고 본문 p.39도 "3.04에 대해 3.05"로 서술 — 표만 오타. (표를 v2로 교체하면 해소; v2 값은 2.85)</li>
 <li><strong>그림 6-10 번호 중복</strong>: p.22(3점법)과 p.27(우도 개념도)이 같은 번호. p.22 그림이 삭제되므로 p.27을 6-10으로 확정하고 이후 번호 재정렬. p.27 캡션 "3길이–절단등급" → "길이–절단등급" 오탈 정정</li>
 <li>p.36 본문 "(표 6-3)" → 실제 표 번호는 <strong>6-4</strong> (안정성 해석 입력 형식)</li>
 <li>p.37 본문 "역산 결과는 표 6-4와 같다" → <strong>표 6-5</strong></li>
@@ -196,7 +196,7 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <li><strong>p.35 그림 6-12 캡션 좌/우 검토</strong>: 캡션은 "set 4(좌), 5(우)"인데 패널 내용은 왼쪽이
     주황(shrinkage — k_r 보유 절리군에서만 나옴), 오른쪽이 흰색(lower_bound — Set 4는
     k_r 미보유라 전부 하한값)으로 보임 → 좌/우가 뒤바뀐 것으로 판단됨. v1 교체 그림
-    기준으로는 set 4 = 흰색 위주, set 5 = 주황+초록이므로 캡션과 패널을 맞춰 배치할 것</li>
+    기준으로는 set 4 = 흰색 위주, set 5 = 주황+초록이므로 캡션과 패널을 맞춰 배치할 것 (v2 파일 기준 동일)</li>
 </ol>
 <hr />
 <h2>C. 그림·표 제작 목록</h2>
@@ -212,37 +212,52 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$'
 <tr>
 <td>C-1</td>
 <td>그림 6-1 (파이프라인 개요)</td>
-<td><strong>완성</strong> — <code>docs/figures/fig_pipeline_overview_v1.png</code> 교체만 하면 됨</td>
+<td><strong>완성(v2)</strong> — <code>fig_pipeline_overview_v2.png</code></td>
 </tr>
 <tr>
 <td>C-2</td>
 <td>그림 6-5 (b) 패널 (θ_2D 제거)</td>
-<td><strong>완성</strong> — <code>docs/figures/fig_block1_preprocessing.png</code> 재생성됨 ((b)에서 θ 화살표·호·수식 제거, 제목 "길이 L · 중심점 C 정의")</td>
+<td><strong>완성</strong> — <code>fig_block1_preprocessing.png</code></td>
 </tr>
 <tr>
 <td>C-3</td>
 <td>그림 6-14 (역산 비교 막대)</td>
-<td><strong>완성</strong> — <code>docs/figures/fig_validation_bars_v1.png</code> (v1 수치; 생성: <code>scripts/make_fig_validation_bars.py</code>)</td>
+<td><strong>완성(v2)</strong> — <code>fig_validation_bars_v2.png</code></td>
 </tr>
 <tr>
 <td>C-4</td>
 <td>그림 6-11 (P32 보정 모식도)</td>
-<td>⚠ <strong>재작업 필요 (C-10)</strong> — 현재 <code>fig_p32_analytic_schematic.png</code>는 순수 해석식 흐름. H-3의 C_ℓmin = E[sinφ]·η_det 2성분 구조로 다시 그려야 함</td>
+<td><strong>완성(v2)</strong> — <code>fig_p32_clmin_schematic.png</code> (C(ℓmin)=E[sinφ]·η_det 2성분 구조)</td>
 </tr>
 <tr>
 <td>C-5</td>
-<td>그림 6-12 / 표 6-3 (복원 계층 개수)</td>
-<td><strong>완성</strong> — v1 복원 재실행(D-3): 표 6-3 = 52/330/50(총 432), 그림 = <code>fig_recon_discs_set4_v1.png</code>·<code>fig_recon_discs_set5_v1.png</code> (생성: <code>scripts/make_fig_recon_discs.py</code>)</td>
+<td>그림 6-12 / 표 6-3 (복원 계층)</td>
+<td><strong>완성(v2)</strong> — 표 6-3 = 48/329/41(총 418), 그림 = <code>fig_recon_discs_set4_v2.png</code>·<code>fig_recon_discs_set5_v2.png</code></td>
 </tr>
 <tr>
 <td>C-6</td>
 <td>전체 그림·표 번호 재정렬</td>
-<td>삭제(그림 6-4, 6-10)·삽입 반영한 최종 패스</td>
+<td>⬜ <strong>잔여</strong> — 삭제(그림 6-4, 6-8, 6-10)·삽입 반영 최종 패스</td>
 </tr>
 <tr>
 <td>C-7</td>
-<td>제7절 민감도 그림 5장 (그림 6-15~6-19)</td>
-<td><strong>완성</strong> — §F의 그림 교체표 참조 (<code>docs/figures/fig_sensitivity_*_v1.png</code>)</td>
+<td>제7절 민감도 그림 5장</td>
+<td><strong>완성(v2)</strong> — <code>fig_sensitivity_*_v2.png</code> (§F-1)</td>
+</tr>
+<tr>
+<td>C-8</td>
+<td>그림 6-5 (a) 패널 요철 컬러맵</td>
+<td>⬜ <strong>잔여</strong> — 평면 단면 위 trace 맵으로 교체</td>
+</tr>
+<tr>
+<td>C-9</td>
+<td>그림 6-6 (전처리 모식도)</td>
+<td>⬜ <strong>잔여</strong> — "막장면 mesh 교차" → "제5장 절리선 입력"</td>
+</tr>
+<tr>
+<td>C-10/C-11</td>
+<td>(C-4·C-1에 통합)</td>
+<td>완료</td>
 </tr>
 </tbody>
 </table>
@@ -299,54 +314,59 @@ Set 5 144. 다면 관통 disc 116개, 평면 잔차 median≈0(외부 법선이 
 본문 "축소 추정이 339개(전체의 약 76%)" → "<strong>330개(전체의 약 76%)</strong>"로 숫자만 교체하면
 서술 구조는 그대로 유효하다. 그림 6-12 교체 파일과 캡션 주의사항은 §G·B-10 참조.</p>
 <hr />
-<h2>E. 참고 — 수치 대조 (기존 표 6-5 ↔ v1)</h2>
+<h2>E. 참고 — 수치 대조 (기존 표 6-5 ↔ v2)</h2>
 <table>
 <thead>
 <tr>
 <th>절리군</th>
-<th>유효법선 (v0→v1)</th>
-<th>κ (참값 / v0 / v1)</th>
-<th>k_r (참값 / v0★ / v1)</th>
-<th>P32 (참조 / v0 / v1)</th>
+<th>절리선 수 (v0→v2)</th>
+<th>κ (참값 / v0 / v2)</th>
+<th>k_r (참값 / v0★ / v2)</th>
+<th>P32 (참조 / v0 / v2)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1</td>
-<td>99(54%) → <strong>182(100%)</strong></td>
-<td>13.06 / 12.67 / <strong>12.84</strong></td>
-<td>2.85 / 2.80★ / <strong>2.70</strong></td>
-<td>0.914 / 0.948 / <strong>0.967</strong></td>
+<td>182 → <strong>170</strong></td>
+<td>13.06 / 12.67 / <strong>14.28</strong></td>
+<td>2.85 / 2.80★ / <strong>2.75</strong></td>
+<td>0.914 / 0.948 / <strong>0.968</strong></td>
 </tr>
 <tr>
 <td>2</td>
-<td>35(76%) → <strong>46(100%)</strong></td>
-<td>19.62 / 17.06 / <strong>18.09</strong></td>
-<td>3.04 / 3.05★ / <strong>3.25</strong></td>
-<td>1.026 / 0.726 / <strong>0.763</strong></td>
+<td>46 → <strong>39</strong></td>
+<td>19.62 / 17.06 / <strong>16.19</strong></td>
+<td>3.04 / 3.05★ / <strong>2.85</strong></td>
+<td>1.026 / 0.726 / <strong>0.791</strong></td>
 </tr>
 <tr>
 <td>3</td>
-<td>94(67%) → <strong>140(100%)</strong></td>
-<td>10.46 / 9.19 / <strong>9.86</strong></td>
-<td>3.01 / 3.05★ / <strong>3.50</strong></td>
-<td>0.975 / 0.945 / <strong>0.968</strong></td>
+<td>140 → <strong>132</strong></td>
+<td>10.46 / 9.19 / <strong>9.94</strong></td>
+<td>3.01 / 3.05★ / <strong>3.20</strong></td>
+<td>0.975 / 0.945 / <strong>0.987</strong></td>
 </tr>
 <tr>
 <td>5</td>
-<td>128(69%) → <strong>186(100%)</strong></td>
-<td>23.52 / 25.07 / <strong>23.79</strong></td>
-<td>3.60 / 3.70★ / <strong>3.90</strong></td>
-<td>0.980 / 1.012 / <strong>1.041</strong></td>
+<td>186 → <strong>171</strong></td>
+<td>23.52 / 25.07 / <strong>26.48</strong></td>
+<td>3.60 / 3.70★ / <strong>3.75</strong></td>
+<td>0.980 / 1.012 / <strong>1.015</strong></td>
 </tr>
 </tbody>
 </table>
-<p>★ v0의 k_r는 절리군별 lmin을 참값 기준으로 고른 오라클 수치 — 보고서에 나란히 싣지 말 것
-([검증표] §2.1). 표 6-5의 Set 2 v0 값은 원문 오타(2.05)가 아닌 3.05가 맞음.</p>
+<p>★ v0의 k_r는 절리군별 lmin을 참값 기준으로 고른 <strong>오라클</strong> 수치라 달성 가능한 정확도가
+아니다 — 보고서에 나란히 싣지 말 것. 표 6-5의 Set 2 v0 값은 원문 오타(2.05)가 아닌
+3.05가 맞다(B-1).</p>
+<p>절리선 수가 줄어든 것은 정확도 저하가 아니라 <strong>관측면 정의 변화</strong> 때문이다. 요철 mesh는
+파도치는 표면이 균열과 여러 번 만나 하나의 균열이 여러 조각 절리선으로 쪼개졌고, 평면
+막장면에서는 균열 하나가 정확히 현 하나를 만든다.</p>
 <hr />
-<h2>F. 제7절 민감도 분석 — v1 재실행 결과와 절별 재작성 지침</h2>
-<p>세 축 모두 v0와 <strong>동일한 실험 설계·시드(1–30)·그림 포맷</strong>으로 v1 추정기에서 재실행했다.
-그림은 파일만 갈아끼우면 되고, 표와 본문 수치는 아래로 교체한다.</p>
+<h2>F. 제7절 민감도 분석 — v2 재실행 결과와 절별 재작성 지침</h2>
+<p>세 축 모두 <strong>v0/v1과 동일한 실험 설계·시드(1–30)·그림 포맷</strong>으로 v2 추정기(평면–다각형
+관측 기준 + hybrid k_r + C(ℓmin))에서 재실행했다. 각도 480 run(실패 0), 간격 100 run.
+그림은 파일만 갈아끼우고, 표와 본문 수치는 아래로 교체한다.</p>
 <h3>F-1. 그림 교체표</h3>
 <table>
 <thead>
@@ -359,27 +379,27 @@ Set 5 144. 다면 관통 disc 116개, 평면 잔차 median≈0(외부 법선이 
 <tbody>
 <tr>
 <td>그림 6-15 (시드 30개 boxplot)</td>
-<td><code>fig_sensitivity_seed_v1.png</code></td>
+<td><code>fig_sensitivity_seed_v2.png</code></td>
 <td>동일 (1×3 패널)</td>
 </tr>
 <tr>
 <td>그림 6-16 (굴착 간격 boxplot)</td>
-<td><code>fig_sensitivity_face_interval_v1.png</code></td>
+<td><code>fig_sensitivity_face_interval_v2.png</code></td>
 <td>동일 (4 set × 3 지표)</td>
 </tr>
 <tr>
 <td>그림 6-17 (방위각 – P32)</td>
-<td><code>fig_sensitivity_angle_p32_v1.png</code></td>
+<td><code>fig_sensitivity_angle_p32_v2.png</code></td>
 <td>동일 (2×2 set)</td>
 </tr>
 <tr>
 <td>그림 6-18 (방위각 – k_r)</td>
-<td><code>fig_sensitivity_angle_kr_v1.png</code></td>
+<td><code>fig_sensitivity_angle_kr_v2.png</code></td>
 <td>동일</td>
 </tr>
 <tr>
 <td>그림 6-19 (방위각 – κ)</td>
-<td><code>fig_sensitivity_angle_kappa_v1.png</code></td>
+<td><code>fig_sensitivity_angle_kappa_v2.png</code></td>
 <td>동일</td>
 </tr>
 </tbody>
@@ -398,28 +418,27 @@ Set 5 144. 다면 관통 disc 116개, 평면 잔차 median≈0(외부 법선이 
 <tbody>
 <tr>
 <td>κ-CV/편향</td>
-<td>8.4%/+7.8%</td>
-<td>16.5%/−13.9%</td>
-<td>9.9%/+14.3%</td>
-<td>8.4%/+1.8%</td>
+<td>7.8%/+8.5%</td>
+<td>15.2%/−13.7%</td>
+<td>9.1%/+15.0%</td>
+<td>7.6%/+2.9%</td>
 </tr>
 <tr>
 <td>k_r-CV/편향</td>
-<td>7.2%/+2.8%</td>
-<td>12.1%/+0.4%</td>
-<td>11.6%/+1.6%</td>
-<td>8.2%/−0.7%</td>
+<td>7.2%/+0.7%</td>
+<td>10.3%/−4.1%</td>
+<td>11.1%/−3.2%</td>
+<td>7.7%/−2.3%</td>
 </tr>
 <tr>
 <td>P32-CV/편향</td>
-<td>12.7%/−12.7%</td>
-<td>19.7%/−15.9%</td>
-<td>18.1%/−7.1%</td>
-<td>10.8%/−4.1%</td>
+<td>13.5%/−12.2%</td>
+<td>24.1%/−15.3%</td>
+<td>18.6%/−5.4%</td>
+<td>11.2%/−4.3%</td>
 </tr>
 </tbody>
 </table>
-<p>(참고 v0: κ-CV 11.9–19.4%, k_r-CV 10.3–13.4%, P32-CV 10.8–22.1%)</p>
 <h3>F-3. 표 6-8 교체 — 굴착 간격 민감도 (간격별 평균값들 사이의 CV%)</h3>
 <table>
 <thead>
@@ -434,24 +453,24 @@ Set 5 144. 다면 관통 disc 116개, 평면 잔차 median≈0(외부 법선이 
 <tbody>
 <tr>
 <td>κ-CV</td>
-<td>1.2%</td>
-<td>4.3%</td>
-<td>3.1%</td>
-<td>4.3%</td>
+<td>1.7%</td>
+<td>3.8%</td>
+<td>3.6%</td>
+<td>2.0%</td>
 </tr>
 <tr>
 <td>k_r-CV</td>
-<td>1.1%</td>
-<td>2.4%</td>
+<td>2.2%</td>
+<td>1.3%</td>
+<td>1.6%</td>
 <td>1.9%</td>
-<td>2.9%</td>
 </tr>
 <tr>
 <td>P32-CV</td>
-<td>1.2%</td>
-<td>3.1%</td>
-<td>1.6%</td>
-<td>2.5%</td>
+<td>4.2%</td>
+<td>4.0%</td>
+<td>1.7%</td>
+<td>7.6%</td>
 </tr>
 </tbody>
 </table>
@@ -469,78 +488,70 @@ Set 5 144. 다면 관통 disc 116개, 평면 잔차 median≈0(외부 법선이 
 <tbody>
 <tr>
 <td>κ-CV</td>
-<td>10.9%</td>
-<td>9.0%</td>
-<td>11.4%</td>
-<td>1.9%</td>
-</tr>
-<tr>
-<td>k_r-CV</td>
-<td>1.8%</td>
-<td>0.8%</td>
-<td>0.6%</td>
+<td>11.6%</td>
+<td>9.2%</td>
+<td>12.0%</td>
 <td>2.4%</td>
 </tr>
 <tr>
+<td>k_r-CV</td>
+<td>1.7%</td>
+<td>0.9%</td>
+<td>0.6%</td>
+<td>1.8%</td>
+</tr>
+<tr>
 <td>P32-CV</td>
-<td>7.0%</td>
-<td>7.7%</td>
-<td>3.9%</td>
-<td>4.0%</td>
+<td>7.5%</td>
+<td>8.4%</td>
+<td>4.6%</td>
+<td>4.1%</td>
 </tr>
 </tbody>
 </table>
-<p>(전 각도 pooled 편향 — 본문 서술용: κ +0.2~+7.8%, k_r −4.4~+6.0%,
-P32 −18.6~−0.1%(Set 1이 최대 과소))</p>
+<p>(전 각도 pooled 편향 — 본문 서술용: κ +0.2~+7.4%, k_r −6.1~+3.5%,
+P32 −18.0~−0.3%(Set 1이 최대 과소))</p>
 <h3>F-5. 본문 서술 변경 포인트 (절별)</h3>
 <p><strong>제7절 1 (시드).</strong>
-- k_r 문단: "편향 약 −1~−5%로 거의 무편향" → "<strong>편향 ±3% 이내(+2.8/+0.4/+1.6/−0.7%)로
-  거의 무편향이며, CV(7.2~12.1%)도 세 지표 중 가장 작다</strong>"로 교체. 이 안정성이 <strong>참값
-  미사용 고정 ℓ_min(0.5 m)에서 얻어진 것</strong>임을 한 문장 명기할 것(종전 수치는 오라클
-  선택 포함).
-- κ 문단: "Set 1·2·3 소폭 과소, Set 5 소폭 과대" 서술 폐기 → "Set 1·3 과대(+7.8/+14.3%),
-  표본이 가장 적은 Set 2 과소(−13.9%), Set 5 거의 무편향(+1.8%)"으로 교체.
-- P32 문단: 과소 경향(−4~−16%) 서술 유지, 수치만 갱신. "표본 수가 적은 Set 1과 Set 2에서
-  크게" → "Set 1·2에서 크게(−12.7/−15.9%)"로 유지 가능.</p>
+- k_r 문단: "편향 −1~−5%로 거의 무편향" → "<strong>편향 −4.1~+0.7%로 거의 무편향이며, CV
+  7.2~11.1%로 세 지표 중 가장 작다</strong>". 이 안정성이 <strong>참값 미사용 고정 ℓ_min(0.5 m)</strong>
+  에서 얻어진 것임을 한 문장 명기(종전 수치는 오라클 선택 포함).
+- κ 문단: "Set 1·2·3 소폭 과소, Set 5 소폭 과대" 서술 폐기 → "<strong>Set 1·3 과대
+  (+8.5/+15.0%), 표본이 가장 적은 Set 2 과소(−13.7%), Set 5 거의 무편향(+2.9%)</strong>".
+- P32 문단: 과소 경향 유지, 수치를 −4.3~−15.3%로 갱신.</p>
 <p><strong>제7절 2 (간격).</strong>
-- 표 교체 후 본문 "CV 약 1.6~5.2%" → "<strong>약 1.1~4.3%</strong>", "시드 CV 10~22%보다 뚜렷하게
-  작다" → "<strong>시드 CV 7~20%보다 뚜렷하게 작다</strong>". 결론(간격 영향 제한적, 시드 지배) 유지.</p>
+- "CV 약 1.6~5.2%" → "<strong>약 1.3~7.6%</strong>", "시드 CV 10~22%보다 뚜렷하게 작다" →
+  "<strong>시드 CV 7~24%보다 뚜렷하게 작다</strong>". 결론(간격 영향 제한적·시드 지배) 유지.</p>
 <p><strong>제7절 3 (각도).</strong>
-- "각도 영향을 가장 많이 받는 값은 κ" <strong>유지</strong>하되 수치 갱신: "약 3.5~8.0%" →
-  "<strong>약 1.9~11.4%</strong>". 원인 서술 보강: 외부 3D 방향을 쓰면서 교차 표본편향(막장면에
-  수직인 절리가 과대표집되는 효과)의 각도 의존이 κ 추정에 그대로 드러난다
-  (v0의 3점법은 법선 잡음이 이 구조를 가리고 있었음).
-- k_r 문단: "CV 1.3~3.3%로 가장 안정" → "<strong>CV 0.6~2.4%로 가장 안정</strong>", "편향 ±3% 이내"
-  → "전 각도 pooled 편향 −4.4~+6.0%" 수준으로 갱신. 하이브리드 우도가 각도 변화에
-  강건함을 보여준다는 취지 유지.
-- P32 문단: "대체로 −5~−17% 과소" → "<strong>−0.1~−18.6% 과소(Set 1 최대)</strong>". unit-MC 언급
-  삭제(해석식 보정으로 교체되었으므로 "해석식 보정 하에서도 과소 경향은 관측 P21의
-  표본 변동과 방향 추정 편향(자기완결 구성)에서 기인" 취지로).</p>
+- "각도 영향을 가장 많이 받는 값은 κ" <strong>유지</strong>, 수치 "약 3.5~8.0%" → "<strong>약 2.4~12.0%</strong>".
+  원인 보강: 외부 3D 방향을 쓰면서 교차 표본편향(막장면에 수직인 절리가 과대표집되는
+  효과)의 각도 의존이 그대로 드러난다(종전 3점법은 법선 잡음이 이 구조를 가렸다).
+- k_r 문단: "CV 1.3~3.3%로 가장 안정" → "<strong>CV 0.6~1.8%로 가장 안정</strong>". 하이브리드
+  우도가 터널 방향 변화에 강건함을 보여준다는 취지 유지.
+- P32 문단: "대체로 −5~−17% 과소" → "<strong>−0.3~−18.0% 과소(Set 1 최대)</strong>".
+  <strong>unit-P32 forward MC 언급은 삭제</strong>하고 "C(ℓmin) 보정 하에서도 남는 과소 경향은 관측
+  P21의 표본 변동과 자기완결 구성(방향도 절리선에서 추정)에서 기인" 취지로 교체.</p>
 <p><strong>제7절 4 (종합).</strong>
-- "시드 변화 CV 약 10~22%" → "<strong>약 7~20%</strong>". "간격·각도 변동 대부분 8% 이하" →
-  "<strong>간격 1.1~4.3%, 각도는 k_r·P32가 8% 이하이며 κ만 최대 11.4%</strong>".
-- "지표별로는 k_r이 가장 안정적" <strong>유지</strong> — 단, "<strong>참값을 일절 쓰지 않는 v1 추정기(고정
-  ℓ_min·blind 선택)에서 확인된 결과</strong>"임을 명기(방법론 신뢰성의 핵심 근거가 됨).
+- "시드 변화 CV 약 10~22%" → "<strong>약 7~24%</strong>". "간격·각도 변동 대부분 8% 이하" →
+  "<strong>간격 1.3~7.6%, 각도는 k_r·P32가 8.4% 이하이며 κ만 최대 12.0%</strong>".
+- "지표별로는 k_r이 가장 안정적" <strong>유지</strong> — 단, "<strong>참값을 일절 쓰지 않는 추정기
+  (고정 ℓ_min·blind 선택)에서 확인된 결과</strong>"임을 명기(방법론 신뢰성의 핵심 근거).
 - 나머지(시드 지배, Set 5 최안정·Set 2 최불안정, 다중 실현 평균 보고 권고) 유지.</p>
 <h3>F-6. 재현 명령</h3>
 <pre><code class="language-bash"># 각도(=시드 포함) 스윕: 480 run, 병렬 10
-PYTHONPATH=. python scripts/sensitivity_tunnel_angle.py \
-  --angle-start 0 --angle-stop 180 --angle-step 12 \
-  --n-realizations 30 --seed-base 1 --jobs 10 \
-  --out-dir storage/output/sensitivity_tunnel_angle_v1
+PYTHONPATH=. python scripts/sensitivity_tunnel_angle.py   --angle-start 0 --angle-stop 180 --angle-step 12   --n-realizations 30 --seed-base 1 --jobs 10   --out-dir storage/output/sensitivity_tunnel_angle_v2
 
 # 간격 스윕: 100 run, 병렬 6
-PYTHONPATH=. python scripts/sensitivity_face_interval.py \
-  --target-set 1 2 3 5 --n-realizations 20 --seed-base 1 --jobs 6 \
-  --out-dir storage/output/sensitivity_face_interval_v1
+PYTHONPATH=. python scripts/sensitivity_face_interval.py   --target-set 1 2 3 5 --n-realizations 20 --seed-base 1 --jobs 6   --out-dir storage/output/sensitivity_face_interval_v2
 
 # 시드 그림(각도 CSV의 θ=0 부분집합)
-PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
-  storage/output/sensitivity_tunnel_angle_v1/sensitivity_results.csv \
-  storage/output/sensitivity_seed_v1
+PYTHONPATH=. python scripts/plot_seed_sensitivity.py   storage/output/sensitivity_tunnel_angle_v2/sensitivity_results.csv   storage/output/sensitivity_seed_v2
 </code></pre>
-<p>(v1 전체 소요: 각도 39분 + 간격 12분, 28코어 기준. CV/편향 계산 관례는 v0 표와 동일 —
-모집단 표준편차, 간격·각도는 그룹별 평균값들 사이의 CV.)</p>
+<p>(v2 소요: 각도 39.7분 + 간격 11.0분, 28코어. 두 스크립트는 평면 생성기
+<code>export_flat_face_traces</code> 와 <code>--calibration-factor-mode forward_mc_lmin --lmin 0.5</code> 를
+사용한다. CV/편향 관례는 v0 표와 동일 — 모집단 표준편차, 간격·각도는 그룹별 평균값들
+사이의 CV. 원자료: <code>docs/sensitivity_tunnel_angle_v2_results.csv</code>,
+<code>docs/sensitivity_face_interval_v2_results.csv</code>)</p>
 <hr />
 <h2>G. 그림·표 교체 총괄표 — "이 파일을 보고서의 여기에"</h2>
 <p>준비된 신규 산출물 전체와 보고서 내 교체 대상의 1:1 매핑. 모든 그림 파일은
@@ -558,7 +569,7 @@ PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
 <tr>
 <td>그림 6-1 (p.6)</td>
 <td>전체 파이프라인 개요 (구버전)</td>
-<td><code>fig_pipeline_overview_v1.png</code></td>
+<td><code>fig_pipeline_overview_v2.png</code></td>
 </tr>
 <tr>
 <td>그림 6-4 (p.16)</td>
@@ -568,7 +579,12 @@ PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
 <tr>
 <td>그림 6-5 (p.16)</td>
 <td>전처리 4패널 ((b)에 θ 표기)</td>
-<td><code>fig_block1_preprocessing.png</code> (재생성판 — (b)에서 θ 제거)</td>
+<td><code>fig_block1_preprocessing.png</code> (재생성판 — (b)에서 θ 제거). ⚠ (a) 패널의 요철 컬러맵은 <strong>잔여 과제 C-8</strong></td>
+</tr>
+<tr>
+<td>그림 6-8 (p.19)</td>
+<td>막장면 요철 메쉬</td>
+<td><strong>삭제</strong> (제2절 1.2 전체 삭제와 함께 — H-2)</td>
 </tr>
 <tr>
 <td>그림 6-10 (p.22)</td>
@@ -578,47 +594,47 @@ PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
 <tr>
 <td>그림 6-11 (p.29)</td>
 <td>P32 unit-MC 보정 모식도</td>
-<td><code>fig_p32_analytic_schematic.png</code> (해석식 흐름)</td>
+<td><code>fig_p32_clmin_schematic.png</code> (C(ℓmin)=E[sinφ]·η_det 2성분)</td>
 </tr>
 <tr>
 <td>그림 6-12 (p.35)</td>
 <td>복원 균열 3D (set 4 / set 5)</td>
-<td><code>fig_recon_discs_set4_v1.png</code> + <code>fig_recon_discs_set5_v1.png</code> — <strong>캡션 좌/우 주의 (B-10)</strong>: set 4 = 흰색 위주, set 5 = 주황+초록</td>
+<td><code>fig_recon_discs_set4_v2.png</code> + <code>fig_recon_discs_set5_v2.png</code> — <strong>캡션 좌/우 주의 (B-10)</strong></td>
 </tr>
 <tr>
 <td>그림 6-14 (p.38)</td>
 <td>벤치마크-역산 비교 막대</td>
-<td><code>fig_validation_bars_v1.png</code></td>
+<td><code>fig_validation_bars_v2.png</code></td>
 </tr>
 <tr>
 <td>그림 6-15 (p.40)</td>
 <td>시드 30개 boxplot</td>
-<td><code>fig_sensitivity_seed_v1.png</code></td>
+<td><code>fig_sensitivity_seed_v2.png</code></td>
 </tr>
 <tr>
 <td>그림 6-16 (p.41)</td>
 <td>굴착 간격 boxplot</td>
-<td><code>fig_sensitivity_face_interval_v1.png</code></td>
+<td><code>fig_sensitivity_face_interval_v2.png</code></td>
 </tr>
 <tr>
 <td>그림 6-17 (p.43)</td>
 <td>방위각 민감도 – P32</td>
-<td><code>fig_sensitivity_angle_p32_v1.png</code></td>
+<td><code>fig_sensitivity_angle_p32_v2.png</code></td>
 </tr>
 <tr>
 <td>그림 6-18 (p.43)</td>
 <td>방위각 민감도 – k_r</td>
-<td><code>fig_sensitivity_angle_kr_v1.png</code></td>
+<td><code>fig_sensitivity_angle_kr_v2.png</code></td>
 </tr>
 <tr>
 <td>그림 6-19 (p.44)</td>
 <td>방위각 민감도 – κ</td>
-<td><code>fig_sensitivity_angle_kappa_v1.png</code></td>
+<td><code>fig_sensitivity_angle_kappa_v2.png</code></td>
 </tr>
 </tbody>
 </table>
-<p>변경 없음(유지): 그림 6-2, 6-3, 6-6, 6-7, 6-8, 6-9, 6-13. (그림 6-6 모식도의
-"estimate_* (kr, kappa, P32)" 라벨 등은 v1에서도 유효.)</p>
+<p>변경 없음(유지): 그림 6-2, 6-3, 6-7, 6-9, 6-13.
+⚠ 그림 6-6(전처리 모식도)은 "막장면 mesh 교차" 상자를 "제5장 절리선 입력"으로 바꿔야 한다(<strong>C-9, 잔여</strong>).</p>
 <h3>G-2. 표 (수치 교체)</h3>
 <table>
 <thead>
@@ -630,11 +646,11 @@ PYTHONPATH=. python scripts/plot_seed_sensitivity.py \
 <tbody>
 <tr>
 <td>표 6-3 (p.36) 복원 계층 개수</td>
-<td>D-3의 표: 52 / 330 / 50 (총 432)</td>
+<td>[검증표] §5: <strong>48 / 329 / 41 (총 418)</strong></td>
 </tr>
 <tr>
 <td>표 6-5 (p.37) 역산 결과</td>
-<td>[검증표] 표 V-1·V-2·V-3 (k_r는 v1 열만, P32 CI 생략 — A표 p.37 행 참조)</td>
+<td>[검증표] <strong>§1 종합 검증표</strong> (P32 CI 열 생략 권고 — §3)</td>
 </tr>
 <tr>
 <td>표 6-7 (p.40) 시드 민감도</td>
@@ -904,49 +920,84 @@ set\_id,\; \hat n\,\}$$</p>
 </tbody>
 </table>
 <h2>H-4. 파급 효과와 필요 작업 — ⚠ 반드시 확인할 것</h2>
-<h3>① 요철 mesh 삭제가 기존 "알려진 한계" 두 건을 해소한다 (긍정적 파급)</h3>
-<p>현재 코드에서 확인된 사실: 관측 $A_{obs}$는 <strong>mesh 삼각형 면적 합</strong>
-(<code>compute_total_observation_area(rough_faces)</code>)인 반면, 시뮬레이션 쪽 면적은 <strong>polygon
-shoelace 면적</strong>이다. 이 기준 불일치가 종전에 규명한 두 문제의 근원이었다.</p>
-<ul>
-<li>$\eta_{win}=1.02\sim1.04$ 아티팩트 (통합본 §2.5, mesh가 polygon보다 −3.85%)</li>
-<li><strong>v1 알려진 한계</strong>: $k_r$ 모델 창(다각형) vs 관측 footprint(mesh) 불일치
-  — 기준 일치 실험에서 전 절리군 $k_r$ 오차 <strong>≤0.04</strong>로 회수됨 (통합본 §4.7)</li>
-</ul>
-<p><strong>막장면이 평면이 되면 $A_{obs}$ = polygon 면적이 되어 두 기준이 자동 일치</strong>하므로, 위
-두 한계가 함께 사라진다. 즉 이번 범위 축소는 서술 단순화일 뿐 아니라 <strong>정확도 개선
-요인</strong>이다. → 보고서 제6절 4(한계)에서 해당 한계 서술을 <strong>삭제</strong>할 수 있게 될 가능성이
-높다(재실행으로 확인 필요).</p>
-<h3>② 코드 미구현 — $C_{\ell_{\min}}$은 현재 어느 모드에도 없다</h3>
+<h3>① 관측면적 기준 불일치의 진짜 원인 — ⚠ 최초 진단 정정</h3>
+<p>관측 $A_{obs}$는 <strong>mesh 삼각형 면적 합</strong>(<code>compute_total_observation_area</code>)인 반면
+시뮬레이션 쪽은 <strong>polygon shoelace 면적</strong>이라는 기준 불일치가 있고, 이것이 종전에
+규명한 두 문제($\eta_{win}$ 아티팩트, $k_r$ 창/footprint 불일치)의 근원이라는 판단은
+맞다. <strong>다만 그 −3.85%의 원인을 "요철" 때문으로 본 최초 진단은 틀렸다.</strong></p>
+<p>측정으로 확인한 결과:</p>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>1면 면적 (m²)</th>
+<th>다각형(73.9266) 대비</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>다각형(정확)</td>
+<td>73.9266</td>
+<td>—</td>
+</tr>
+<tr>
+<td>평면 mesh, grid_step 0.2 m</td>
+<td>71.0800</td>
+<td><strong>−3.85%</strong></td>
+</tr>
+<tr>
+<td>평면 mesh, grid_step 0.1 m</td>
+<td>72.4700</td>
+<td>−1.97%</td>
+</tr>
+<tr>
+<td>평면 mesh, grid_step 0.05 m</td>
+<td>73.2325</td>
+<td>−0.94%</td>
+</tr>
+<tr>
+<td>요철 mesh, grid_step 0.2 m</td>
+<td>71.4156</td>
+<td>−3.40%</td>
+</tr>
+</tbody>
+</table>
+<p>즉 −3.85%는 <strong>격자 이산화로 경계가 계단형이 되어 생기는 손실</strong>이며(격자를 절반으로
+줄일 때마다 오차도 절반 → $O(h)$ 수렴), 요철의 기여는 표면적 증가 <strong>+0.47%</strong>로 반대
+부호의 작은 항이다. <strong>따라서 "평면화하면 자동으로 해소된다"는 것은 성립하지 않는다.</strong></p>
+<p><strong>실제 해법</strong>: mesh를 쓰지 않고 <strong>터널 단면 다각형 자체를 관측면으로</strong> 삼는다. 평면
+막장면에서는 원판–평면 교선을 해석적으로 구해 다각형으로 정확히 클리핑할 수 있으므로
+mesh가 애초에 불필요하다 → 신규 모듈 <code>dfn_analysis/export_flat_face_traces.py</code>.
+이렇게 하면 $A_{obs}$ = 다각형 면적 × 막장면 수가 되어 모델 창 기준과 <strong>정확히</strong> 일치한다.
+결과는 H-6 참조(실측 개선 확인).</p>
+<h3>② 코드 미구현 → ✅ 구현 완료</h3>
 <p><code>estimate_p32_mc_calibrated.py</code>를 확인한 결과 <strong>$\ell_{\min}$ 관련 처리가 전무</strong>하다
 (관측 $P_{21}$·시뮬 $P_{21}$ 모두 필터 없음). 따라서:</p>
 <ul>
 <li><code>analytic_esinphi</code> = $E[\sin\phi]$만 → $\eta_{det}$ 누락</li>
 <li><code>unit_p32_forward_mc</code> = MC지만 $\ell_{\min}$ 미적용 + 면적 기준 불일치</li>
 </ul>
-<p><strong>둘 다 샌드박스 정의를 만족하지 못한다.</strong> 신규 모드(예: <code>analytic_esinphi_x_eta_det</code>
-또는 <code>forward_mc_lmin</code>) 구현이 필요하다. 구현 범위: (a) 관측 $P_{21}$에 $\ell_{\min}$
-필터, (b) 시뮬 쪽 동일 필터, (c) 평면 막장면 기준 $A_{obs}$, (d) B회 반복 평균·분산 출력.</p>
-<h3>③ 검증 수치 재실행 범위 — 결정 필요</h3>
-<p>현재 v1 수치(표 6-5, 표 6-3, 제7절 민감도 표 3종·그림 5장)는 <strong>전부 요철 mesh 기반</strong>이다.
-평면 막장면으로 바꾸면 값이 이동한다. 두 선택지:</p>
+<p><strong>둘 다 샌드박스 정의를 만족하지 못했다.</strong> → 신규 모드 <strong><code>forward_mc_lmin</code>(현 기본값)</strong>
+을 구현했다(커밋 <code>e217551</code>, 루트·handoff·handoffv1 동시 반영):</p>
 <ul>
-<li><strong>(a) 평면 막장면으로 전면 재실행</strong> — 보고서 서술과 검증 조건이 일치하고, ①의 한계
-  해소 효과까지 수치로 확인된다. 비용: 검증표 ~5분 + 민감도 스윕 ~51분 + 복원 ~1분
-  (측정치 기준). <strong>권고안.</strong></li>
-<li><strong>(b) 현 수치 유지 + 각주</strong> — "검증용 합성 절리선은 요철 막장면과의 교차로 생성했다"고
-  검증 절에만 각주. 서술과 수치의 괴리가 남고 ①의 이득도 못 얻음.</li>
+<li>관측 $P_{21}^{ret}$: <code>--lmin</code> 이상 절리선만 집계</li>
+<li>가상 $P_{21}^{sim,ret}$: 순방향 모사의 가시길이에 <strong>동일한</strong> <code>--lmin</code> 적용</li>
+<li>$A_{obs}$: trace HDF5의 <code>/meta/observation_area_m2</code>(다각형 면적×막장면 수) 우선,
+  없으면 legacy mesh 면적으로 폴백</li>
+<li>$C^{(b)}$를 B회 반복(<code>--unit-p32-mc-replicates</code>, 기본 32) 평균·분산 → 신뢰구간</li>
 </ul>
-<p>→ <strong>(a)를 권고</strong>한다. 특히 $k_r$ 정확도가 크게 개선될 것으로 예상되며(오차 ≤0.04 회수
-실험 근거), 이는 표 6-5와 제6절 3(해석) 서술을 유리하게 바꾼다.</p>
-<h3>④ 작업 순서 (권고)</h3>
+<p>두 성분($E[\sin\phi]$, $\eta_{det}$)을 분리 산정하지 않고 $C_{\ell_{\min}}$을 직접
+계산한다(샌드박스 §5 권고).</p>
+<h3>③ 검증 수치 재실행 — ✅ 완료</h3>
+<p>(a) 안(평면–다각형 기준 전면 재실행)으로 수행했다. 검증표·복원·민감도 3축 모두
+v2 기준으로 재생성했으며 결과는 <strong>H-6</strong>과 <code>docs/제6장_검증표_v2.md</code>에 있다.</p>
+<h3>④ 작업 순서 — 실행 결과</h3>
 <ol>
-<li><code>generate_synthetic_rough_face_mesh</code>를 <strong>진폭 0(평면)</strong>으로 실행해 평면 막장면 생성
-   (기존 스크립트에 진폭 인자 존재 — 별도 개발 불필요)</li>
-<li>$C_{\ell_{\min}}$ 신규 모드 구현 (②) — handoffv1 + 루트 동시 반영</li>
-<li>평면 기준으로 <strong>검증표·민감도·복원 전면 재실행</strong> (③-a)</li>
-<li>통합본·검증표·handoffv1 README의 P32 서술 정정 (H-3.3)</li>
-<li>본 지시서 A~G의 수치·그림 항목을 3의 결과로 갱신</li>
+<li><del>평면 mesh 생성</del> → ①의 규명에 따라 <strong>mesh를 쓰지 않는 다각형 기준 생성기</strong>를 신규 구현</li>
+<li>✅ $C_{\ell_{\min}}$ 모드 구현 (루트·handoff·handoffv1)</li>
+<li>✅ 검증표·복원·민감도 전면 재실행 (H-6)</li>
+<li>⬜ 통합본·handoffv1 README의 P32 서술 정정 (H-3.3) — 잔여</li>
+<li>⬜ 본 지시서 A~G의 수치·그림 항목을 v2로 최종 정렬 — 잔여</li>
 </ol>
 <h2>H-5. 그림·표 제작 목록 추가분</h2>
 <table>
@@ -977,6 +1028,120 @@ shoelace 면적</strong>이다. 이 기준 불일치가 종전에 규명한 두 
 <td>C-11</td>
 <td>그림 6-1 (파이프라인 개요) — H-1 반영 재수정</td>
 <td><strong>재작업 필요</strong> — 1단계 "합성 막장면 mesh 생성" 상자를 "제5장 절리선 데이터셋 입력"으로 교체</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>H-6. v2 전면 재실행 결과 (2026-08-07)</h2>
+<h3>H-6.1 무엇을 바꿔 돌렸나</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>v1</th>
+<th><strong>v2</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>관측면</td>
+<td>요철 mesh(격자 0.2 m, 계단형 경계)</td>
+<td><strong>터널 단면 다각형 직접</strong>(<code>export_flat_face_traces</code>)</td>
+</tr>
+<tr>
+<td>관측면적 $A_{obs}$</td>
+<td>mesh 삼각형 합 (다각형 −3.85%)</td>
+<td><strong>다각형 면적 × 막장면 수</strong> (모델 창과 일치)</td>
+</tr>
+<tr>
+<td>P32 보정</td>
+<td><code>analytic_esinphi</code> ($C=E[\sin\phi]$)</td>
+<td><strong><code>forward_mc_lmin</code></strong> ($C_{\ell_{\min}}=E[\sin\phi]\eta_{det}$, 관측·가상 동일 $\ell_{\min}$=0.5 m)</td>
+</tr>
+<tr>
+<td>$k_r$</td>
+<td>hybrid · lmin 0.5 · blind (동일)</td>
+<td>동일</td>
+</tr>
+</tbody>
+</table>
+<p>입력 DFN 참값·시드는 v0/v1과 동일하게 고정했다.</p>
+<h3>H-6.2 개선 결과</h3>
+<table>
+<thead>
+<tr>
+<th>지표</th>
+<th>v1</th>
+<th><strong>v2</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$k_r$ 평균 절대오차</td>
+<td>9.2% (절대 0.288)</td>
+<td><strong>5.0% (절대 0.158)</strong></td>
+</tr>
+<tr>
+<td>$k_r$ 절리군별 절대오차</td>
+<td>0.15 / 0.21 / 0.49 / 0.30</td>
+<td><strong>0.10 / 0.19 / 0.19 / 0.15</strong></td>
+</tr>
+<tr>
+<td>$k_r$ 채택등급</td>
+<td>accepted 2 / provisional 2</td>
+<td><strong>accepted 4</strong></td>
+</tr>
+<tr>
+<td>$P_{32}$ 평균 절대오차</td>
+<td>9.6%</td>
+<td><strong>8.4%</strong></td>
+</tr>
+<tr>
+<td>$P_{32}$ 신뢰구간</td>
+<td>퇴화(폭 0)</td>
+<td><strong>정상 산출</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>$\ell_{\min}$ 자기정합성 확인</strong>: $\ell_{\min}$ 0 → 0.5 m 변경 시 분자($P_{21}^{ret}$)와
+분모($C_{\ell_{\min}}$)가 함께 줄어 $\widehat{P_{32}}$ 변화는 −2.1~+0.6%에 그친다.
+"관측자료와 가상자료에 같은 기준을 적용한다"는 원칙이 실제로 작동함을 보여준다.</p>
+<h3>H-6.3 민감도 3축 (표 6-7/6-8/6-9 → §F-2~F-4)</h3>
+<p>각도 480 run(실패 0) + 간격 100 run, v0/v1과 동일 설계·시드. $k_r$는 세 축 모두에서
+가장 안정적이라는 결론이 <strong>참값을 일절 쓰지 않는 v2 추정기에서도 유지</strong>된다
+(시드 CV 7.2~11.1%/편향 ±4% 이내, 각도 CV 0.6~1.8%).</p>
+<h3>H-6.4 남은 한계 (보고서 제6절 4에 기재할 것)</h3>
+<ul>
+<li><strong>$P_{32}$ 신뢰구간이 관측 $P_{21}$의 표본 변동을 아직 포함하지 않는다.</strong> 현재 구간은
+  $k_r$ 불확실성 전파 + MC 반복 산포만 담고 있어 일부 절리군에서 구간이 점추정값을
+  근소하게 벗어난다. <strong>보고서에는 점추정만 싣기를 권고</strong>한다([검증표 v2] §3).</li>
+<li>Set 2의 $P_{32}$ 과소추정(−22.9%)은 v0/v1/v2 공통이며 방법이 아니라 관측 조건의
+  한계다(절리선 39개로 최소, 교차확률 최저 $C=0.31$).</li>
+</ul>
+<h3>H-6.5 잔여 작업</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>항목</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C-6</td>
+<td>전체 그림·표 번호 재정렬 (삭제: 그림 6-4·6-8·6-10)</td>
+</tr>
+<tr>
+<td>C-8</td>
+<td>그림 6-5 (a) 패널의 요철 컬러맵 → 평면 단면 위 trace 맵</td>
+</tr>
+<tr>
+<td>C-9</td>
+<td>그림 6-6 모식도의 "막장면 mesh 교차" → "제5장 절리선 입력"</td>
+</tr>
+<tr>
+<td>—</td>
+<td>보고서 본문 실제 편집 (A·F·G절 지침에 따라)</td>
 </tr>
 </tbody>
 </table>
