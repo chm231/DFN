@@ -999,6 +999,22 @@ $$</p>
 좌표 $s$의 $\hat\nu$-성분은 $\sin\phi$이다. 따라서 $dx=\sin\phi\,ds$이고
 $\int\ell(x)\,dx=\sin\phi\int\ell(s)\,ds=\sin\phi\cdot(\text{원판 면적})=\pi R^2\sin\phi$. ∎</p>
 <h2>2. $P_{32}$ 보정계수 $C$ — 이상 조건에서 정확한 해석식</h2>
+<blockquote>
+<p><strong>⚠ 정정 (2026-08-07, 「0807 샌드박스」 결정):</strong> 본 절은 <strong>이상 조건(무한 관측면·
+최소길이 기준 없음)에서의 해석적 성분</strong>을 유도한 것으로, 그 내용 자체는 유효하다.
+다만 §2.4–2.5에서 <code>analytic_esinphi</code>를 <strong>최종 기본 모드로 확정</strong>한 결론은 <strong>철회</strong>한다.
+최종형은 방향 성분(해석식)과 관측조건 성분(MC)의 곱
+$$C_{\ell_{\min}} = E[\sin\phi]\cdot\eta_{det},\qquad \widehat{P_{32}} = P_{21,obs}^{ret}/C_{\ell_{\min}}$$
+이며, 관측자료와 가상자료에 <strong>동일한 최소 길이 기준</strong>을 적용해 순방향 모사에서
+$C_{\ell_{\min}}$을 직접 산정한다(구현 모드 <code>forward_mc_lmin</code>, 현 기본값).
+즉 순수 해석식 $C=E[\sin\phi]$는 $\eta_{det}	o 1$인 <strong>극한</strong>으로 위치가 바뀌었다.
+상세: <code>docs/제6장_수정작업지시서.md</code> §H-3, 결과: <code>docs/제6장_검증표_v2.md</code>.</p>
+<p>또한 §2.5에서 $\eta_{win}$을 "요철 mesh vs 다각형" 면적 기준 불일치로 설명했으나,
+그 −3.85%의 실제 주원인은 <strong>요철이 아니라 mesh 격자 이산화(계단형 경계)</strong>임이
+측정으로 확인되었다(grid_step 0.2/0.1/0.05 m → −3.85/−1.97/−0.94%, 요철 기여는
++0.47%). v2에서는 mesh를 쓰지 않고 터널 단면 다각형을 관측면으로 직접 사용해
+이 불일치를 제거했다(<code>export_flat_face_traces</code>).</p>
+</blockquote>
 <p>보고서 식 6.48은 $E[P_{21}\mid P_{32}]=C\,P_{32}$로 두고 $C$를 forward MC로 구한다.
 위 보조정리로 $C$를 <strong>닫힌 형</strong>으로 얻는다.</p>
 <p>중심이 수밀도 $n$으로 균일하므로, 관측면 단위 면적당 기대 현길이는 각 원판의 기여
