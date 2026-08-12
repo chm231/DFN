@@ -1,0 +1,4 @@
+[reconstruct] association=agglomerative  복원 disc 480개 -> storage/output/pipeline_demo_laxemar/reconstruct/reconstructed_discs.csv
+  set별: {1: 131, 2: 41, 3: 99, 4: 52, 5: 157}
+  반지름: {'determined': 33, 'shrinkage': 397, 'lower_bound': 50} (determined=원적합, shrinkage=kr축소추정, lower_bound=관측하한)  | 다면 관통 disc 77개
+  잔차(m) median=0.000 p90=0.000

@@ -23,3 +23,7 @@ venv/
 .idea/
 .vscode/
 .DS_Store
+
+# Handoff demo outputs and packaging artifact (regenerable, kept out of git history)
+handoffv1/demo_output/
+handoffv1.zip

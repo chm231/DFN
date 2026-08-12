@@ -3,6 +3,9 @@
 터널 막장면의 2D 절리선(trace) 관측으로부터 3D DFN(Discrete Fracture Network) 파라미터를
 역산하고, 관측을 조건으로 하는 3D DFN을 생성·시각화하는 **배포용 파이프라인 코드**입니다.
 
+> **데모 실행**: 설치·전체 파이프라인 시연은 **`README_DEMO.md`** 를 보세요
+> (`install_demo.bat` 로 설치 → `run_demo.bat --seed 2026` 으로 실행).
+
 ## v1 변경 요약 (구 handoff 대비)
 
 | 항목 | v0 (구) | **v1 (본 패키지)** |
@@ -69,7 +72,7 @@
 | `estimate_kr.py` | set별 반지름 멱법칙 지수 kr 추정 진입점. `--likelihood-mode {hybrid(기본·**v1 최종**)|window_mc(legacy)}` — hybrid는 참 현길이 분포를 닫힌형(해석식)으로, 창·절단 변환은 kr불변 MC 커널 1회로 분해(lmin_fit 미지정 시 전 set 공통 0.5 m 고정). 종전 "window_mc 우위" 판정은 lmin 선택의 참값(오라클) 사용에 기인했음이 확인되어, **참값 미사용(blind) 20시드 재판정에서 hybrid가 RMSE 3승 1무**로 기본 채택. v1부터 lmin 선택(best_row)도 참값 미사용으로 통일(D013 준수). 원리·검증·재판정: docs/제6장_수정안_통합본.md 제3부 §4 |
 | `build_p32_pilot_summary.py` | 사이트/set 설정, 지지구간 스케일 P32 헬퍼 |
 | `summarize_setwise_trace_statistics.py` | set별 trace 길이/개수 통계 |
-| `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / 보정계수 C). `--calibration-factor-mode`: `forward_mc_lmin`(**기본·최종**, 2026-08-07 결정) = C(ℓmin) = E[sinφ]·η_det 를 순방향 모사에서 직접 산정하며 관측·가상자료에 **동일한 --lmin** 을 적용한다. `analytic_esinphi`는 η_det→1 인 이상조건 극한(해석 성분만), `unit_p32_forward_mc`는 ℓmin 미적용 legacy. 관측면적은 trace h5의 `/meta/observation_area_m2`(터널 단면 다각형 면적×막장면 수)를 우선 사용한다 |
+| `estimate_p32_mc_calibrated.py` | **최종 P32 추정** (observed_P21 / 보정계수 C). `--calibration-factor-mode`: `analytic_esinphi`(**기본·최종**, 2026-08-04 재확정) = C=E[sinφ] 결정론적 구적(표집 0, kr 무관), P21은 전량 집계. `forward_mc_lmin`(C(ℓmin)=E[sinφ]·η_det, 관측·가상 동일 --lmin)은 유한창·최소길이 효과 검증용 보조 모드, `unit_p32_forward_mc`는 legacy. 관측면적은 trace h5의 `/meta/observation_area_m2`(터널 단면 다각형 면적×막장면 수)를 우선 사용한다 |
 | `export_setwise_3d_traces.py` | DFN(h5) + 거친 막장면 mesh → 3D trace 데이터셋 순방향 생성. `--trace-normal-source external`(기본)=외부 제공 3D 방향 사용(2026-07 결정; 벤치마크는 fracture 참값 법선이 그 역할), `3pt`=legacy polyline 3점법 |
 | `generate_synthetic_rough_face_mesh.py` | 합성 거친 막장면 mesh 생성 (검증용 입력) |
 | `reconstruct_discs_from_traces.py` | **관측 trace → 복원 원판**. 연결=검증형 응집(결합평면 잔차+면당1chord, oracle 대비 순도 95%), 반지름=경계 원적합 / kr 축소추정(empirical-Bayes, 참R 오차 26→17%) |
@@ -84,12 +87,13 @@
 - **GT(ground truth)는 검증 전용**입니다. 추정기 설계·보정에 truth를 사용하지 않습니다 (정책 D013).
 - **하나의 parsimonious 추정기**를 모든 set에 동일 적용합니다. set별 보정계수·fudge factor 금지.
 - **Laxemar Set 4는 지수분포**라 멱법칙 역산·조건화에서 제외됩니다 (D002).
-- 최종 P32 보정계수는 **`forward_mc_lmin`**(2026-08-07 결정)입니다:
-  C(ℓmin) = E[sinφ]·η_det 를 순방향 모사에서 직접 산정하고, 관측 P21과 가상 P21에
-  **같은 최소 길이 기준**을 적용합니다. 종전 `analytic_esinphi`(2026-07-29 채택)는
-  η_det→1 인 이상조건 극한으로 위치가 바뀌었고, `unit_p32_forward_mc`는 ℓmin 미적용
-  legacy 입니다. B회 반복 산포로 P32 신뢰구간이 정상 산출됩니다
-  (근거: docs/제6장_수정작업지시서.md §H-3, 결과: docs/제6장_검증표_v2.md).
+- 최종 P32 보정계수는 **`analytic_esinphi`**(2026-08-04 재확정)입니다:
+  C = E[sinφ] 를 방향분포의 결정론적 구적으로 계산하며(표집 0, kr 무관),
+  관측 P21은 하한 없이 전량 집계합니다. `forward_mc_lmin`(C(ℓmin)=E[sinφ]·η_det,
+  관측·가상 동일 ℓmin)은 유한 관측창·최소길이 효과의 **검증용 보조 모드**입니다 —
+  벤치마크에서 η_det=0.95~0.99, P32 차이 ≤2%, 정확도는 해석식이 전 절리군 우위.
+  `unit_p32_forward_mc`는 legacy. P32는 점추정만 보고합니다
+  (근거: docs/제6장_제3절3항_P32_수정본.md).
 - 반지름/kr 우도는 `estimate_radius_powerlaw_window_mc.py` 기반이며, v1부터 **hybrid 모드
   (해석식 길이분포 + kr불변 창커널)가 기본·최종**입니다(참값 미사용 재판정 근거, 통합본 §4.7).
   window_mc(v4.1 전량 MC)는 legacy/비교용. v3(from_traces)는 제외.

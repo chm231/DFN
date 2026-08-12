@@ -1,0 +1,13 @@
+set_id,lmin_fit,kr_window_mc,class,observed_fraction,model_fraction,dfn_model,generation_rmin,generation_rmax,estimation_rmin,estimation_rmax,set_likelihood_rmin,set_effective_generation_rmin,set_table_r0,set_rmin_mode,rmin_support_status,p32_label,entrypoint_script
+1,0.5,2.75,uncensored,0.7083333333333334,0.7312423124231242,laxemar,0.5,250.0,0.5,250.0,0.5,0.5,0.328000009059906,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+1,0.5,2.75,one_end_censored,0.2916666666666667,0.26387000712112385,laxemar,0.5,250.0,0.5,250.0,0.5,0.5,0.328000009059906,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+1,0.5,2.75,two_end_censored,0.0,0.004887680455751926,laxemar,0.5,250.0,0.5,250.0,0.5,0.5,0.328000009059906,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+2,0.5,2.85,uncensored,0.45454545454545453,0.5431598525357867,laxemar,0.5,250.0,0.5,250.0,0.9769999980926514,0.9769999980926514,0.9769999980926514,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+2,0.5,2.85,one_end_censored,0.48484848484848486,0.4380085688664519,laxemar,0.5,250.0,0.5,250.0,0.9769999980926514,0.9769999980926514,0.9769999980926514,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+2,0.5,2.85,two_end_censored,0.06060606060606061,0.018831578597761467,laxemar,0.5,250.0,0.5,250.0,0.9769999980926514,0.9769999980926514,0.9769999980926514,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+3,0.5,3.2,uncensored,0.559322033898305,0.5995106561071406,laxemar,0.5,250.0,0.5,250.0,0.8579999804496765,0.8579999804496765,0.8579999804496765,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+3,0.5,3.2,one_end_censored,0.4322033898305085,0.3910244028072887,laxemar,0.5,250.0,0.5,250.0,0.8579999804496765,0.8579999804496765,0.8579999804496765,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+3,0.5,3.2,two_end_censored,0.00847457627118644,0.009464941085570795,laxemar,0.5,250.0,0.5,250.0,0.8579999804496765,0.8579999804496765,0.8579999804496765,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+5,0.5,3.75,uncensored,0.8014184397163121,0.8048654244306418,laxemar,0.5,250.0,0.5,250.0,0.5,0.5,0.4000000059604645,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+5,0.5,3.75,one_end_censored,0.19858156028368795,0.19251423395445136,laxemar,0.5,250.0,0.5,250.0,0.5,0.5,0.4000000059604645,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py
+5,0.5,3.75,two_end_censored,0.0,0.0026203416149068325,laxemar,0.5,250.0,0.5,250.0,0.5,0.5,0.4000000059604645,effective_generation,matched,P32_r_ge_0p5m,dfn_analysis/estimate_kr.py

@@ -692,7 +692,8 @@ def main() -> None:
     )
     parser.add_argument("--lmin", type=float, default=0.0,
                         help="최소 절리선 길이 [m]. forward_mc_lmin 모드에서 관측·가상 "
-                             "양쪽에 동일 적용된다(2026-08-07 결정). 0이면 필터 없음.")
+                             "양쪽에 동일 적용된다. 기본 모드(analytic_esinphi)는 "
+                             "하한 없는 전량 P21 과 짝을 이루므로 0 으로 둔다.")
     parser.add_argument("--unit-p32-mc-replicates", type=int, default=32, help="Number of MC replicates for unit_p32_forward_mc mode.")
     parser.add_argument(
         "--outcsv",

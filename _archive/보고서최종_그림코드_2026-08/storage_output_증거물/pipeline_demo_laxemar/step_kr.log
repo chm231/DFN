@@ -1,0 +1,10 @@
+[*] estimate_kr.py summary
+    - Set 1: best_lmin=0.500, kr_hat=2.750, kr_true=2.850, status=ok, adoption=accepted
+    - Set 2: best_lmin=0.500, kr_hat=2.850, kr_true=3.040, status=class_fraction_mismatch, adoption=rejected
+    - Set 3: best_lmin=0.500, kr_hat=3.150, kr_true=3.010, status=ok, adoption=accepted
+    - Set 5: best_lmin=0.500, kr_hat=3.850, kr_true=3.600, status=ok, adoption=accepted
+[*] Fit CSV written to: storage/output/pipeline_demo_laxemar/kr\kr_fit_by_lmin.csv
+[*] Profile CSV written to: storage/output/pipeline_demo_laxemar/kr\kr_profile_likelihood.csv
+[*] Posterior predictive CSV written to: storage/output/pipeline_demo_laxemar/kr\kr_posterior_predictive.csv
+[*] Summary CSV written to: storage/output/pipeline_demo_laxemar/kr\kr_summary_by_set.csv
+[*] Fit JSON written to: storage/output/pipeline_demo_laxemar/kr\kr_fit_by_lmin.json
