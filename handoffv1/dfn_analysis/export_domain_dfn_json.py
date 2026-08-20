@@ -269,6 +269,7 @@ def main() -> None:
             "normal_xyz": [round(float(v), 6) for v in n],
             "radius_m": round(float(d["radius"]), 4),
             "reconstruction": d["adoption"],
+            "radius_status": d.get("radius_status", ""),
         })
     for d in hid_in:
         c, n = d["center"], d["normal"]

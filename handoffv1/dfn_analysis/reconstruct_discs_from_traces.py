@@ -133,6 +133,25 @@ def radius_posterior_mean(a: float, kr: float, rmax: float, n: int = 200) -> flo
     return float(num / den) if den > 0 else a
 
 
+def radius_posterior_sample(a: float, kr: float, rmax: float, rng: np.random.Generator,
+                            rmin_pop: float = 0.5, n: int = 400) -> float:
+    """radius_posterior_mean과 같은 사후분포에서 반지름 '표본'을 추출한다.
+    점추정(하한 절단된 사후평균)이 만드는 0.5 m 스파이크를 없애고, 모집단 지지구간
+    [max(a, rmin_pop), rmax]과 일치하는 조건부 크기분포를 그대로 재현한다.
+    사후밀도(u-치환, R=a·cosh u): p(u) ∝ R(u)^{-(kr+1)}."""
+    a = max(float(a), 1e-6)
+    lo = max(a, rmin_pop)
+    if not math.isfinite(kr) or rmax <= lo:
+        return lo
+    u_lo = math.acosh(lo / a) if lo > a else 0.0
+    u_hi = math.acosh(rmax / a)
+    u = np.linspace(u_lo, u_hi, n)
+    pdf = (a * np.cosh(u)) ** (-(kr + 1.0))
+    cdf = np.cumsum(pdf)
+    cdf /= cdf[-1]
+    return float(a * math.cosh(np.interp(rng.random(), cdf, u)))
+
+
 def _arc_coverage_deg(P2: np.ndarray, c2: np.ndarray) -> float:
     """원 중심 기준 경계점들이 덮는 호(arc) 각도 [deg] (반지름 안정성 판정용)."""
     ang = np.sort(np.arctan2(P2[:, 1] - c2[1], P2[:, 0] - c2[0]))
@@ -344,9 +363,27 @@ def associate_agglomerative(traces, angle_deg, coplanar_m, max_sep_m,
     return [uf.find(i) for i in range(n)]
 
 
+def _chord_on_other_face(center, normal, radius, face_x):
+    """disc가 평면 x=face_x 에 남기는 현 길이 [m] (관측창 클리핑 전, 0=교차 없음)."""
+    sin_phi = math.sqrt(max(1.0 - float(normal[0]) ** 2, 0.0))
+    if sin_phi < 1e-9:  # 면과 평행한 disc → 다른 면과 교차하지 않음
+        return 0.0
+    t = abs(face_x - float(center[0])) / sin_phi
+    if t >= radius:
+        return 0.0
+    return 2.0 * math.sqrt(radius ** 2 - t ** 2)
+
+
 def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
                 pos_tol_m=0.4, max_gap=2, target_sets=None, arc_min=90.0,
-                kr_map=None, rmax=250.0, exclude_faces=None):
+                kr_map=None, rmax=250.0, exclude_faces=None,
+                radius_mode="mean", radius_seed=None, absence_lmin=0.5):
+    rng = np.random.default_rng(radius_seed)  # radius_mode="sample"에서만 사용
+    all_face_xs = []
+    if radius_mode == "sample":
+        with h5py.File(trace_h5, "r") as f:
+            if "meta" in f and "face_x_positions_m" in f["meta"]:
+                all_face_xs = [float(v) for v in f["meta/face_x_positions_m"][:]]
     traces = load_traces(trace_h5)
     if target_sets:
         traces = [t for t in traces if t["set_id"] in set(target_sets)]
@@ -373,6 +410,12 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
         pts = np.vstack([m["verts"] for m in members])
         set_id = members[0]["set_id"]
         normal, centroid, resid = _fit_plane_svd(pts)
+        if len(pts) < 3:
+            # 단일 절리선(2점 폴리라인)은 점 SVD가 퇴화(placeholder [1,0,0] 반환)
+            # → 실측 trace 법선을 disc 법선으로 사용한다.
+            normal = np.asarray(members[0]["normal"], dtype=np.float64)
+            normal = normal / np.linalg.norm(normal)
+            resid = 0.0
         if normal[0] < 0:  # x축 부호로 일관성
             normal = -normal
         faces = sorted({round(m["face_x"], 3) for m in members})
@@ -397,13 +440,60 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
             a_lower = 0.5 * max(m["chord"] for m in members)
             kr = (kr_map or {}).get(set_id)
             if kr is not None and math.isfinite(kr):
-                radius = max(radius_posterior_mean(a_lower, kr, rmax), a_lower, 0.5)
-                radius_status = "shrinkage"
+                if radius_mode == "sample":
+                    # 사후분포 표본 + 현 보존 배치: 관측 chord(2a)를 정확히 재현하도록
+                    # 중심을 disc 평면 내 chord 수직방향으로 d=sqrt(r^2-a^2) 이동.
+                    # 부재(absence) 조건화: 다른 관측 면에 absence_lmin 이상 현을 남기는
+                    # (r, 위치) 표본은 기각·재추출 (hidden 제거 기준과 동일 논리).
+                    radius_status = "shrinkage_sampled"
+                    own_faces = {round(float(m["face_x"]), 3) for m in members}
+                    other_faces = [x for x in all_face_xs
+                                   if round(x, 3) not in own_faces]
+                    radius = max(a_lower, 0.5)
+                    if len(members) == 1:
+                        # 현 보존 배치: 하류 모듈 규약(이상화 평면 x=face_x)에서 자기 면
+                        # 현이 관측 chord(2a)와 같도록 중심 오프셋 s를 해석적으로 푼다.
+                        #   |face_x - c_x(s)| = d*·sinφ,  c(s) = mid + s·ŵ,  d* = √(r²-a²)
+                        # 가드: 관측 절리선이 disc 안에 있도록 |s| ≤ d*.
+                        fx_own = float(members[0]["face_x"])
+                        v = members[0]["verts"]
+                        chord_dir = v[-1] - v[0]
+                        w = np.cross(normal, chord_dir)
+                        w_n = np.linalg.norm(w)
+                        w_hat = w / w_n if w_n > 1e-9 else None
+                        sin_phi = math.sqrt(max(1.0 - float(normal[0]) ** 2, 0.0))
+                        delta = fx_own - float(centroid[0])
+                        for _try in range(30):
+                            r_try = radius_posterior_sample(a_lower, kr, rmax, rng)
+                            d_star = math.sqrt(max(r_try ** 2 - a_lower ** 2, 0.0))
+                            if w_hat is None or abs(w_hat[0]) < 1e-6:
+                                break  # 오프셋으로 x를 못 움직임(면 평행 disc 등) → 폴백
+                            sigmas = [1.0, -1.0] if rng.random() < 0.5 else [-1.0, 1.0]
+                            placed = False
+                            for sg in sigmas:
+                                s = (delta - sg * d_star * sin_phi) / w_hat[0]
+                                if abs(s) > d_star + 1e-9:
+                                    continue  # 절리선이 disc 밖으로 나감
+                                c_try = centroid + s * w_hat
+                                if all(_chord_on_other_face(c_try, normal, r_try, xf)
+                                       < absence_lmin for xf in other_faces):
+                                    radius, center, placed = r_try, c_try, True
+                                    break
+                            if placed:
+                                break
+                        # 실패 시 폴백: 최소 disc(r=max(a,0.5)), 중심=절리선 중점
+                    else:
+                        radius = radius_posterior_sample(a_lower, kr, rmax, rng)
+                else:
+                    radius = max(radius_posterior_mean(a_lower, kr, rmax), a_lower, 0.5)
+                    radius_status = "shrinkage"
             else:
                 radius = max(a_lower, 0.5)
 
         # adoption: 반지름 정보가 있는 disc(determined/shrinkage) → deterministic, 그 외 하한 → orientation_only
-        adoption = "deterministic_disc" if radius_status in ("determined", "shrinkage") else "orientation_only"
+        adoption = ("deterministic_disc"
+                    if radius_status in ("determined", "shrinkage", "shrinkage_sampled")
+                    else "orientation_only")
 
         discs.append(dict(
             set_id=set_id, cx=center[0], cy=center[1], cz=center[2],
@@ -450,6 +540,12 @@ def main():
     ap.add_argument("--rmax", type=float, default=250.0, help="반지름 상한 [m] (축소추정 적분범위)")
     ap.add_argument("--target-set", nargs="+", type=int, default=None,
                     help="복원 대상 set. Laxemar 공정 비교시 Set 4(지수분포) 제외: --target-set 1 2 3 5")
+    ap.add_argument("--radius-mode", choices=["mean", "sample"], default="mean",
+                    help="경계 부족 disc 반지름: mean=사후평균(하한 0.5 절단, 기존), "
+                         "sample=사후분포 표본 + 현 보존 배치(관측 chord 정확 재현; "
+                         "안정성 해석 입력 권장)")
+    ap.add_argument("--radius-seed", type=int, default=None,
+                    help="sample 모드 난수 시드 (재현성)")
     args = ap.parse_args()
 
     kr_map = None
@@ -460,7 +556,8 @@ def main():
     discs = reconstruct(args.trace_h5, args.association, args.normal_angle_deg,
                         args.coplanar_dist, args.max_centroid_sep,
                         args.pos_tol, args.max_gap, args.target_set, args.arc_min,
-                        kr_map, args.rmax)
+                        kr_map, args.rmax,
+                        radius_mode=args.radius_mode, radius_seed=args.radius_seed)
     write_csv(discs, args.out_csv)
 
     # 진단

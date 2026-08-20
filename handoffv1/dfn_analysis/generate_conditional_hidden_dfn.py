@@ -109,27 +109,23 @@ def disc_face_chord(
     n = normal / np.linalg.norm(normal)
     ex = np.array([1.0, 0.0, 0.0])
     dist = float(center[0] - xf)  # signed distance along +x
-    # 중심에서 면까지의 x거리가 반지름 이상이면 disc가 면에 닿지 않음
-    if abs(dist) >= radius - tol:
-        return None
-    # 현의 반길이(half): 반지름과 면까지 거리로 피타고라스 계산
-    half = math.sqrt(max(radius**2 - dist**2, 0.0))
     # 현의 방향: disc 법선과 x축의 외적 (면과 disc 평면의 교선 방향)
     chord_dir = np.cross(n, ex)
-    m = np.linalg.norm(chord_dir)
-    if m < tol:  # disc normal ∥ x → disc plane parallel to face, no line
+    sin_phi = np.linalg.norm(chord_dir)  # = |n × e_x| = sqrt(1 - n_x^2)
+    if sin_phi < tol:  # disc normal ∥ x → disc plane parallel to face, no line
         return None
-    chord_dir /= m
-    # disc 평면 안에서 면 법선(x축)의 성분 방향 (현 중점을 찾기 위한 축)
-    n_face_proj = ex - (ex @ n) * n  # in-disc component of face normal
-    mm = np.linalg.norm(n_face_proj)
-    if mm < tol:
+    chord_dir = chord_dir / sin_phi
+    # disc 평면 '안'에서 교선까지의 수직거리 t = Δx / sinφ 로 반길이를 계산해야 한다.
+    # (x거리 dist 를 그대로 쓰면 기울어진 disc 의 현이 과대평가된다 —
+    #  export_flat_face_traces.disc_plane_chords 와 동일한 기하)
+    t_in = dist / sin_phi
+    if abs(t_in) >= radius - tol:
         return None
-    n_face_proj /= mm
-    # 중심을 면에 수직 투영한 발(foot) → 현의 중점(mid) 계산
-    foot = center - dist * ex
-    d_in = float((foot - center) @ n_face_proj)
-    mid = center + d_in * n_face_proj
+    half = math.sqrt(max(radius**2 - t_in**2, 0.0))
+    # disc 평면 안에서 x가 증가하는 단위방향 û = (e_x − n_x·n)/sinφ.
+    # 중심에서 û 로 −t_in 만큼 이동하면 x좌표가 정확히 xf 인 현 중점이 된다.
+    n_face_proj = (ex - float(ex @ n) * n) / sin_phi
+    mid = center - t_in * n_face_proj
     # 현 중점에서 현 방향으로 ±half 이동한 두 끝점 반환
     return mid - half * chord_dir, mid + half * chord_dir
 
@@ -231,6 +227,7 @@ def load_visible_discs(path: Path, keep_adoptions: Tuple[str, ...]) -> List[dict
                 radius=float(row["radius"]),
                 source="visible",
                 adoption=row["adoption"],
+                radius_status=row.get("radius_status", ""),
             ))
     return discs
 

@@ -27,3 +27,7 @@ venv/
 # Handoff demo outputs and packaging artifact (regenerable, kept out of git history)
 handoffv1/demo_output/
 handoffv1.zip
+
+# Client sample data & large point clouds (kept out of git)
+handoffv1/demodata/
+WP_aligned_3_2412.bin
