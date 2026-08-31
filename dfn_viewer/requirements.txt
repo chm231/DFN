@@ -1,0 +1,4 @@
+numpy
+pyvista>=0.44
+pyvistaqt>=0.11
+PySide6>=6.6
