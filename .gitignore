@@ -31,3 +31,13 @@ handoffv1.zip
 # Client sample data & large point clouds (kept out of git)
 handoffv1/demodata/
 WP_aligned_3_2412.bin
+
+# handoffv2 대용량 데이터·재생성 가능 출력 (파이프라인으로 재생성)
+handoffv2/demodata/
+handoffv2/demo_output/
+handoffv2/example_io/paraview/full/
+handoffv2/example_io/paraview/top30/
+handoffv2/example_io/paraview/windows/
+handoffv2/example_io/blocks_edgecut/
+deliverables/**/*.json
+v2.zip

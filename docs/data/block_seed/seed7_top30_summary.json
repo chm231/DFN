@@ -1,0 +1,20 @@
+{
+  "input_json": "C:/Users/user/AppData/Local/Temp/claude/c--Users-user-OneDrive-2026-1-3D-DFN-modeling/c501f425-c178-491d-b844-fdbebd260c97/scratchpad/dfn_domain_seed7.json",
+  "n_fractures_used": 30,
+  "top_n": 30,
+  "voxel_size_m": 0.1,
+  "connectivity": 6,
+  "min_voxels": 8,
+  "tol_factor": 0.6,
+  "grid_shape": [
+    100,
+    225,
+    175
+  ],
+  "n_blocks": 0,
+  "total_block_volume_m3": 0.0,
+  "max_block_volume_m3": 0.0,
+  "median_block_volume_m3": 0.0,
+  "top10_volumes_m3": [],
+  "seed": 7
+}

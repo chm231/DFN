@@ -1,0 +1,33 @@
+{
+  "dataset_name": "dfm_demo",
+  "sets": {
+    "1": {
+      "dist_type": "powerlaw",
+      "trend": 191.72,
+      "plunge": 37.16,
+      "kappa": 13.13,
+      "kr_hat_estimated": 3.95
+    },
+    "2": {
+      "dist_type": "powerlaw",
+      "trend": 319.31,
+      "plunge": 6.97,
+      "kappa": 15.04,
+      "kr_hat_estimated": 3.95
+    },
+    "3": {
+      "dist_type": "powerlaw",
+      "trend": 26.84,
+      "plunge": 31.03,
+      "kappa": 11.0,
+      "kr_hat_estimated": 3.85
+    },
+    "4": {
+      "dist_type": "powerlaw",
+      "trend": 355.33,
+      "plunge": 4.47,
+      "kappa": 12.51,
+      "kr_hat_estimated": 3.85
+    }
+  }
+}
