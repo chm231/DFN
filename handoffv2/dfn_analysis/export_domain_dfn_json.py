@@ -65,19 +65,22 @@ def dist_to_polygon(pts_yz: np.ndarray, poly_yz: np.ndarray) -> np.ndarray:
     return np.where(inside, 0.0, d_edge)
 
 
-def yz_bounds(poly_yz: np.ndarray, halo: float):
-    """직사각형 도메인의 yz 범위 = 터널 단면 bounding box + halo."""
+def yz_bounds(poly_yz: np.ndarray, halo: float, halo_z=None):
+    """직사각형 도메인의 yz 범위 = 터널 단면 bounding box + halo.
+    halo_z 를 주면 z 방향 확장 폭만 그 값으로 쓴다(box 단면 전용)."""
+    hz = halo if halo_z is None else halo_z
     return (poly_yz[:, 0].min() - halo, poly_yz[:, 0].max() + halo,
-            poly_yz[:, 1].min() - halo, poly_yz[:, 1].max() + halo)
+            poly_yz[:, 1].min() - hz, poly_yz[:, 1].max() + hz)
 
 
 def distance_to_domain(centers: np.ndarray, x0: float, x1: float,
-                       poly_yz: np.ndarray, halo: float, shape: str) -> np.ndarray:
+                       poly_yz: np.ndarray, halo: float, shape: str,
+                       halo_z=None) -> np.ndarray:
     """중심점에서 도메인까지의 거리. 도메인이 x구간 × yz영역의 곱집합이므로
     두 축 거리의 유클리드 합성이 정확한 거리가 된다."""
     dx = np.maximum(0.0, np.maximum(x0 - centers[:, 0], centers[:, 0] - x1))
     if shape == "box":
-        y_lo, y_hi, z_lo, z_hi = yz_bounds(poly_yz, halo)
+        y_lo, y_hi, z_lo, z_hi = yz_bounds(poly_yz, halo, halo_z)
         dy = np.maximum(0.0, np.maximum(y_lo - centers[:, 1], centers[:, 1] - y_hi))
         dz = np.maximum(0.0, np.maximum(z_lo - centers[:, 2], centers[:, 2] - z_hi))
         dyz = np.hypot(dy, dz)
@@ -86,13 +89,13 @@ def distance_to_domain(centers: np.ndarray, x0: float, x1: float,
     return np.hypot(dx, dyz)
 
 
-def select_intersecting(discs, x0, x1, poly_yz, halo, shape):
+def select_intersecting(discs, x0, x1, poly_yz, halo, shape, halo_z=None):
     """원판의 경계구가 도메인과 만나는 것만 남긴다(보수적 포함 기준)."""
     if not discs:
         return []
     centers = np.array([d["center"] for d in discs], dtype=np.float64)
     radii = np.array([d["radius"] for d in discs], dtype=np.float64)
-    keep = distance_to_domain(centers, x0, x1, poly_yz, halo, shape) <= radii
+    keep = distance_to_domain(centers, x0, x1, poly_yz, halo, shape, halo_z) <= radii
     return [d for d, k in zip(discs, keep) if k]
 
 
@@ -189,6 +192,8 @@ def main() -> None:
                     default=REPO / "storage/output/pipeline_v2_laxemar")
     ap.add_argument("--halo", type=float, default=5.0,
                     help="터널 단면 다각형 바깥으로의 확장 폭 [m].")
+    ap.add_argument("--halo-z", type=float, default=None,
+                    help="z 방향 확장 폭 [m] (box 단면 전용). 미지정 시 --halo 와 동일.")
     ap.add_argument("--ahead", type=float, default=10.0,
                     help="마지막 막장면에서 굴진 방향(+x)으로의 연장 길이 [m].")
     ap.add_argument("--rmax-local", type=float, default=10.0,
@@ -255,7 +260,7 @@ def main() -> None:
     print(f"[domain] 관측 막장면: {face_xs}  |  기굴착 터널 벽면 x=[{tun_lo:g},{tun_hi:g}] m")
 
     # --- 확률 생성용 박스 (도메인 bbox를 rmax_local 만큼 확장) ---
-    ymin, ymax, zmin, zmax = yz_bounds(poly_ccw, args.halo)
+    ymin, ymax, zmin, zmax = yz_bounds(poly_ccw, args.halo, args.halo_z)
     m = args.rmax_local
     box = dict(x0=x0 - m, dx=(x1 - x0) + 2 * m,
                y0=ymin - m, dy=(ymax - ymin) + 2 * m,
@@ -272,8 +277,10 @@ def main() -> None:
     print(f"[condition] 확률 생성 {len(hidden_all):,} → 관측 막장면 검출 제거 {n_removed:,} "
           f"(lmin_det={args.lmin_det:g} m) → 잔존 {len(hidden_kept):,}")
 
-    vis_in = select_intersecting(visible_all, x0, x1, poly_ccw, args.halo, args.domain_shape)
-    hid_in = select_intersecting(hidden_kept, x0, x1, poly_ccw, args.halo, args.domain_shape)
+    vis_in = select_intersecting(visible_all, x0, x1, poly_ccw, args.halo,
+                                 args.domain_shape, args.halo_z)
+    hid_in = select_intersecting(hidden_kept, x0, x1, poly_ccw, args.halo,
+                                 args.domain_shape, args.halo_z)
     print(f"[domain] observed   {len(vis_in):,} / {len(visible_all):,}")
     print(f"[domain] unobserved {len(hid_in):,} / {len(hidden_kept):,}")
 
@@ -345,9 +352,11 @@ def main() -> None:
                 "x_range_m": [x0, x1],
                 "shape": args.domain_shape,
                 "tunnel_halo_m": args.halo,
+                "tunnel_halo_z_m": args.halo if args.halo_z is None else args.halo_z,
                 "yz_bounds_m": (dict(zip(["y_min", "y_max", "z_min", "z_max"],
                                          [round(float(v), 4)
-                                          for v in yz_bounds(poly_ccw, args.halo)]))
+                                          for v in yz_bounds(poly_ccw, args.halo,
+                                                             args.halo_z)]))
                                 if args.domain_shape == "box" else None),
                 "excavated_tunnel_x_range_m": [tun_lo, tun_hi],
                 "description": (
@@ -394,7 +403,9 @@ def main() -> None:
         "tunnel_wall_traces": wall_traces,
     }
 
-    out = args.out or (pdir / "export" / f"dfn_domain_x{x0:g}-{x1:g}_halo{args.halo:g}.json")
+    hz_tag = "" if args.halo_z is None else f"_hz{args.halo_z:g}"
+    out = args.out or (pdir / "export" /
+                       f"dfn_domain_x{x0:g}-{x1:g}_halo{args.halo:g}{hz_tag}.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(doc, fh, ensure_ascii=False, indent=1)

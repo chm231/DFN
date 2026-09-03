@@ -400,23 +400,51 @@ def generate_hidden_discs(
 def remove_face_intersecting(
     discs: List[dict], face_xs: List[float], poly_ccw: np.ndarray, lmin_det: float = 0.0
 ) -> Tuple[List[dict], int]:
-    """Drop discs that would have been detected as a trace on an observed face."""
-    kept, removed = [], 0
-    for d in discs:
-        # 어느 한 관측면에서라도 검출 하한 이상으로 보이면 제거 대상
-        detected = False
-        for xf in face_xs:
-            seg = visible_trace_on_face(d["center"], d["normal"], d["radius"], xf, poly_ccw)
-            if seg is None:
-                continue
-            if float(np.linalg.norm(seg[1] - seg[0])) >= lmin_det:
-                detected = True
-                break
-        if detected:
-            removed += 1
-        else:
-            kept.append(d)
-    return kept, removed
+    """Drop discs that would have been detected as a trace on an observed face.
+
+    면별 벡터화 구현 — 원판별 visible_trace_on_face 루프와 판정이 동일하다
+    (같은 현 기하 t=Δx/sinφ, 같은 볼록 관측창 클리핑, 검출 = 길이>1e-6 ∧ ≥lmin_det).
+    """
+    if not discs:
+        return [], 0
+    try:
+        from dfn_analysis.radius_powerlaw_likelihood import (
+            clip_segments_to_convex_polygon_vectorized)
+    except ImportError:
+        from radius_powerlaw_likelihood import clip_segments_to_convex_polygon_vectorized
+
+    tol = 1e-9
+    C = np.array([d["center"] for d in discs], dtype=np.float64)
+    N = np.array([d["normal"] for d in discs], dtype=np.float64)
+    N /= np.linalg.norm(N, axis=1, keepdims=True)
+    R = np.array([d["radius"] for d in discs], dtype=np.float64)
+
+    detected = np.zeros(len(discs), dtype=bool)
+    sin_phi = np.sqrt(np.maximum(1.0 - N[:, 0] ** 2, 0.0))
+    ok_phi = sin_phi >= tol  # 법선 ∥ x 인 원판은 면과 교선이 없다
+    for xf in face_xs:
+        t_in = np.where(ok_phi, (C[:, 0] - xf) / np.where(ok_phi, sin_phi, 1.0), np.inf)
+        cand = ~detected & ok_phi & (np.abs(t_in) < R - tol)
+        half = np.sqrt(np.maximum(R[cand] ** 2 - t_in[cand] ** 2, 0.0))
+        # 클리핑은 현을 늘리지 못하므로 전체 현이 lmin 미만이면 미리 배제
+        long_enough = 2.0 * half >= lmin_det
+        idx = np.nonzero(cand)[0][long_enough]
+        if len(idx) == 0:
+            continue
+        n_s, c_s = N[idx], C[idx]
+        sp, ti = sin_phi[idx], t_in[idx]
+        hf = half[long_enough]
+        # 현 방향 = n × e_x = (0, n_z, −n_y) → yz 성분만 사용
+        dir_yz = np.column_stack([n_s[:, 2], -n_s[:, 1]]) / sp[:, None]
+        # 현 중점 = c − t_in · (e_x − n_x·n)/sinφ  (disc_face_chord 와 동일)
+        proj = (np.array([1.0, 0.0, 0.0])[None, :] - n_s[:, 0:1] * n_s) / sp[:, None]
+        mid = c_s - ti[:, None] * proj
+        vis_len, _ = clip_segments_to_convex_polygon_vectorized(
+            mid[:, 1:3], dir_yz, 2.0 * hf, poly_ccw)
+        detected[idx[(vis_len > 1e-6) & (vis_len >= lmin_det)]] = True
+
+    kept = [d for d, det in zip(discs, detected) if not det]
+    return kept, int(detected.sum())
 
 
 # ----------------------------------------------------------------------
