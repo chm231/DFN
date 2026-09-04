@@ -78,7 +78,7 @@ run([sys.executable, "-X", "utf8", "-m", "dfn_analysis.estimate_p32_mc_calibrate
      "--outcsv", str(OUT / "p32/p32_summary.csv")])
 run([sys.executable, "-X", "utf8", "-m", "dfn_analysis.reconstruct_discs_from_traces",
      "--trace-h5", str(h5p), "--kr-summary-csv", str(OUT / "kr/kr_summary_by_set.csv"),
-     "--target-set", *ts, "--max-centroid-sep", "3.5",
+     "--target-set", *ts, "--max-centroid-sep", "4.5",
      "--radius-mode", "sample", "--radius-seed", "2026",
      "--out-csv", str(OUT / "reconstruct/reconstructed_discs.csv")])
 print(f"PHASE_A_DONE {TAG}", flush=True)

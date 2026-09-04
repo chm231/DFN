@@ -62,7 +62,8 @@ def load_meta(trace_h5):
     return p0, p1, sid, fx, poly, faces
 
 
-def lofo(trace_h5, kr_map, target_sets, angle, coplanar, sep, arc_min, rmax):
+def lofo(trace_h5, kr_map, target_sets, angle, coplanar, sep, arc_min, rmax,
+         lower_bound="fragment"):
     p0, p1, sid, fx, poly, faces = load_meta(trace_h5)
     poly_ccw = _ccw_polygon(poly)
     sets = target_sets or sorted(set(sid.tolist()))
@@ -75,7 +76,8 @@ def lofo(trace_h5, kr_map, target_sets, angle, coplanar, sep, arc_min, rmax):
     for xf in faces:
         discs = R.reconstruct(trace_h5, "agglomerative", angle, coplanar, sep,
                               target_sets=target_sets, arc_min=arc_min,
-                              kr_map=kr_map, rmax=rmax, exclude_faces=[xf])
+                              kr_map=kr_map, rmax=rmax, exclude_faces=[xf],
+                              lower_bound=lower_bound)
         # 예측 chord (held-out 면), set별
         pred_by_set = {s: [] for s in sets}
         for d in discs:
@@ -123,7 +125,7 @@ def main():
     #   --target-set       : 복수값
     #   --normal-angle-deg : 기본 15.0
     #   --coplanar-dist    : 기본 0.15
-    #   --max-centroid-sep : 기본 2.0
+    #   --max-centroid-sep : 기본 4.5 (면 간격보다 커야 다면 매칭됨)
     #   --arc-min          : 기본 120.0
     #   --rmax             : 기본 250.0
     # ------------------------------------------------------------------------
@@ -133,9 +135,13 @@ def main():
     ap.add_argument("--target-set", nargs="+", type=int, default=None)
     ap.add_argument("--normal-angle-deg", type=float, default=15.0)
     ap.add_argument("--coplanar-dist", type=float, default=0.15)
-    ap.add_argument("--max-centroid-sep", type=float, default=2.0)
+    ap.add_argument("--max-centroid-sep", type=float, default=4.5,
+                    help="후보쌍 중심 간 최대거리 [m]. 면 간격보다 작으면 다면 매칭 "
+                         "전멸. 기본 4.5(비인접 매칭 0).")
     ap.add_argument("--arc-min", type=float, default=120.0)
     ap.add_argument("--rmax", type=float, default=250.0)
+    ap.add_argument("--lower-bound", choices=["fragment", "span"], default="fragment",
+                    help="shrinkage 하한 정의 (reconstruct 와 동일)")
     args = ap.parse_args()
 
     kr_map = None
@@ -146,7 +152,8 @@ def main():
 
     agg, per_face, sets = lofo(args.trace_h5, kr_map, args.target_set,
                                args.normal_angle_deg, args.coplanar_dist,
-                               args.max_centroid_sep, args.arc_min, args.rmax)
+                               args.max_centroid_sep, args.arc_min, args.rmax,
+                               lower_bound=args.lower_bound)
 
     def rate(a, b):
         return 100.0 * a / b if b else float("nan")

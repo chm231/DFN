@@ -317,9 +317,17 @@ def _same_face_one_chord(members, normal, chord_tol):
 
 
 def associate_agglomerative(traces, angle_deg, coplanar_m, max_sep_m,
-                            resid_tol=0.08, chord_tol=0.25):
+                            resid_tol=0.08, chord_tol=0.25,
+                            adaptive_sep=False, sep_safety=1.4, sep_cap=8.0,
+                            same_face_sep=2.0, adjacent_dx_max=3.2):
     """검증형 응집: 후보 간선을 근접순으로 병합하되, 병합 후 (a) 결합 평면 잔차 ≤ resid_tol,
-    (b) 면당 chord 1개 제약을 만족할 때만 확정 → 연쇄 병합/과대병합 억제."""
+    (b) 면당 chord 1개 제약을 만족할 때만 확정 → 연쇄 병합/과대병합 억제.
+
+    adaptive_sep=True: 근접 게이트를 방향·면간격 적응형으로. 원판이 막장면과
+    평행할수록(|nx|→1) 두 면의 현 중심이 멀어지므로 게이트를 넓힌다:
+        gate = clamp( sep_safety * |Δface_x| / sinθ , same_face_sep, sep_cap )
+    (θ=원판 법선과 x축의 각, sinθ=√(1−nx²); 같은 면 조각은 same_face_sep,
+     상한 sep_cap 으로 비인접 과병합 억제). max_sep_m 은 무시된다."""
     n = len(traces)
     uf = _UF(n)
     members = {i: [traces[i]] for i in range(n)}  # 대표 idx -> 멤버 리스트
@@ -333,7 +341,17 @@ def associate_agglomerative(traces, angle_deg, coplanar_m, max_sep_m,
             if ti["set_id"] != tj["set_id"]:
                 continue
             sep = float(np.linalg.norm(ti["centroid"] - tj["centroid"]))
-            if sep > max_sep_m:
+            if adaptive_sep:
+                dfx = abs(float(ti["face_x"]) - float(tj["face_x"]))
+                if dfx > adjacent_dx_max:  # 면 건너뜀(비인접) 원천 차단
+                    continue
+                nx = min(0.97, max(abs(float(ti["normal"][0])),
+                                   abs(float(tj["normal"][0]))))
+                sin_t = math.sqrt(max(1.0 - nx * nx, 1e-6))
+                gate = min(sep_cap, max(same_face_sep, sep_safety * dfx / sin_t))
+            else:
+                gate = max_sep_m
+            if sep > gate:
                 continue
             if _axial_angle_deg(ti["normal"], tj["normal"]) > angle_deg:
                 continue
@@ -428,7 +446,8 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
                 pos_tol_m=0.4, max_gap=2, target_sets=None, arc_min=90.0,
                 kr_map=None, rmax=250.0, exclude_faces=None,
                 radius_mode="mean", radius_seed=None, absence_lmin=0.5,
-                multi_chord_fit=False):
+                multi_chord_fit=False, lower_bound="fragment",
+                adaptive_sep=False, sep_safety=1.4, sep_cap=8.0):
     rng = np.random.default_rng(radius_seed)  # radius_mode="sample"에서만 사용
     all_face_xs = []
     if radius_mode == "sample":
@@ -448,7 +467,9 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
     elif association == "predictive":
         labels = associate_predictive(traces, angle_deg, pos_tol_m, max_gap)
     elif association == "agglomerative":
-        labels = associate_agglomerative(traces, angle_deg, coplanar_m, max_sep_m)
+        labels = associate_agglomerative(traces, angle_deg, coplanar_m, max_sep_m,
+                                         adaptive_sep=adaptive_sep,
+                                         sep_safety=sep_safety, sep_cap=sep_cap)
     else:
         labels = associate_geometric(traces, angle_deg, coplanar_m, max_sep_m)
 
@@ -505,7 +526,23 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
 
         # (2) 경계 부족 → kr 있으면 축소추정(모집단 정규화), 없으면 보수적 하한
         if radius_status != "determined":
-            a_lower = 0.5 * max(m["chord"] for m in members)
+            if lower_bound == "span":
+                # 같은면 조각들의 끝-끝 스팬(틈 포함)을 하나의 현으로 본다:
+                # association 이 맞다면 균열은 틈을 가로질러야 하므로 유효한 하한.
+                spans = []
+                by_face_mem = {}
+                for m in members:
+                    by_face_mem.setdefault(round(float(m["face_x"]), 3), []).append(m)
+                for fmem in by_face_mem.values():
+                    if len(fmem) == 1:
+                        spans.append(float(fmem[0]["chord"]))
+                    else:
+                        P = np.vstack([m["verts"] for m in fmem])
+                        spans.append(float(np.max(np.linalg.norm(
+                            P[:, None, :] - P[None, :, :], axis=2))))
+                a_lower = 0.5 * max(spans)
+            else:
+                a_lower = 0.5 * max(m["chord"] for m in members)
             kr = (kr_map or {}).get(set_id)
             if kr is not None and math.isfinite(kr):
                 if radius_mode == "sample":
@@ -592,7 +629,7 @@ def main():
     #                          agglomerative
     #   --normal-angle-deg : 기본 15.0
     #   --coplanar-dist    : 기본 0.15 — geometric 모드: 공면 허용거리 [m]
-    #   --max-centroid-sep : 기본 2.0 — geometric 모드: 중심 간 최대거리 [m]
+    #   --max-centroid-sep : 기본 4.5 — 후보쌍 중심 간 최대거리 [m] (면 간격보다 커야 다면 매칭)
     #   --pos-tol          : 기본 0.4 — predictive 모드: 예측 chord 선까지 허용 수직거리 [m]
     #   --max-gap          : 기본 2 — predictive 모드: 매칭 허용 면 간격(스킵 포함)
     #   --arc-min          : 기본 120.0 — 원적합 반지름 채택 최소 호(arc) 커버리지 [deg]. 낮으면 부분호로 반지름 과대
@@ -616,8 +653,12 @@ def main():
     ap.add_argument("--normal-angle-deg", type=float, default=15.0)
     ap.add_argument("--coplanar-dist", type=float, default=0.15,
                     help="geometric 모드: 공면 허용거리 [m]")
-    ap.add_argument("--max-centroid-sep", type=float, default=2.0,
-                    help="geometric 모드: 중심 간 최대거리 [m]")
+    ap.add_argument("--max-centroid-sep", type=float, default=4.5,
+                    help="후보쌍 중심 간 최대거리 [m]. 다면 매칭에 임계적: 이 값이 "
+                         "면 간격보다 작으면 서로 다른 면 trace 쌍이 후보에서 전부 "
+                         "탈락해 다면 disc 가 0개가 된다. 기본 4.5는 면 간격 최대치"
+                         "(~2.8m)를 여유있게 커버하며 비인접(면 건너뜀) 매칭은 0. "
+                         "6.0 이상은 비인접 과병합 위험.")
     ap.add_argument("--pos-tol", type=float, default=0.4,
                     help="predictive 모드: 예측 chord 선까지 허용 수직거리 [m]")
     ap.add_argument("--max-gap", type=int, default=2,
@@ -636,6 +677,18 @@ def main():
                          "안정성 해석 입력 권장)")
     ap.add_argument("--radius-seed", type=int, default=None,
                     help="sample 모드 난수 시드 (재현성)")
+    ap.add_argument("--lower-bound", choices=["fragment", "span"], default="fragment",
+                    help="shrinkage 반지름 하한: fragment=조각 최대 현(기존), "
+                         "span=같은면 병합 스팬(틈 포함 끝-끝 길이)")
+    ap.add_argument("--adaptive-sep", action="store_true",
+                    help="근접 게이트를 방향·면간격 적응형으로: gate=clamp("
+                         "sep_safety*|Δface_x|/sinθ, same_face, sep_cap). 막장면과 "
+                         "평행한(|nx|↑) 절리군일수록 게이트를 넓혀 방향 편향을 줄인다. "
+                         "적용 시 --max-centroid-sep 무시.")
+    ap.add_argument("--sep-safety", type=float, default=1.4,
+                    help="adaptive-sep 안전계수 k (기본 1.4)")
+    ap.add_argument("--sep-cap", type=float, default=8.0,
+                    help="adaptive-sep 게이트 상한 [m] (비인접 과병합 억제, 기본 8.0)")
     ap.add_argument("--multi-chord-fit", action="store_true",
                     help="[실험] 다면 클러스터의 (중심,반지름)을 멤버 면 현 길이·위치와 "
                          "정합하는 최소제곱으로 결정 (원적합/표본추출 대체)")
@@ -651,7 +704,10 @@ def main():
                         args.pos_tol, args.max_gap, args.target_set, args.arc_min,
                         kr_map, args.rmax,
                         radius_mode=args.radius_mode, radius_seed=args.radius_seed,
-                        multi_chord_fit=args.multi_chord_fit)
+                        multi_chord_fit=args.multi_chord_fit,
+                        lower_bound=args.lower_bound,
+                        adaptive_sep=args.adaptive_sep, sep_safety=args.sep_safety,
+                        sep_cap=args.sep_cap)
     write_csv(discs, args.out_csv)
 
     # 진단

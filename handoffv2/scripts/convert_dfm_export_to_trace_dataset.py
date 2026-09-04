@@ -300,6 +300,8 @@ def main():
             [face_meta[f_]["face_x"] for f_ in faces], dtype=np.float32))
         m.create_dataset("observation_area_m2", data=np.array([total_area], dtype=np.float32))
         m.create_dataset("lmin_applied_m", data=np.array([0.0], dtype=np.float32))
+        # 이중좌표계: p_world = p_pipeline @ R (신규 필드 — 기존 리더는 무시해도 무방)
+        m.create_dataset("world_to_pipeline_rotation", data=R.astype(np.float64))
     print(f"[*] HDF5 written: {h5_path}")
 
     csv_path = os.path.join(tr_dir, "trace_dataset_3d.csv")
@@ -342,6 +344,19 @@ def main():
     diag = dict(
         dfm_dir=os.path.abspath(args.dfm_dir), n_faces=len(faces), n_traces=int(n_tr),
         tunnel_axis_world=[round(float(v), 6) for v in x_hat],
+        # 이중좌표계: 파이프라인 좌표 = R @ world (순수 회전, 평행이동 없음).
+        # world 복원: p_world = R.T @ p_pipeline  (행벡터로는 p_pipeline @ R)
+        coordinate_system=dict(
+            convention="pipeline = R @ world (rotation only, no translation); "
+                       "x=굴진축(면 중심 궤적), z≈연직",
+            world_to_pipeline_rotation=[[float(v) for v in row] for row in R],
+            translation_world=[0.0, 0.0, 0.0],
+        ),
+        face_center_world={f_: [round(float(v), 4) for v in per_face[f_]["c_face"]]
+                           for f_ in faces},
+        face_normal_world={f_: [round(float(v), 6) for v in (
+            per_face[f_]["n_face"] if per_face[f_]["n_face"] @ x_hat >= 0
+            else -per_face[f_]["n_face"])] for f_ in faces},
         face_x_m={f_: round(face_meta[f_]["face_x"], 3) for f_ in faces},
         face_area_m2={f_: round(face_meta[f_]["area"], 2) for f_ in faces},
         observation_area_m2=round(total_area, 2), window_face=med_face,

@@ -44,3 +44,4 @@ v2.zip
 
 # MC 확률장 복셀 필드 (재생성 가능, 대용량)
 handoffv2/example_io/**/*.vti
+handoffv2/example_io/**/*.vts

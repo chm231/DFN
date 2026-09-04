@@ -338,14 +338,29 @@ def main() -> None:
             "stochastic_generated": sid in target_sets and "P32" in p,
         }
 
+    # 이중좌표계: 변환 진단 파일에서 world(원자료) 복원 변환을 읽어 meta에 싣는다.
+    world_transform = None
+    diag_path = pdir / "conversion_diagnostics.json"
+    if diag_path.exists():
+        try:
+            with open(diag_path, encoding="utf-8") as fh:
+                world_transform = json.load(fh).get("coordinate_system")
+        except Exception:
+            world_transform = None
+
     doc = {
         "meta": {
             "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "source_pipeline": str(pdir).replace("\\", "/"),
             "site": site,
             "coordinate_system": {
-                "x": "터널 굴진 방향 (East)", "y": "North", "z": "Up", "units": "m",
+                "frame": "pipeline(국소)",
+                "x": "터널 굴진 방향", "y": "막장면 내 수평", "z": "연직 상방",
+                "units": "m",
                 "face_plane": "막장면은 x = const 평면",
+                # 이중좌표계: 변환 진단 파일이 있으면 world(원자료 측량좌표) 복원
+                # 변환을 그대로 실어 준다. p_world = p_pipeline @ R (회전만).
+                "world_transform": world_transform,
             },
             "domain": {
                 "last_face_x_m": last_face_x,
