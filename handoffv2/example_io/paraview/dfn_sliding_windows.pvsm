@@ -10932,7 +10932,7 @@
         <Domain name="range" id="2628.MaximumAngle.range"/>
       </Property>
       <Property name="MaximumRadius" id="2628.MaximumRadius" number_of_elements="1">
-        <Element index="0" value="23.387078542446012"/>
+        <Element index="0" value="23.387078285217285"/>
         <Domain name="range" id="2628.MaximumRadius.range"/>
       </Property>
       <Property name="MinimumAngle" id="2628.MinimumAngle" number_of_elements="1">
@@ -23394,7 +23394,7 @@
         <Domain name="range" id="5025.MaximumAngle.range"/>
       </Property>
       <Property name="MaximumRadius" id="5025.MaximumRadius" number_of_elements="1">
-        <Element index="0" value="22.700487020083404"/>
+        <Element index="0" value="22.70048713684082"/>
         <Domain name="range" id="5025.MaximumRadius.range"/>
       </Property>
       <Property name="MinimumAngle" id="5025.MinimumAngle" number_of_elements="1">
@@ -37082,7 +37082,7 @@
         <Domain name="range" id="7422.MaximumAngle.range"/>
       </Property>
       <Property name="MaximumRadius" id="7422.MaximumRadius" number_of_elements="1">
-        <Element index="0" value="23.471905222842366"/>
+        <Element index="0" value="23.47190570831299"/>
         <Domain name="range" id="7422.MaximumRadius.range"/>
       </Property>
       <Property name="MinimumAngle" id="7422.MinimumAngle" number_of_elements="1">
@@ -40065,7 +40065,7 @@
         <Domain name="range" id="2819.FeatureAngle.range"/>
       </Property>
       <Property name="GaussianRadius" id="2819.GaussianRadius" number_of_elements="1">
-        <Element index="0" value="0.11693539271223007"/>
+        <Element index="0" value="0.11693539142608643"/>
         <Domain name="range" id="2819.GaussianRadius.range"/>
       </Property>
       <Property name="GenerateNoiseTexture" id="2819.GenerateNoiseTexture" number_of_elements="1">
@@ -40375,7 +40375,7 @@
         <Domain name="bool" id="2819.ScaleByArray.bool"/>
       </Property>
       <Property name="ScaleFactor" id="2819.ScaleFactor" number_of_elements="1">
-        <Element index="0" value="2.338707854244601"/>
+        <Element index="0" value="2.3387078285217284"/>
         <Domain name="bounds" id="2819.ScaleFactor.bounds"/>
         <Domain name="scalar_range" id="2819.ScaleFactor.scalar_range"/>
         <Domain name="vector_range" id="2819.ScaleFactor.vector_range"/>
@@ -50925,7 +50925,7 @@
         <Domain name="range" id="5216.FeatureAngle.range"/>
       </Property>
       <Property name="GaussianRadius" id="5216.GaussianRadius" number_of_elements="1">
-        <Element index="0" value="0.11350243510041702"/>
+        <Element index="0" value="0.11350243568420411"/>
         <Domain name="range" id="5216.GaussianRadius.range"/>
       </Property>
       <Property name="GenerateNoiseTexture" id="5216.GenerateNoiseTexture" number_of_elements="1">
@@ -51235,7 +51235,7 @@
         <Domain name="bool" id="5216.ScaleByArray.bool"/>
       </Property>
       <Property name="ScaleFactor" id="5216.ScaleFactor" number_of_elements="1">
-        <Element index="0" value="2.2700487020083404"/>
+        <Element index="0" value="2.270048713684082"/>
         <Domain name="bounds" id="5216.ScaleFactor.bounds"/>
         <Domain name="scalar_range" id="5216.ScaleFactor.scalar_range"/>
         <Domain name="vector_range" id="5216.ScaleFactor.vector_range"/>
@@ -61749,7 +61749,7 @@
         <Domain name="range" id="7613.FeatureAngle.range"/>
       </Property>
       <Property name="GaussianRadius" id="7613.GaussianRadius" number_of_elements="1">
-        <Element index="0" value="0.11735952611421184"/>
+        <Element index="0" value="0.11735952854156495"/>
         <Domain name="range" id="7613.GaussianRadius.range"/>
       </Property>
       <Property name="GenerateNoiseTexture" id="7613.GenerateNoiseTexture" number_of_elements="1">
@@ -62059,7 +62059,7 @@
         <Domain name="bool" id="7613.ScaleByArray.bool"/>
       </Property>
       <Property name="ScaleFactor" id="7613.ScaleFactor" number_of_elements="1">
-        <Element index="0" value="2.3471905222842366"/>
+        <Element index="0" value="2.347190570831299"/>
         <Domain name="bounds" id="7613.ScaleFactor.bounds"/>
         <Domain name="scalar_range" id="7613.ScaleFactor.scalar_range"/>
         <Domain name="vector_range" id="7613.ScaleFactor.vector_range"/>
