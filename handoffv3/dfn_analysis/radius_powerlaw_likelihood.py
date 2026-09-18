@@ -881,8 +881,14 @@ def simulate_window_observations(
 
 # 트레이스 길이 히스토그램의 구간 경계(edges)를 만든다(log 또는 linear).
 # 인자: lengths, lmin_fit 하한, bin_count, mode. 반환: (bin_count+1,) 경계 배열.
-def make_length_edges(lengths: np.ndarray, lmin_fit: float, bin_count: int, mode: str) -> np.ndarray:
-    upper = max(float(np.max(lengths)) if len(lengths) else lmin_fit * 1.01, lmin_fit * 1.01)
+def make_length_edges(lengths: np.ndarray, lmin_fit: float, bin_count: int, mode: str,
+                      upper_fixed: Optional[float] = None) -> np.ndarray:
+    # upper_fixed 를 주면 bin 상한을 관측 최대길이가 아니라 그 값으로 고정한다.
+    # 기본(None)은 데이터 의존이라 실행마다 bin 정의가 달라져 우도를 더할 수 없다.
+    if upper_fixed is not None:
+        upper = max(float(upper_fixed), lmin_fit * 1.01)
+    else:
+        upper = max(float(np.max(lengths)) if len(lengths) else lmin_fit * 1.01, lmin_fit * 1.01)
     if mode == "log":
         return np.geomspace(lmin_fit, upper * 1.000001, bin_count + 1)
     return np.linspace(lmin_fit, upper * 1.000001, bin_count + 1)
@@ -1116,6 +1122,7 @@ def fit_set_lmin(
     run_bootstrap: bool = False,
     n_bootstrap: int = 100,
     likelihood_mode: str = "window_mc",
+    bin_upper: Optional[float] = None,   # [v3] 길이 bin 상한 고정(창 간 우도 비교용)
 ) -> tuple[dict, List[dict], List[dict], List[dict]]:
     # 관측 길이/등급을 배열로 모으고, lmin_fit 이상만 적합에 사용(관측 히스토그램/주변 카운트 준비).
     lengths_all = np.asarray([float(row["observed_length_m"]) for row in set_rows], dtype=np.float64)
@@ -1123,7 +1130,7 @@ def fit_set_lmin(
     used = lengths_all >= lmin_fit
     obs_lengths = lengths_all[used]
     obs_classes = classes_all[used]
-    edges = make_length_edges(obs_lengths, lmin_fit, bin_count, bin_mode)
+    edges = make_length_edges(obs_lengths, lmin_fit, bin_count, bin_mode, bin_upper)
     obs_counts = binned_counts(obs_lengths, obs_classes, edges)
     obs_length_counts = np.sum(obs_counts, axis=1)
     obs_class_counts = np.sum(obs_counts, axis=0)

@@ -259,6 +259,9 @@ def main() -> None:
     parser.add_argument("--mc-samples-per-grid", type=int, default=50000)
     parser.add_argument("--length-bin-count", type=int, default=40)
     parser.add_argument("--length-bin-mode", choices=["log", "linear"], default="log")
+    parser.add_argument("--length-bin-upper", type=float, default=None,
+                        help="[v3] 길이 bin 상한 [m] 고정. 기본(미지정)은 관측 최대길이라 "
+                             "실행마다 bin 정의가 달라져 창 간 우도를 더할 수 없다.")
     parser.add_argument("--direction-mode", choices=["empirical_trace", "orientation_conditioned"], default="empirical_trace")
     parser.add_argument("--likelihood-mode", choices=["window_mc", "hybrid"], default="hybrid",
                         help="hybrid(기본·v1)=참 현길이 분포는 닫힌형(해석식), 창·절단 변환만 "
@@ -347,6 +350,7 @@ def main() -> None:
                 mc_samples_per_grid=int(args.mc_samples_per_grid),
                 bin_count=int(args.length_bin_count),
                 bin_mode=args.length_bin_mode,
+                bin_upper=args.length_bin_upper,
                 window_mode="polygon",
                 direction_mode=args.direction_mode,
                 site=site,

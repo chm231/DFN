@@ -131,6 +131,13 @@ def main():
     ap.add_argument("--grid", type=float, default=0.05, help="관측면적 점유격자 셀 [m]")
     ap.add_argument("--edge-tol", type=float, default=0.15,
                     help="끝점 censoring 판정: 면 경계까지 거리 임계 [m]")
+    ap.add_argument("--tunnel-axis", type=float, nargs=3, default=None,
+                    metavar=("X", "Y", "Z"),
+                    help="[v3] 터널축(world) 고정. 미지정 시 면 중심 궤적에서 추정하는데, "
+                         "면이 1~2개면 축이 퇴화·불안정해 창 간 좌표계가 어긋난다.")
+    ap.add_argument("--set-map-csv", default=None,
+                    help="[v3] 고정 set 정의 CSV(face,source_ds,global_set). 주면 재군집화 없이 "
+                         "이 대응을 쓴다 — 창 구성이 달라져도 set 번호가 불변이다.")
     ap.add_argument("--cluster-cut", type=float, default=30.0,
                     help="전역 절리군 군집화 절단 각도 [deg]")
     args = ap.parse_args()
@@ -153,12 +160,20 @@ def main():
     # 기울어 굴착될 수 있어(본 데이터 8.2°), 법선 기준 정렬은 단면 중심을 x를 따라
     # 드리프트시켜 관측창과 절리선이 어긋난다. 중심 궤적이 실제 선형이다.
     cs = np.array([per_face[f]["c_face"] for f in faces])
-    advance = cs[-1] - cs[0]
-    advance /= np.linalg.norm(advance)
-    _, _, vt_c = np.linalg.svd(cs - cs.mean(axis=0), full_matrices=False)
-    x_hat = vt_c[0] / np.linalg.norm(vt_c[0])
-    if x_hat @ advance < 0:
-        x_hat = -x_hat
+    if args.tunnel_axis is not None:
+        # [v3] 터널축 고정. 면이 1개면 중심 궤적이 없어 축을 정의할 수 없고(퇴화 → [1,0,0]),
+        #   2개여도 두 점을 잇는 직선이라 불안정하다(본 데이터 2면 축은 전체 대비 16° 어긋남).
+        #   창을 쪼개 비교·누적하려면 모든 실행이 같은 좌표계를 써야 하므로 기준 축을 주입한다.
+        x_hat = np.asarray(args.tunnel_axis, dtype=float)
+        x_hat /= np.linalg.norm(x_hat)
+        print(f"[*] 터널축 고정 입력: [{x_hat[0]:+.4f},{x_hat[1]:+.4f},{x_hat[2]:+.4f}]")
+    else:
+        advance = cs[-1] - cs[0]
+        advance /= np.linalg.norm(advance)
+        _, _, vt_c = np.linalg.svd(cs - cs.mean(axis=0), full_matrices=False)
+        x_hat = vt_c[0] / np.linalg.norm(vt_c[0])
+        if x_hat @ advance < 0:
+            x_hat = -x_hat
     z_hat = np.array([0.0, 0.0, 1.0]) - (np.array([0.0, 0.0, 1.0]) @ x_hat) * x_hat
     z_hat /= np.linalg.norm(z_hat)
     y_hat = np.cross(z_hat, x_hat)
@@ -175,17 +190,38 @@ def main():
             unit_vecs.append(axial_mean(d["n_w"][m]))
             unit_sizes.append(int(m.sum()))
     V = np.array(unit_vecs)
-    ang = np.degrees(np.arccos(np.clip(np.abs(V @ V.T), 0.0, 1.0)))
-    np.fill_diagonal(ang, 0.0)
-    lab = fcluster(linkage(squareform(ang, checks=False), method="average"),
-                   args.cluster_cut, criterion="distance")
-    # 절리선 수 내림차순으로 전역 set 번호 부여
-    counts = {}
-    for k, n in zip(lab, unit_sizes):
-        counts[k] = counts.get(k, 0) + n
-    order = sorted(counts, key=lambda k: -counts[k])
-    relabel = {k: i + 1 for i, k in enumerate(order)}
-    unit_to_set = {u: relabel[k] for u, k in zip(units, lab)}
+    if args.set_map_csv:
+        # [v3] 고정 set 정의: 재군집화하지 않고 (면, DS) -> global_set 을 그대로 쓴다.
+        #   기본 경로는 포함된 면만으로 군집화하고 번호를 '절리선 수 내림차순'으로 매기므로,
+        #   창 구성이 바뀌면 번호가 교환되거나 군집이 병합된다(창 간 비교·순차 갱신 불가).
+        #   전체 면에서 한 번 만든 set_mapping.csv 를 주면 번호가 창과 무관하게 고정된다.
+        fixed = {}
+        with open(args.set_map_csv, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                fixed[(str(r["face"]), int(r["source_ds"]))] = int(r["global_set"])
+        missing = [u for u in units if (str(u[0]), int(u[1])) not in fixed]
+        if missing:
+            sys.exit(f"[!] --set-map-csv 에 없는 (면,DS): {missing[:5]}")
+        lab = np.array([fixed[(str(u[0]), int(u[1]))] for u in units])
+        counts = {}
+        for k, n in zip(lab, unit_sizes):
+            counts[k] = counts.get(k, 0) + int(n)
+        order = sorted(counts)                 # 번호 자체가 곧 전역 식별자
+        relabel = {k: int(k) for k in order}
+        unit_to_set = {u: int(k) for u, k in zip(units, lab)}
+        print(f"[*] 고정 set 정의 사용: {args.set_map_csv}")
+    else:
+        ang = np.degrees(np.arccos(np.clip(np.abs(V @ V.T), 0.0, 1.0)))
+        np.fill_diagonal(ang, 0.0)
+        lab = fcluster(linkage(squareform(ang, checks=False), method="average"),
+                       args.cluster_cut, criterion="distance")
+        # 절리선 수 내림차순으로 전역 set 번호 부여
+        counts = {}
+        for k, n in zip(lab, unit_sizes):
+            counts[k] = counts.get(k, 0) + n
+        order = sorted(counts, key=lambda k: -counts[k])
+        relabel = {k: i + 1 for i, k in enumerate(order)}
+        unit_to_set = {u: relabel[k] for u, k in zip(units, lab)}
     print(f"[*] 전역 절리군 {len(order)}개 (군집 절단 {args.cluster_cut}°):")
     map_rows = []
     for k in order:

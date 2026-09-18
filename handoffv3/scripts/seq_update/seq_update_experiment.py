@@ -50,8 +50,11 @@ NFACE = int(sys.argv[1]) if len(sys.argv) > 1 else 7
 FACES = [f"{i:02d}" for i in range(1, NFACE + 1)]
 DFM = Path(os.environ.get("DFN_DFM_DIR",
                           ROOT.parent / "handoffv2/demodata/DFM_Export/DFM_Export"))
-WORK = ROOT / "demo_output" / "_seq"
+WORK = ROOT / "demo_output" / "_seq2"
 SETS = ["1", "2", "3"]
+BIN_UPPER = "12.0"   # 길이 bin 상한 고정 [m] — 전 실행 공통 (관측 최대 9.55 m 를 덮음)
+REF = None           # 전체 면으로 1회 만든 고정 set 정의 CSV 경로
+AXIS = None          # 전체 면에서 추정한 기준 터널축 (world)
 
 
 def call(fn, argv):
@@ -69,10 +72,11 @@ def call(fn, argv):
         sys.argv = old
 
 
-def build_and_fit(tag, faces):
-    """면 목록으로 trace dataset 을 만들고 kr 프로파일 우도까지 생성한다."""
+def build_and_fit(tag, faces, fit=True):
+    """면 목록으로 trace dataset 을 만들고(고정 set 정의) kr 프로파일 우도까지 생성한다."""
     out = WORK / tag
-    if (out / "kr/kr_profile_likelihood.csv").exists():
+    done = (out / "kr/kr_profile_likelihood.csv").exists() if fit else (out / "set_mapping.csv").exists()
+    if done:
         return out
     indir = WORK / "_in" / tag
     shutil.rmtree(indir, ignore_errors=True)
@@ -80,11 +84,18 @@ def build_and_fit(tag, faces):
     for f in faces:
         shutil.copytree(DFM / f, indir / f, dirs_exist_ok=True)
     os.chdir(ROOT)
-    call(convert.main, ["conv", "--dfm-dir", str(indir), "--outdir", str(out)])
-    call(estimate_kr.main,
-         ["kr", "--trace-h5", str(out / "trace_dataset/trace_dataset_3d.h5"),
-          "--dfn-model", tag, "--generation-rmin", "0.5",
-          "--target-set", *SETS, "--outdir", str(out / "kr")])
+    argv = ["conv", "--dfm-dir", str(indir), "--outdir", str(out)]
+    if REF is not None:
+        argv += ["--set-map-csv", str(REF)]     # 창과 무관하게 set 번호 고정
+    if AXIS is not None:
+        argv += ["--tunnel-axis", *[str(v) for v in AXIS]]   # 좌표계 고정
+    call(convert.main, argv)
+    if fit:
+        call(estimate_kr.main,
+             ["kr", "--trace-h5", str(out / "trace_dataset/trace_dataset_3d.h5"),
+              "--dfn-model", tag, "--generation-rmin", "0.5",
+              "--target-set", *SETS, "--length-bin-upper", BIN_UPPER,
+              "--outdir", str(out / "kr")])
     shutil.rmtree(indir, ignore_errors=True)   # 입력 사본은 크므로 즉시 정리
     return out
 
@@ -112,7 +123,17 @@ def ci95(grid, logpost):
 
 
 def main():
+    global REF, AXIS
     t0 = time.perf_counter()
+    # 0) 전체 면으로 1회 변환해 '고정 set 정의'를 만든다.
+    #    이후 모든 단일면·누적창 실행이 이 대응을 쓰므로 set 번호가 창과 무관해진다.
+    REF = build_and_fit("_ref_allfaces", FACES, fit=False) / "set_mapping.csv"
+    import json as _json
+    AXIS = _json.load(open(REF.parent / "conversion_diagnostics.json",
+                           encoding="utf-8"))["tunnel_axis_world"]
+    print(f"고정 set 정의: {REF}")
+    print(f"고정 터널축(world): {AXIS}")
+    print(f"길이 bin 상한 고정: {BIN_UPPER} m")
     print(f"면 {FACES[0]}~{FACES[-1]} / set {SETS}\n작업폴더 {WORK}\n")
     single, batch = {}, {}
     for i, f in enumerate(FACES, 1):
