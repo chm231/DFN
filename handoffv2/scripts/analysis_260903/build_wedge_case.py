@@ -18,22 +18,26 @@ from dfn_analysis.detect_blocks_from_domain_json import (
     compute_edge_cuts, run_cca_edgecut, tunnel_geometry, block_detector)
 from dfn_analysis.cut_blocks_polyhedral import hull_of
 from dfn_analysis.reconstruct_block_polyhedra import clip_hull, tunnel_edge_planes
+from select_top import N_OBS_DEFAULT, select_top_idx
 
 json_path, out_dir = sys.argv[1], Path(sys.argv[2])
 out_dir.mkdir(parents=True, exist_ok=True)
 N_TOP = int(sys.argv[3]) if len(sys.argv) > 3 else 20
+N_OBS = int(sys.argv[4]) if len(sys.argv) > 4 else N_OBS_DEFAULT
 
 with open(json_path, encoding="utf-8") as f:
     data = json.load(f)
 fr = data["fractures"]
 R_all = np.array([f_["radius_m"] for f_ in fr])
-idx = np.argsort(R_all)[::-1][:N_TOP]
+idx, sel_summary = select_top_idx(fr, N_TOP, N_OBS)
+print(sel_summary)
 centers = np.array([fr[i]["center_xyz_m"] for i in idx], float)
 normals = np.array([fr[i]["normal_xyz"] for i in idx], float)
 normals /= np.linalg.norm(normals, axis=1, keepdims=True)
 sets = [fr[i].get("set_id") for i in idx]
+labels = [fr[i].get("label", "unobserved") for i in idx]
 radii_true = R_all[idx]
-radii_inf = np.full(N_TOP, 1.0e4)
+radii_inf = np.full(len(idx), 1.0e4)
 
 dom = data["meta"]["domain"]
 x0, x1 = [float(v) for v in dom["x_range_m"]]
@@ -52,11 +56,11 @@ dip = 90.0 - plunge_pole
 dipdir = (trend_pole + 180.0) % 360
 with open(out_dir / f"top{N_TOP}_fractures.csv", "w", newline="", encoding="utf-8-sig") as f:
     w = csv.writer(f)
-    w.writerow(["rank", "set_id", "cx_m", "cy_m", "cz_m",
+    w.writerow(["rank", "label", "set_id", "cx_m", "cy_m", "cz_m",
                 "nx", "ny", "nz", "radius_m",
                 "dip_deg", "dipdir_deg_trendconv", "pole_trend_deg", "pole_plunge_deg"])
     for k in range(N_TOP):
-        w.writerow([k + 1, sets[k], *np.round(centers[k], 3),
+        w.writerow([k + 1, labels[k], sets[k], *np.round(centers[k], 3),
                     *np.round(normals[k], 4), round(float(radii_true[k]), 2),
                     round(dip[k], 1), round(dipdir[k], 1),
                     round(trend_pole[k], 1), round(plunge_pole[k], 1)])

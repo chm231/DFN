@@ -11,14 +11,16 @@ import numpy as np
 
 from dfn_analysis.detect_blocks_from_domain_json import (
     compute_edge_cuts, run_cca_edgecut, tunnel_geometry, block_detector)
+from select_top import N_OBS_DEFAULT, select_top_idx
 
 jp, out = sys.argv[1], sys.argv[2]
 N_TOP = int(sys.argv[3]) if len(sys.argv) > 3 else 20
+N_OBS = int(sys.argv[4]) if len(sys.argv) > 4 else N_OBS_DEFAULT
 with open(jp, encoding="utf-8") as f:
     data = json.load(f)
 fr = data["fractures"]
-R_all = np.array([f_["radius_m"] for f_ in fr])
-idx = np.argsort(R_all)[::-1][:N_TOP]
+idx, sel_summary = select_top_idx(fr, N_TOP, N_OBS)
+print(sel_summary)
 C = np.array([fr[i]["center_xyz_m"] for i in idx], float)
 N = np.array([fr[i]["normal_xyz"] for i in idx], float)
 N /= np.linalg.norm(N, axis=1, keepdims=True)
@@ -31,7 +33,7 @@ _, tm, _, gi = tunnel_geometry.build_voxel_masks(
     poly[:, 0], poly[:, 1], box, voxel_size=0.1, halo_dist=0.0,
     tunnel_xmin=x0, tunnel_xmax=x1)
 tm = np.asarray(block_detector.to_numpy(tm))
-cutx, cuty, cutz = compute_edge_cuts(gi, C, N, np.full(N_TOP, 1e4))
+cutx, cuty, cutz = compute_edge_cuts(gi, C, N, np.full(len(idx), 1e4))
 lab, nc = run_cca_edgecut(~tm, cutx, cuty, cutz)
 cnt = np.bincount(lab[lab >= 0], minlength=nc)
 bd = set()
