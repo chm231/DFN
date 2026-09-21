@@ -285,14 +285,20 @@ def load_trace_data_from_h5(h5_path: str) -> tuple[List[dict], Optional[np.ndarr
         p0 = grp["p0_xyz"][:].astype(np.float64)
         p1 = grp["p1_xyz"][:].astype(np.float64)
         radius_m = grp["radius_m"][:].astype(np.float64) if "radius_m" in grp else None
+        # 스칼라 열도 일괄 로드한다(행마다 h5 데이터셋을 인덱싱하면 행수×열수 만큼
+        # 파일 접근이 일어나 로드가 지배적 비용이 된다).
+        set_id_all = grp["set_id"][:].ravel()
+        face_id_all = grp["face_id"][:].ravel()
+        obs_len_all = grp["observed_length_m"][:].ravel()
+        censor_all = grp["censoring_class"][:].ravel()
         # 각 트레이스를 dict로 변환: 3D 끝점에서 YZ 성분만 취해 face-local 좌표로 저장.
-        for idx in range(len(grp["set_id"])):
+        for idx in range(len(set_id_all)):
             rows.append(
                 {
-                    "set_id": int(grp["set_id"][idx]),
-                    "face_id": int(grp["face_id"][idx]),
-                    "observed_length_m": float(grp["observed_length_m"][idx]),
-                    "censoring_class": int(grp["censoring_class"][idx]),
+                    "set_id": int(set_id_all[idx]),
+                    "face_id": int(face_id_all[idx]),
+                    "observed_length_m": float(obs_len_all[idx]),
+                    "censoring_class": int(censor_all[idx]),
                     "radius_m": float(radius_m[idx]) if radius_m is not None else float("nan"),
                     "p0_y": float(p0[idx, 1]),
                     "p0_z": float(p0[idx, 2]),
@@ -706,15 +712,48 @@ def _true_chord_pdf_unnorm(ell: float, kr: float, rmin: float, rmax: float, nt: 
     return float(np.trapezoid(r ** (-kr) * ell / (2.0 * r * np.sqrt(2.0 * a + t * t + 1e-300)), t))
 
 
+HYBRID_SUB_PER_BIN = 5  # bin 당 ℓ 표본점 수 (bin 질량 사다리꼴 적분용)
+
+# kr 무관항 캐시: (rmin, rmax, true_edges) 당 1개. kr 격자를 순회하는 동안
+# ℓ/t/r 격자와 가중치는 변하지 않으므로 한 번만 만든다. 호출부(fit_set_lmin)가
+# set·lmin 조합마다 고정된 true_edges 를 쓰므로 항목 수는 그 조합 수만큼이다.
+_TRUE_CHORD_GRID_CACHE: Dict[tuple, tuple] = {}
+
+
+def _true_chord_grid(rmin: float, rmax: float, true_edges: np.ndarray) -> tuple:
+    key = (float(rmin), float(rmax), true_edges.tobytes(), true_edges.shape)
+    cached = _TRUE_CHORD_GRID_CACHE.get(key)
+    if cached is not None:
+        return cached
+    n_bins = len(true_edges) - 1
+    # 각 bin 을 로그등간격 HYBRID_SUB_PER_BIN 점으로 표본 (기존 geomspace 와 동일)
+    ell = np.concatenate([np.geomspace(true_edges[j], true_edges[j + 1], HYBRID_SUB_PER_BIN)
+                          for j in range(n_bins)])
+    a = 0.5 * ell
+    lo = np.maximum(a, rmin)
+    ok = (lo < rmax) & (ell > 0.0)
+    # r = a + t^2 치환 (r=a 특이점 제거) 후 t 축 200점 등간격 — 기존 linspace 와 동일
+    t_lo = np.sqrt(np.maximum(lo - a, 0.0))
+    t_hi = np.sqrt(np.maximum(rmax - a, 0.0))
+    u = np.linspace(0.0, 1.0, 200)
+    t = t_lo[:, None] + (t_hi - t_lo)[:, None] * u[None, :]
+    r = a[:, None] + t * t
+    # kr 에 무관한 가중치: ℓ / (2r√(2a+t²))
+    w = ell[:, None] / (2.0 * r * np.sqrt(2.0 * a[:, None] + t * t + 1e-300))
+    grid = (r, t, w, ok, n_bins, ell.reshape(n_bins, HYBRID_SUB_PER_BIN))
+    _TRUE_CHORD_GRID_CACHE[key] = grid
+    return grid
+
+
 # kr 후보에 대해 참 현길이 bin 질량 w_j(kr) = ∫_bin_j f(ℓ)dℓ 를 해석식으로 계산.
 # (kr 격자 순회에서 유일하게 kr에 의존하는 부분 — MC 잡음이 전혀 없다)
+# 적분식은 _true_chord_pdf_unnorm 의 스칼라형과 동일하며, ℓ·t 격자를 한 번에
+# 쌓아 numpy 연산으로 계산한다(격자·적분규칙 동일 → 결과도 동일).
 def analytic_true_chord_bin_masses(kr: float, rmin: float, rmax: float, true_edges: np.ndarray) -> np.ndarray:
-    masses = np.zeros(len(true_edges) - 1, dtype=np.float64)
-    for j in range(len(masses)):
-        sub = np.geomspace(true_edges[j], true_edges[j + 1], 5)
-        pdf = [_true_chord_pdf_unnorm(x, kr, rmin, rmax) for x in sub]
-        masses[j] = float(np.trapezoid(pdf, sub))
-    return masses
+    r, t, w, ok, n_bins, sub = _true_chord_grid(rmin, rmax, true_edges)
+    pdf = np.trapezoid(w * r ** (-kr), t, axis=1)
+    pdf = np.where(ok, pdf, 0.0)
+    return np.trapezoid(pdf.reshape(n_bins, HYBRID_SUB_PER_BIN), sub, axis=1)
 
 
 # [hybrid 우도] 주어진 '참 현길이' 표본에 방향·중심 배치·창 클리핑만 적용한다.
@@ -966,7 +1005,8 @@ def fraction_by_class(classes: np.ndarray) -> tuple[float, float, float]:
 
 # 적합 진단 지표들로 최종 적합 상태(fit_status)와 기각 여부를 판정한다.
 # 점검: MC 채택수 부족 / 약식별성 / 사후예측 분위수비(q90,q95) / 검열등급 L1 오차.
-# 인자: set_id, MC 채택수, q90/q95 비, class_l1, 약식별성 플래그, window_mode.
+# 인자: set_id, MC 채택수, q90/q95 비, class_l1, 약식별성 플래그, window_mode,
+#       likelihood_mode(결과에 실제 사용된 우도 방식을 기록하기 위함).
 # 반환: (status, rejected 여부, 사유, 경고 리스트). Set 4는 provisional_ok로 상한.
 def determine_status(
     set_id: int,
@@ -976,8 +1016,12 @@ def determine_status(
     class_l1: float,
     weak_identifiability: bool,
     window_mode: str,
+    likelihood_mode: str = "",
 ) -> tuple[str, bool, str, List[str]]:
-    warnings = [WINDOW_WARNING_POLYGON if window_mode == "polygon" else WINDOW_WARNING_BBOX]
+    # 어떤 우도 방식으로 적합했는지를 맨 앞에 남긴다. 아래 창(window) 경고는 창 기하에
+    # 대한 것이지 우도 방식을 뜻하지 않는데, 그것만 보면 window_mc 로 오해하기 쉽다.
+    warnings = [f"likelihood_mode={likelihood_mode}"] if likelihood_mode else []
+    warnings.append(WINDOW_WARNING_POLYGON if window_mode == "polygon" else WINDOW_WARNING_BBOX)
     if n_model_accepted < 5000:
         return "low_mc_acceptance", True, "MC accepted samples < 5000", warnings
     if weak_identifiability:
@@ -1318,6 +1362,7 @@ def fit_set_lmin(
         class_l1,
         profile_summary["weak_identifiability_flag"],
         window_mode,
+        likelihood_mode,
     )
     # 등급별 (모델-관측) 차이 중 가장 큰 항으로 지배적 등급 오차 유형을 라벨링.
     class_diffs = {

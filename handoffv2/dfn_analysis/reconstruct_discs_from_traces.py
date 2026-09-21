@@ -333,33 +333,68 @@ def associate_agglomerative(traces, angle_deg, coplanar_m, max_sep_m,
     members = {i: [traces[i]] for i in range(n)}  # 대표 idx -> 멤버 리스트
 
     # 후보 간선: 같은 set, 법선 축각·공면·근접 게이트 통과쌍 (근접순 정렬)
+    # 판정식은 쌍별 루프와 동일하고 '누구를 언제 검사하느냐'만 바꾼다:
+    #   (a) 블록 분할 — set 과 면(face_x) 라벨만으로 탈락이 정해지는 쌍은 만들지 않는다.
+    #       절리선은 이산 막장면 위에만 있으므로 |Δface_x| > adjacent_dx_max 인
+    #       (면 p, 면 q) 블록은 통째로 건너뛴다(적응 게이트일 때만 해당 조건이 있다).
+    #   (b) 벡터화 — 남은 블록 안의 쌍은 numpy 배열 연산 1회씩으로 일괄 판정한다.
+    #       sqrt/acos 는 단조성을 이용해 제곱거리·코사인 비교로 대체한다.
+    C_all = np.array([t["centroid"] for t in traces], dtype=np.float64)
+    N_all = np.array([t["normal"] for t in traces], dtype=np.float64)
+    FX_all = np.array([float(t["face_x"]) for t in traces], dtype=np.float64)
+    SID_all = np.array([t["set_id"] for t in traces])
+    cos_tol = math.cos(math.radians(angle_deg))  # 축각 <= angle_deg  <=>  |cos| >= cos_tol
+
+    def _block_edges(a, b):
+        """블록 내 쌍 (a, b) 를 벡터 판정해 (공면거리, i, j) 리스트를 만든다 (i < j)."""
+        if not len(a):
+            return []
+        d = C_all[b] - C_all[a]
+        sep2 = np.einsum("ij,ij->i", d, d)  # 제곱거리 (sqrt 생략)
+        if adaptive_sep:
+            dfx = np.abs(FX_all[a] - FX_all[b])
+            nx = np.minimum(0.97, np.maximum(np.abs(N_all[a][:, 0]),
+                                             np.abs(N_all[b][:, 0])))
+            sin_t = np.sqrt(np.maximum(1.0 - nx * nx, 1e-6))
+            gate = np.clip(sep_safety * dfx / sin_t, same_face_sep, sep_cap)
+        else:
+            gate = np.full(len(a), float(max_sep_m))
+        m = sep2 <= gate * gate
+        m &= np.abs(np.einsum("ij,ij->i", N_all[a], N_all[b])) >= cos_tol
+        a, b, d = a[m], b[m], d[m]
+        if not len(a):
+            return []
+        # 공면거리는 a,b 교환에 불변(d 부호만 바뀜) → 간선 라벨만 i<j 로 정규화한다
+        dmax = np.maximum(np.abs(np.einsum("ij,ij->i", d, N_all[a])),
+                          np.abs(np.einsum("ij,ij->i", d, N_all[b])))
+        k = dmax <= coplanar_m
+        return list(zip(dmax[k].tolist(),
+                        np.minimum(a[k], b[k]).tolist(),
+                        np.maximum(a[k], b[k]).tolist()))
+
     edges = []
-    for i in range(n):
-        ti = traces[i]
-        for j in range(i + 1, n):
-            tj = traces[j]
-            if ti["set_id"] != tj["set_id"]:
-                continue
-            sep = float(np.linalg.norm(ti["centroid"] - tj["centroid"]))
-            if adaptive_sep:
-                dfx = abs(float(ti["face_x"]) - float(tj["face_x"]))
-                if dfx > adjacent_dx_max:  # 면 건너뜀(비인접) 원천 차단
-                    continue
-                nx = min(0.97, max(abs(float(ti["normal"][0])),
-                                   abs(float(tj["normal"][0]))))
-                sin_t = math.sqrt(max(1.0 - nx * nx, 1e-6))
-                gate = min(sep_cap, max(same_face_sep, sep_safety * dfx / sin_t))
-            else:
-                gate = max_sep_m
-            if sep > gate:
-                continue
-            if _axial_angle_deg(ti["normal"], tj["normal"]) > angle_deg:
-                continue
-            d_ij = abs(float(np.dot(tj["centroid"] - ti["centroid"], ti["normal"])))
-            d_ji = abs(float(np.dot(ti["centroid"] - tj["centroid"], tj["normal"])))
-            if max(d_ij, d_ji) > coplanar_m:
-                continue
-            edges.append((max(d_ij, d_ji), i, j))
+    for sid_val in np.unique(SID_all):
+        idx_s = np.nonzero(SID_all == sid_val)[0]
+        if len(idx_s) < 2:
+            continue
+        if adaptive_sep:
+            fkey = np.round(FX_all[idx_s], 3)
+            faces_u = np.unique(fkey)
+            by_face = [idx_s[fkey == fv] for fv in faces_u]
+            for p in range(len(faces_u)):
+                for q in range(p, len(faces_u)):
+                    if abs(float(faces_u[q] - faces_u[p])) > adjacent_dx_max:
+                        continue  # 비인접 면 블록: 쌍을 만들지 않는다
+                    I, J = by_face[p], by_face[q]
+                    if p == q:
+                        ii, jj = np.triu_indices(len(I), k=1)
+                        edges += _block_edges(I[ii], I[jj])
+                    elif len(I) and len(J):
+                        edges += _block_edges(np.repeat(I, len(J)),
+                                              np.tile(J, len(I)))
+        else:
+            ii, jj = np.triu_indices(len(idx_s), k=1)
+            edges += _block_edges(idx_s[ii], idx_s[jj])
     edges.sort()
 
     for _, i, j in edges:
