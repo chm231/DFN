@@ -64,6 +64,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import h5py
+from scipy import integrate
 import matplotlib
 
 matplotlib.use("Agg")
@@ -319,7 +320,8 @@ def load_inverted_params(kr_csv: Path, p32_csv: Path) -> Dict[int, dict]:
 # ----------------------------------------------------------------------
 # [함수] 로컬 박스 안에서 set별로 조건화 전(unconditioned) 확률적 은닉 disc를 생성한다.
 #   - 주요 인자: params (set별 역산 파라미터), visible_discs (방향 추정용 복원 disc),
-#     box (로컬 생성 박스), rmax_local (로컬 최대 반지름), seed, target_sets (대상 set)
+#     box (로컬 생성 박스), rmax_local (로컬 최대 반지름), seed, target_sets (대상 set),
+#     rmin_gen (생성 하한 상향값 [m]; None이면 역산 rmin 그대로)
 #   - 반환: 생성된 은닉 disc dict 리스트
 #   - 핵심: target_sets는 데이터 유도값(상위에서 전달), 크기분포는 dist_type로 분기
 def generate_hidden_discs(
@@ -329,11 +331,17 @@ def generate_hidden_discs(
     rmax_local: float,
     seed: int,
     target_sets: List[int],
+    rmin_gen: Optional[float] = None,
 ) -> List[dict]:
     """Generate unconditioned stochastic discs per set inside the local box.
 
     target_sets는 하드코딩이 아니라 상위(main)에서 데이터로부터 유도해 전달한다.
     per-set 분포타입(params["dist_type"])에 따라 powerlaw/exponential 크기분포로 생성한다.
+
+    rmin_gen 을 주면 r >= rmin_gen 인 부분모집단만 생성한다. 개수는 원래 분포로
+    구한 N 에 꼬리확률 P(r >= rmin_gen) 을 곱해 얻으므로 남은 균열의 통계는
+    바뀌지 않는다(작은 균열을 만들지 않을 뿐이다). 무한평면 상위 N 선별처럼
+    큰 균열만 쓰는 용도에서 생성량을 줄이는 데 쓴다.
     """
     # 로컬 박스 부피 V: P32로부터 생성 개수 N 계산에 사용
     V = box["dx"] * box["dy"] * box["dz"]
@@ -368,6 +376,13 @@ def generate_hidden_discs(
         mean_n, kappa = ori
         # 목표 P32와 크기분포로부터 박스 내 생성 개수 N 산출
         N = GEN.compute_num_fractures_from_P32(p["P32"], size_dist, V)
+        # 생성 하한 상향: N 에 꼬리확률을 곱하고 크기분포를 [rmin_gen, rmax]로 절단
+        if rmin_gen is not None and rmin_gen > size_dist["rmin"]:
+            tail, _ = integrate.quad(
+                lambda r: GEN.size_pdf_truncated(np.array([r]), size_dist)[0],
+                float(rmin_gen), size_dist["rmax"])
+            N = int(round(N * tail))
+            size_dist = dict(size_dist, rmin=float(rmin_gen))
         if N <= 0:
             continue
         # set별 재현성 있는 seed 파생 (반지름/법선/중심 샘플링에 각각 사용)
@@ -633,6 +648,7 @@ def main() -> None:
     #   --pipeline-dir   :
     #   --rmax-local     : 기본 10.0 — Upper radius cutoff for local hidden generation
     #                        [m].
+    #   --rmin-gen       : 생성 하한 상향 [m]. r >= 이 값인 균열만 생성(개수는 꼬리확률 보정).
     #   --margin         : Local box margin around faces/window [m]. Default = rmax-
     #                        local.
     #   --seed           : 기본 42
@@ -653,6 +669,9 @@ def main() -> None:
                     default=REPO / "storage/output/pipeline_test_laxemar")
     ap.add_argument("--rmax-local", type=float, default=10.0,
                     help="Upper radius cutoff for local hidden generation [m].")
+    ap.add_argument("--rmin-gen", type=float, default=None,
+                    help="생성 하한 상향 [m]. r >= 이 값인 균열만 생성한다(개수는 "
+                         "꼬리확률로 보정). 무한평면 상위 N 용도에서 생성량 절감용.")
     ap.add_argument("--margin", type=float, default=None,
                     help="Local box margin around faces/window [m]. Default = rmax-local.")
     ap.add_argument("--seed", type=int, default=42)
@@ -722,7 +741,8 @@ def main() -> None:
 
     # --- Generate + condition ---
     # 은닉 disc 생성 후, 관측면과 교차하는 disc를 제거(조건화)
-    hidden_all = generate_hidden_discs(params, visible, box, args.rmax_local, args.seed, target_sets)
+    hidden_all = generate_hidden_discs(params, visible, box, args.rmax_local, args.seed,
+                                       target_sets, args.rmin_gen)
     hidden_kept, n_removed = remove_face_intersecting(hidden_all, face_xs, poly_ccw,
                                                       args.lmin_det)
     print(f"Hidden removed (detected on observed faces, lmin_det={args.lmin_det:g} m): {n_removed}")
