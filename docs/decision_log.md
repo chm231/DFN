@@ -69,3 +69,24 @@ Modes: fall (FS=0) / single-plane / two-plane sliding (Goodman-Shi, Hoek-Bray), 
 Weight uses `V_corr = V_voxel + tol*sum(A_j)` (returns the block's half of each fracture slab).
 Analytic wedge check at vs=0.05 m: failure mode matches in all cases; V_corr error <=0.5%; FS exact for c=0, -3 to -4% for c>0 (O(vs) face-area bias).
 On the seed-42 conditional DFN, use vs<=0.05 m and a physical `--min-volume` threshold; coarser grids (0.1-0.2 m) are not converged.
+
+## D017 - Probabilistic block assessment by conditional-DFN ensemble
+One inversion (reconstructed discs + inverted params) is held fixed; only the unobserved stochastic discs are resampled
+(`export_domain_dfn_json --seed s`), so the ensemble spread is the uncertainty of the unobserved rock mass given the observations.
+kr/P32 parameter uncertainty is not yet propagated.
+Script: `handoffv1/scripts/run_block_ensemble.py` (vs=0.05 m, 6-conn, min_volume=0.01 m3).
+Demo seed 42, N=50: P(>=1 FS<1 block)=0.98, n(FS<1)=4.4+/-2.9, V(FS<1)=0.34+/-0.38 m3; running means stable from N~25.
+Unstable blocks occur at the crown/upper walls only (P~0 at the invert), consistent with gravity-driven modes.
+
+## D018 - Step 4 result: block prediction is biased low; conditioning adds no local skill (demo seed 42, vs=0.05 m)
+Truth vs ensembles (N=50 each): truth 391 blocks / 43 FS<1; conditioned 16 / 4.4; unconditioned 27 / 6.6.
+Voxel-level wall scores: BSS(cond vs uncond) ~ 0, AUC 0.5-0.6 for both at every 2 m band -> no local predictive skill from conditioning.
+Attribution:
+- Set 4 (exponential, visible-only in pipeline) is 35% of true P32 in the domain (2.06 of 5.85 /m) and absent ahead of the face;
+  removing it from truth: 391 -> 64 blocks. Dominant cause.
+- Truth seed 42 is typical (true-param DFNs, 10 seeds, no Set 4: 63 +/- 16 blocks, 15 +/- 5 FS<1).
+- Pipeline generator ablation (no Set 4, 10 seeds): current 25 blocks; kappa from config 21 (not the cause);
+  true params 46 -> ~2/3 of the gap is parameter error, ~1/3 is generator-vs-truth-generator difference (unexplained).
+- rmax_local=25 m cap has no effect (truth with r>25 removed: identical blocks).
+Implication: block formation is a strongly non-linear functional of DFN params; inversion errors acceptable for kr/P32
+validation give ~2x fewer blocks. Set 4 must be generated (blind distribution-family fit) before block results are credible.

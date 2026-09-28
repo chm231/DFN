@@ -191,6 +191,9 @@ def main() -> None:
     ap.add_argument("--tunnel-x-range", nargs=2, type=float, default=None,
                     help="기굴착 터널 벽면 x 범위 [m]. 기본 = 첫 막장면 ~ 마지막 막장면.")
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--unconditioned", action="store_true",
+                    help="비교용 비조건부 DFN: 복원 균열을 넣지 않고 관측 막장면 조건화(제거)도 하지 "
+                         "않는다. 역산 파라미터·방향(복원 균열로 추정)은 조건부와 동일.")
     args = ap.parse_args()
 
     pdir = args.pipeline_dir
@@ -247,12 +250,18 @@ def main() -> None:
     # --- 생성 → 관측 막장면 조건화 → 도메인 절단 ---
     hidden_all = G.generate_hidden_discs(params, visible_all, box, args.rmax_local,
                                          args.seed, target_sets)
-    hidden_kept, n_removed = G.remove_face_intersecting(hidden_all, face_xs, poly_ccw,
-                                                        args.lmin_det)
-    print(f"[condition] 확률 생성 {len(hidden_all):,} → 관측 막장면 검출 제거 {n_removed:,} "
-          f"(lmin_det={args.lmin_det:g} m) → 잔존 {len(hidden_kept):,}")
+    if args.unconditioned:
+        hidden_kept = hidden_all
+        print(f"[condition] 비조건부(--unconditioned): 확률 생성 {len(hidden_all):,} 전량 유지, "
+              f"복원 균열 제외")
+    else:
+        hidden_kept, n_removed = G.remove_face_intersecting(hidden_all, face_xs, poly_ccw,
+                                                            args.lmin_det)
+        print(f"[condition] 확률 생성 {len(hidden_all):,} → 관측 막장면 검출 제거 {n_removed:,} "
+              f"(lmin_det={args.lmin_det:g} m) → 잔존 {len(hidden_kept):,}")
 
-    vis_in = select_intersecting(visible_all, x0, x1, poly_ccw, args.halo, args.domain_shape)
+    vis_in = ([] if args.unconditioned else
+              select_intersecting(visible_all, x0, x1, poly_ccw, args.halo, args.domain_shape))
     hid_in = select_intersecting(hidden_kept, x0, x1, poly_ccw, args.halo, args.domain_shape)
     print(f"[domain] observed   {len(vis_in):,} / {len(visible_all):,}")
     print(f"[domain] unobserved {len(hid_in):,} / {len(hidden_kept):,}")
@@ -355,6 +364,7 @@ def main() -> None:
             "set_parameters": set_params,
             "stochastic_radius_max_m": args.rmax_local,
             "seed": args.seed,
+            "unconditioned": bool(args.unconditioned),
             "caveats": [
                 f"stochastic_generated=false 인 절리군은 확률 생성 배경이 없다. "
                 f"관측에서 복원한 균열만 들어 있으므로 그 절리군의 균열 밀도는 실제보다 낮다.",

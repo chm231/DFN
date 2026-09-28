@@ -23,8 +23,8 @@ Completed: benchmark1 parsimonious baseline report and legacy smoke/tmp archive 
 - Done: steps 1-2 (block detection wired to export JSON; analytic verification). See D015/D016.
   - `handoffv1/dfn_analysis/detect_blocks.py`, `block_detector.py`, `block_stability.py`, `tunnel_geometry.py`
   - `handoffv1/scripts/verify_block_detection.py`
-- Next: step 3 ensemble of conditional DFN realizations -> block probability / volume / FS statistics;
-  step 4 conditioned vs unconditioned vs true DFN (value of observation); step 5 field data (pending from user).
+- Done: step 3 conditional-DFN ensemble (`handoffv1/scripts/run_block_ensemble.py`, D017).
+- Next: step 4 conditioned vs unconditioned vs true DFN (value of observation); step 5 field data (pending from user).
 
 ## Do not change
 - Do not change the `kr` estimator.
