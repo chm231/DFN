@@ -19,8 +19,12 @@ Completed: benchmark1 parsimonious baseline report and legacy smoke/tmp archive 
 - Remaining mismatch should be discussed through observation limits, not patched with set-specific corrections.
 
 ## Next step
-- Use the new common result table and mismatch table to draft the benchmark1 Methods/Results text.
-- If deeper diagnosis is needed, keep it in auxiliary diagnostics without altering the common estimator.
+- Paper (SCI, English): integrated framework trace -> inversion -> conditional DFN -> CCA block formation.
+- Done: steps 1-2 (block detection wired to export JSON; analytic verification). See D015/D016.
+  - `handoffv1/dfn_analysis/detect_blocks.py`, `block_detector.py`, `block_stability.py`, `tunnel_geometry.py`
+  - `handoffv1/scripts/verify_block_detection.py`
+- Next: step 3 ensemble of conditional DFN realizations -> block probability / volume / FS statistics;
+  step 4 conditioned vs unconditioned vs true DFN (value of observation); step 5 field data (pending from user).
 
 ## Do not change
 - Do not change the `kr` estimator.

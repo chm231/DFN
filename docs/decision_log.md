@@ -55,3 +55,17 @@ Diagnostic re-clip test on the observed traces (Laxemar Sets 1/2/3, Forsmark Set
 - `meta/tunnel_poly_yz` is convex for both sites, so the MC `clip_segments_to_convex_polygon_vectorized` path is exact (max|dLen|=0, 0 class diffs vs the general `clip_segment_to_polygon` loop on the same segments).
 - Observed traces already use the same flat polygon window: 0% of observed endpoints fall outside the polygon and stored `observed_length_m` matches the flat-polygon re-clip to within ~0.1% (median stored/reclip ratio 1.000) for every set.
 Mismatch and consistent sets are indistinguishable on all clipping axes; the distinguishing signal remains `observed_radius_mixture_still_larger_than_mc`. Remaining KM-MC tail mismatch should therefore be pursued as a radius-mixture / lmin-fit issue (candidate 3), not polygon clipping or censoring-class geometry.
+
+## D015 - Block detection uses 6-connectivity CCA
+Paper scope extended to CCA block formation (`handoffv1/dfn_analysis/detect_blocks.py`).
+With fracture slab half-thickness `tol = 0.6*vs`, 6-connectivity always separates rock across a single plane,
+while 26-connectivity leaks through every oblique plane (Test A) and loses all three analytic wedges (Test B).
+26 is kept only as a comparison option.
+
+## D016 - Removability + simple limit-equilibrium FS
+Blocks = ROCK components touching the tunnel and not the domain boundary.
+Removability is tested by a voxel sweep (other ROCK blocks; out-of-grid treated as passable).
+Modes: fall (FS=0) / single-plane / two-plane sliding (Goodman-Shi, Hoek-Bray), gravity only, no support/water; min FS among admissible modes.
+Weight uses `V_corr = V_voxel + tol*sum(A_j)` (returns the block's half of each fracture slab).
+Analytic wedge check at vs=0.05 m: failure mode matches in all cases; V_corr error <=0.5%; FS exact for c=0, -3 to -4% for c>0 (O(vs) face-area bias).
+On the seed-42 conditional DFN, use vs<=0.05 m and a physical `--min-volume` threshold; coarser grids (0.1-0.2 m) are not converged.
