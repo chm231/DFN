@@ -32,11 +32,7 @@
 - `validate_blind_f06.py` / `_l05.py` — 블록 위치 블라인드 (면 07~12 증거 vs 확률장)
 
 ### 한양대 쐐기 (top-N 무한평면)
-- `select_top.py` — 무한평면 확장 대상 N개 선별 (**관측 우선 할당**, 기본 n_obs=10).
-  아래 세 스크립트가 공유한다 — 전달 CSV 의 rank 와 실제 판정 평면이 일치해야 하므로
-  선별 로직은 여기 한 곳에만 둔다. `n_obs=0` 이면 260903 전달본의 순수 반지름 순위.
-- `wedge_top20.py` — 상위 N 무한평면 → 제거가능 쐐기 판정 (+SUM 요약 라인).
-  `<json> [n_top] [out_npz] [n_obs]`
+- `wedge_top20.py` — 상위 N 무한평면 → 제거가능 쐐기 판정 (+SUM 요약 라인)
 - `wedge_seed_worker.sh` — 추가 시드 발생확률 전수용
 - `build_wedge_case.py` — 케이스 패키지(표+쐐기 메쉬: 볼록체×터널 clip_surface,
   슬리버는 평활복셀, implicit distance 최종 절단)
