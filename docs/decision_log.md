@@ -122,3 +122,19 @@ Ensembles (N=50, vs=0.05 m, config orientation, fixed reconstruction, rmax_far=2
 - Forsmark (truth 14 / 3, upper tail of true-param DFNs 4.0 / 1.1): uncond 5.6 / 1.34 (p95 15 / 5), cond 2.5 / 0.6.
 Remaining bias is conditioning-specific (cond ~ half of uncond at both sites; near-face 0-2 m P(>=1 FS<1) 0.02-0.26 vs uncond 0.22-0.86),
 consistent with face-crossing large discs being replaced by small reconstructed discs (D019).
+
+## D021 - Censoring-aware posterior radius sampling for observed discs (partial fix of the conditioning deficit)
+Diagnosis (truth used only for checking): reconstructed radius / true radius median 0.99 (r<1 m) -> 0.58 (2-5) -> 0.35 (5-10)
+-> 0.12 (10-25 m); large fractures' traces are 90-100% window-censored, and the shrinkage posterior treated censored chords
+as complete chords (posterior mean = 1.14-1.22 x half-chord a for any a).
+Change (ensemble option only; point estimates / report values unchanged):
+- reconstructed_discs.csv gains a_half, censored, chord_m*, chord_u*, faces (existing columns byte-identical).
+- `sample_visible_discs` (+ `export_domain_dfn_json --sample-visible-radius`, `run_block_ensemble --sample-visible-radius`):
+  per realization, shrinkage discs get R from prior R^-kr (R >= set rmin) x likelihood
+  [uncensored: density of half-chord = a; censored: P(half-chord >= a) = sqrt(1 - a^2/R^2)], center placed to contain the chord,
+  and samples that leave >= lmin_det traces on non-observed faces (or none on observed faces) are rejected (fallback: point estimate).
+Calibration (200 draws): posterior median / true 0.99-1.02 overall, 90% interval coverage 78% (target 90%; misses symmetric);
+>10 m fractures still under-covered (single trace cannot identify them). Sum r^2 Laxemar true 756 / point 277 / posterior 949.
+Ensembles (rmax_far=250, config orientation): cond blocks / FS<1 Laxemar 33 / 9.2 -> 37.4 / 10.0, Forsmark 2.5 / 0.6 -> 3.7 / 0.9
+(uncond 60 / 15.3 and 5.6 / 1.34; truth 64 / 14 and 14 / 3). Near-face 0-2 m P(>=1 FS<1): Laxemar 0.26 -> 0.56, Forsmark 0.02 -> 0.08.
+Large discs (r>5) near the domain: cond 64 -> 66.5 vs uncond 71.3 (Laxemar). The remaining cond < uncond gap (~35-40%) is unexplained.

@@ -60,7 +60,8 @@ def one_realization(job):
                         '--halo', str(a['halo']), '--ahead', str(a['ahead']), '--out', json_path]
                        + (['--unconditioned'] if a['unconditioned'] else [])
                        + (['--config', a['config']] if a['config'] else [])
-                       + (['--rmax-far', str(a['rmax_far'])] if a['rmax_far'] else []),
+                       + (['--rmax-far', str(a['rmax_far'])] if a['rmax_far'] else [])
+                       + (['--sample-visible-radius'] if a['sample_visible_radius'] else []),
                        check=True, cwd=ROOT, env=dict(os.environ, PYTHONPATH=ROOT),
                        stdout=subprocess.DEVNULL)
     with open(json_path, encoding='utf-8') as fh:
@@ -116,6 +117,8 @@ def main():
     ap.add_argument('--workers', type=int, default=3)
     ap.add_argument('--config', default=None,
                     help='export 에 넘길 dataset config JSON (set별 trend/plunge/kappa → 확률 생성 방향)')
+    ap.add_argument('--sample-visible-radius', action='store_true',
+                    help='export: 복원 disc 반지름을 실현마다 절단 반영 사후분포에서 표본')
     ap.add_argument('--unconditioned', action='store_true',
                     help='비교용 비조건부 앙상블 (복원 균열 없음, 관측 막장면 조건화 없음)')
     ap.add_argument('--outdir', default=None, help='기본: <pipeline-dir>/block_ensemble_vs<voxel>')
@@ -206,6 +209,7 @@ def main():
     meta = dict(
         pipeline_dir=a['pipeline_dir'], git_commit=git_commit(), n_real=N, seeds=seeds,
         unconditioned=args.unconditioned, config=args.config,
+        sample_visible_radius=args.sample_visible_radius,
         voxel_size_m=args.voxel_size, tol_factor=args.tol_factor, connectivity=6,
         min_volume_m3=args.min_volume, min_voxels=a['min_voxels'],
         stability=dict(gamma_kN_m3=args.gamma, phi_deg=args.phi, cohesion_kPa=args.cohesion),

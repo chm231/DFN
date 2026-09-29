@@ -177,6 +177,9 @@ def main() -> None:
                     help="2단 생성: 반지름 (rmax_local, rmax_far] 균열을 넓힌 박스에서 추가 생성 [m]. "
                          "미지정 시 rmax_local 에서 절단(종전).")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--sample-visible-radius", action="store_true",
+                    help="앙상블용: shrinkage 복원 disc 의 반지름·중심을 실현마다 절단 반영 사후분포에서 "
+                         "다시 뽑는다(관측 정합성 기각 포함). 기본은 점추정 그대로.")
     ap.add_argument("--lmin-det", type=float, default=0.5,
                     help="검출 하한 [m]. 관측 막장면에서 이 길이 이상으로 보였어야 하는 "
                          "확률 생성 균열만 제거한다.")
@@ -251,6 +254,11 @@ def main() -> None:
     print(f"[gen box] x[{box['x0']:.1f},{box['x0']+box['dx']:.1f}] "
           f"y[{box['y0']:.1f},{box['y0']+box['dy']:.1f}] z[{box['z0']:.1f},{box['z0']+box['dz']:.1f}]"
           f"  V={box['dx']*box['dy']*box['dz']:,.0f} m^3")
+
+    if args.sample_visible_radius and not args.unconditioned:
+        visible_all, st = G.sample_visible_discs(visible_all, params, face_xs, poly_ccw, args.lmin_det,
+                                                 args.rmax_far or 250.0, args.seed)
+        print(f"[visible] 반지름 사후표본: {st['sampled']} 개 (관측 모순으로 점추정 유지 {st['fallback']} 개)")
 
     # --- 생성 → 관측 막장면 조건화 → 도메인 절단 ---
     hidden_all = G.generate_hidden_discs(params, visible_all, box, args.rmax_local,

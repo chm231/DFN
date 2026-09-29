@@ -225,15 +225,87 @@ def load_visible_discs(path: Path, keep_adoptions: Tuple[str, ...]) -> List[dict
             # 유지 대상 adoption이 아니면 건너뜀
             if row["adoption"] not in keep_adoptions:
                 continue
-            discs.append(dict(
+            d = dict(
                 set_id=int(row["set_id"]),
                 center=np.array([float(row["cx"]), float(row["cy"]), float(row["cz"])]),
                 normal=np.array([float(row["nx"]), float(row["ny"]), float(row["nz"])]),
                 radius=float(row["radius"]),
                 source="visible",
                 adoption=row["adoption"],
-            ))
+            )
+            # 반지름 사후표본용 관측 정보(있을 때만; 구버전 CSV 호환)
+            if row.get("a_half"):
+                d.update(radius_status=row["radius_status"], a_half=float(row["a_half"]),
+                         censored=bool(int(row["censored"])),
+                         chord_mid=np.array([float(row[k]) for k in ("chord_mx", "chord_my", "chord_mz")]),
+                         chord_dir=np.array([float(row[k]) for k in ("chord_ux", "chord_uy", "chord_uz")]),
+                         faces=[float(x) for x in row["faces"].split()])
+            discs.append(d)
     return discs
+
+
+# [함수] 관측 반현 a 에 대한 반지름 사후표본 1개.
+#   사전 g(R) ∝ R^-kr (크기편향 멱법칙), 현 offset 균일 가정.
+#   우도: 비절단 trace  p(c = a | R) = a / (R sqrt(R^2 - a^2))
+#         절단 trace    P(c >= a | R) = sqrt(1 - a^2 / R^2)   (관측 길이는 현의 하한)
+#   R = a cosh(u) 치환으로 R→a 특이점 제거, u 격자 역CDF 표본.
+def sample_radius_posterior(a, kr, censored, rmax, rng, rmin=0.0, n_grid=400):
+    if rmax <= a:
+        return a
+    # 모집단 하한 rmin (a 보다 크면 R >= rmin 으로 절단)
+    u = np.linspace(math.acosh(max(rmin, a) / a), math.acosh(rmax / a), n_grid)
+    R = a * np.cosh(u)
+    w = R ** (-kr - 1.0) if not censored else R ** (-kr) * np.tanh(u) * np.sinh(u)
+    cdf = np.concatenate([[0.0], np.cumsum(0.5 * (w[1:] + w[:-1]) * np.diff(u))])
+    return float(a * np.cosh(np.interp(rng.uniform() * cdf[-1], cdf, u)))
+
+
+# [함수] 앙상블 실현 1개용: shrinkage 반지름 가시 disc 의 반지름·중심을 사후분포에서 다시 뽑는다.
+#   - 표본 disc 는 관측 최장 현을 포함하도록 중심을 둔다 (비절단: 현 = 관측 현, 절단: 현 ⊇ 관측 현,
+#     절단 쪽 연장은 좌우 균일 가정).
+#   - 관측 정합성: disc 가 관측되지 않은 막장면에 lmin_det 이상 trace 를 만들거나, 관측된 막장면에
+#     trace 를 만들지 못하면 기각. max_tries 초과 시 원래(점추정) disc 유지.
+#   - determined / lower_bound(kr 없음) disc 와 관측 정보가 없는 disc 는 그대로 둔다.
+#   - 반환: (새 disc 리스트, 통계 dict)
+def sample_visible_discs(visible, params, face_xs, poly_ccw, lmin_det, rmax, seed, max_tries=200):
+    rng = np.random.default_rng(seed + 777)
+    out, n_s, n_fb = [], 0, 0
+    for d in visible:
+        kr = params.get(d["set_id"], {}).get("kr")
+        rmin = params.get(d["set_id"], {}).get("rmin", 0.0)
+        if d.get("radius_status") != "shrinkage" or kr is None:
+            out.append(d)
+            continue
+        n = d["normal"] / np.linalg.norm(d["normal"])
+        t = d["chord_dir"] - (d["chord_dir"] @ n) * n
+        t /= np.linalg.norm(t)
+        q = np.cross(n, t)
+        a = d["a_half"]
+        own = {round(x, 3) for x in d["faces"]}
+        for _ in range(max_tries):
+            R = sample_radius_posterior(a, kr, d["censored"], rmax, rng, rmin=rmin)
+            if d["censored"]:
+                off = rng.uniform(0.0, math.sqrt(max(R * R - a * a, 0.0)))
+                c = math.sqrt(max(R * R - off * off, 0.0))
+                shift = rng.uniform(-(c - a), c - a)
+            else:
+                off, shift = math.sqrt(max(R * R - a * a, 0.0)), 0.0
+            center = d["chord_mid"] + shift * t + (1 if rng.uniform() < 0.5 else -1) * off * q
+            ok = True
+            for xf in face_xs:
+                seg = visible_trace_on_face(center, n, R, xf, poly_ccw)
+                length = 0.0 if seg is None else float(np.linalg.norm(seg[1] - seg[0]))
+                if (round(xf, 3) in own and length <= 0.0) or (round(xf, 3) not in own and length >= lmin_det):
+                    ok = False
+                    break
+            if ok:
+                out.append(dict(d, center=center, radius=R))
+                n_s += 1
+                break
+        else:
+            out.append(d)
+            n_fb += 1
+    return out, dict(sampled=n_s, fallback=n_fb)
 
 
 # [함수] 관측 트레이스 CSV를 읽어 (a) 면(x)별 트레이스, (b) set별 총 트레이스 길이를 반환한다.

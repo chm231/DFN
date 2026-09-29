@@ -178,7 +178,10 @@ def load_traces(trace_h5: str):
                            mid=0.5 * (p0[i] + p1[i]),
                            set_id=int(set_id[i]), face_x=float(face_x[i]),
                            frac_id=int(frac_id[i]),
-                           boundary=bpts, chord=float(np.linalg.norm(p1[i] - p0[i]))))
+                           boundary=bpts, chord=float(np.linalg.norm(p1[i] - p0[i])),
+                           # 관측창(터널 윤곽)에서 잘린 끝점이 하나라도 있으면 절단 trace
+                           censored=not (t0[i] == "disc_boundary" and t1[i] == "disc_boundary"),
+                           chord_dir=(p1[i] - p0[i]) / max(np.linalg.norm(p1[i] - p0[i]), 1e-12)))
     return traces
 
 
@@ -415,11 +418,17 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
         # adoption: 반지름 정보가 있는 disc(determined/shrinkage) → deterministic, 그 외 하한 → orientation_only
         adoption = "deterministic_disc" if radius_status in ("determined", "shrinkage") else "orientation_only"
 
+        # 반지름 사후표본(앙상블 조건화)용 관측 정보: 최장 현 trace 의 반길이·절단 여부·현 기하
+        mt = max(members, key=lambda m: m["chord"])
         discs.append(dict(
             set_id=set_id, cx=center[0], cy=center[1], cz=center[2],
             nx=normal[0], ny=normal[1], nz=normal[2], radius=radius,
             adoption=adoption, n_traces=len(members), n_faces=len(faces),
             residual_m=resid, radius_status=radius_status, arc_deg=round(arc, 1),
+            a_half=0.5 * mt["chord"], censored=int(mt["censored"]),
+            chord_mx=mt["mid"][0], chord_my=mt["mid"][1], chord_mz=mt["mid"][2],
+            chord_ux=mt["chord_dir"][0], chord_uy=mt["chord_dir"][1], chord_uz=mt["chord_dir"][2],
+            faces=" ".join(f"{x:g}" for x in faces),
         ))
     return discs
 
@@ -427,7 +436,9 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
 def write_csv(discs, out_csv):
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     cols = ["set_id", "cx", "cy", "cz", "nx", "ny", "nz", "radius",
-            "adoption", "radius_status", "arc_deg", "n_traces", "n_faces", "residual_m"]
+            "adoption", "radius_status", "arc_deg", "n_traces", "n_faces", "residual_m",
+            "a_half", "censored", "chord_mx", "chord_my", "chord_mz",
+            "chord_ux", "chord_uy", "chord_uz", "faces"]
     with open(out_csv, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
