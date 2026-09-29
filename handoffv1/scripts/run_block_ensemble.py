@@ -58,7 +58,8 @@ def one_realization(job):
                         '--pipeline-dir', a['pipeline_dir'], '--seed', str(seed),
                         '--rmax-local', str(a['rmax_local']), '--lmin-det', str(a['lmin_det']),
                         '--halo', str(a['halo']), '--ahead', str(a['ahead']), '--out', json_path]
-                       + (['--unconditioned'] if a['unconditioned'] else []),
+                       + (['--unconditioned'] if a['unconditioned'] else [])
+                       + (['--config', a['config']] if a['config'] else []),
                        check=True, cwd=ROOT, env=dict(os.environ, PYTHONPATH=ROOT),
                        stdout=subprocess.DEVNULL)
     with open(json_path, encoding='utf-8') as fh:
@@ -110,6 +111,8 @@ def main():
     ap.add_argument('--halo', type=float, default=5.0, help='export: 터널 단면 halo [m]')
     ap.add_argument('--ahead', type=float, default=10.0, help='export: 마지막 막장면 전방 길이 [m]')
     ap.add_argument('--workers', type=int, default=3)
+    ap.add_argument('--config', default=None,
+                    help='export 에 넘길 dataset config JSON (set별 trend/plunge/kappa → 확률 생성 방향)')
     ap.add_argument('--unconditioned', action='store_true',
                     help='비교용 비조건부 앙상블 (복원 균열 없음, 관측 막장면 조건화 없음)')
     ap.add_argument('--outdir', default=None, help='기본: <pipeline-dir>/block_ensemble_vs<voxel>')
@@ -117,6 +120,7 @@ def main():
 
     a = dict(vars(args))
     a['pipeline_dir'] = os.path.abspath(args.pipeline_dir)
+    a['config'] = os.path.abspath(args.config) if args.config else None
     a['outdir'] = os.path.abspath(args.outdir or os.path.join(
         args.pipeline_dir,
         f"block_ensemble{'_uncond' if args.unconditioned else ''}_vs{args.voxel_size:g}"))
@@ -198,7 +202,7 @@ def main():
     p_any = np.mean([s['n_fs_lt1'] > 0 for s in summ])
     meta = dict(
         pipeline_dir=a['pipeline_dir'], git_commit=git_commit(), n_real=N, seeds=seeds,
-        unconditioned=args.unconditioned,
+        unconditioned=args.unconditioned, config=args.config,
         voxel_size_m=args.voxel_size, tol_factor=args.tol_factor, connectivity=6,
         min_volume_m3=args.min_volume, min_voxels=a['min_voxels'],
         stability=dict(gamma_kN_m3=args.gamma, phi_deg=args.phi, cohesion_kPa=args.cohesion),

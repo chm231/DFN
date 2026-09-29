@@ -373,6 +373,16 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
         pts = np.vstack([m["verts"] for m in members])
         set_id = members[0]["set_id"]
         normal, centroid, resid = _fit_plane_svd(pts)
+        # 평면 막장면(v2)에서 한 막장면에만 있는 trace 점들은 모두 막장면 평면 위에 있어
+        # SVD 가 막장면 법선 (1,0,0) 을 돌려준다(직선이면 퇴화). 이때는 trace 3D 법선의 축(axial) 평균을 쓴다.
+        sv = np.linalg.svd(pts - centroid, compute_uv=False)
+        one_face = len({round(m["face_x"], 3) for m in members}) == 1
+        if one_face or len(sv) < 2 or sv[1] < 1e-6 * max(sv[0], 1e-12):
+            ref = members[0]["normal"]
+            normal = np.mean([m["normal"] * (1.0 if m["normal"] @ ref >= 0 else -1.0)
+                              for m in members], axis=0)
+            normal = normal / np.linalg.norm(normal)
+            resid = float(np.sqrt(np.mean(((pts - centroid) @ normal) ** 2)))
         if normal[0] < 0:  # x축 부호로 일관성
             normal = -normal
         faces = sorted({round(m["face_x"], 3) for m in members})

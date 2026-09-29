@@ -363,8 +363,15 @@ def generate_hidden_discs(
                 continue
             size_dist = {"type": "powerlaw", "kr": p["kr"], "rmin": p["rmin"], "rmax": rmax_local}
             size_desc = f"kr={p['kr']:.2f}"
-        # 방향(orientation)은 복원 disc에서 추정
-        ori = set_orientation_from_discs(visible_discs, sid)
+        # 방향(orientation): config 에 trace 기반 추정값(trend/plunge/kappa)이 있으면 그것을 쓰고,
+        # 없으면 복원 disc 법선에서 추정한다. 복원 disc 는 법선을 공유하는 경우가 많아
+        # (예: 한 set 의 disc 전부 동일 법선) 후자는 kappa 를 과대 추정할 수 있다.
+        # config 규약(build_dataset_config_from_traces): pole = [cosP cosT, cosP sinT, -sinP]
+        if "orientation" in p:
+            t, pl, k = np.radians(p["orientation"][0]), np.radians(p["orientation"][1]), p["orientation"][2]
+            ori = (np.array([np.cos(pl) * np.cos(t), np.cos(pl) * np.sin(t), -np.sin(pl)]), k)
+        else:
+            ori = set_orientation_from_discs(visible_discs, sid)
         if ori is None:
             print(f"  [set {sid}] skipped hidden gen: insufficient orientation evidence")
             continue
@@ -649,6 +656,8 @@ def main() -> None:
                 params[sid]["dist_type"] = str(s["dist_type"])
             if "r0" in s:
                 params[sid]["r0"] = float(s["r0"])
+            if {"trend", "plunge", "kappa"} <= s.keys():
+                params[sid]["orientation"] = (float(s["trend"]), float(s["plunge"]), float(s["kappa"]))
 
     # 대상 set: 지정 없으면 역산 파라미터가 있는 모든 set (하드코딩 (1,2,3,5) 제거)
     exclude = set(args.exclude_sets)

@@ -213,6 +213,8 @@ def main() -> None:
                 params[sid]["dist_type"] = str(s["dist_type"])
             if "r0" in s:
                 params[sid]["r0"] = float(s["r0"])
+            if {"trend", "plunge", "kappa"} <= s.keys():
+                params[sid]["orientation"] = (float(s["trend"]), float(s["plunge"]), float(s["kappa"]))
 
     exclude = set(args.exclude_sets)
     target_sets = args.sets if args.sets is not None else sorted(params.keys())

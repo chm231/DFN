@@ -90,3 +90,21 @@ Attribution:
 - rmax_local=25 m cap has no effect (truth with r>25 removed: identical blocks).
 Implication: block formation is a strongly non-linear functional of DFN params; inversion errors acceptable for kr/P32
 validation give ~2x fewer blocks. Set 4 must be generated (blind distribution-family fit) before block results are credible.
+
+## D019 - Reconstruction normal bug fixed; radius cap and small reconstructed radii explain the block deficit (corrects D018)
+Bug: on flat faces (v2) a single-face cluster lies in the face plane, so the SVD plane fit returned the face normal (1,0,0).
+Laxemar 307/418 and Forsmark 182/222 reconstructed discs lay flat in the face; the stochastic generator's orientation
+(estimated from these discs) was corrupted (Forsmark Set 1 kappa=1e6, Laxemar Set 2 kappa=252).
+Fix (`reconstruct_discs_from_traces.py`): single-face / degenerate clusters use the axial mean of the member trace 3D normals.
+After fix: 0 face-normal discs; disc-based orientation matches trace-based config (kappa close, mean within 3 deg).
+Radius tiers unchanged (Laxemar 48/329/41). The 0807 report reconstruction figures (fig_recon_discs_*_v2) show the bug.
+Optional: `--config dataset_config.json` now sets stochastic orientation from trace-based trend/plunge/kappa.
+Block deficit attribution after fix (no Set 4, vs=0.05 m, 6-conn):
+- Laxemar: truth 64 blocks / 14 FS<1; cond 28 / 8.1; uncond 52 / 13.7 (before fix 16 / 4.4 and 27 / 6.6).
+  Per-band truth FS<1 counts now inside the ensemble 5-95% ranges; wall AUC(unstable) 0.71 cond / 0.73 uncond, BSS ~ 0.
+- Radius cap: rmax_local=25 m halves block counts. Truth generator with --rmax 25 vs 250 (Forsmark, 10 seeds, no Set 4):
+  3.0 / 1.1 vs 5.3 / 1.8 blocks / FS<1; pipeline generator with true params 2.7 / 0.8 -> generator gap fully explained.
+  D018's "cap has no effect" was a single-realization artifact and is withdrawn.
+- Conditioning lowers blocks (cond < uncond at both sites): face-crossing large stochastic discs are removed
+  (~6-7 discs with r>5 m per realization, -13 to -16% of large-fracture area) and replaced by reconstructed discs with r <= 5 m.
+- Forsmark truth 14 / 3 is in the upper tail of true-param DFNs (5.9 +/- 3.0 / 2.1); observed discs bound 0 of 126 blocks.

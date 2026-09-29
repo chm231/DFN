@@ -76,13 +76,15 @@ def main():
     ap.add_argument('--pipeline-dir', required=True)
     ap.add_argument('--voxel-size', type=float, default=0.05)
     ap.add_argument('--band', type=float, default=2.0, help='막장면 거리 구간 폭 [m]')
+    ap.add_argument('--cond-dir', default=None, help='조건부 앙상블 폴더 (기본: block_ensemble_vs<voxel>)')
+    ap.add_argument('--uncond-dir', default=None, help='비조건부 앙상블 폴더 (기본: block_ensemble_uncond_vs<voxel>)')
     ap.add_argument('--truth-exclude-sets', nargs='*', type=int, default=[])
     ap.add_argument('--outdir', default=None)
     args = ap.parse_args()
 
     pdir = args.pipeline_dir
-    ens = {k: os.path.join(pdir, f'block_ensemble{sfx}_vs{args.voxel_size:g}')
-           for k, sfx in (('cond', ''), ('uncond', '_uncond'))}
+    ens = {'cond': args.cond_dir or os.path.join(pdir, f'block_ensemble_vs{args.voxel_size:g}'),
+           'uncond': args.uncond_dir or os.path.join(pdir, f'block_ensemble_uncond_vs{args.voxel_size:g}')}
     meta = {k: json.load(open(os.path.join(v, 'ensemble_meta.json'), encoding='utf-8'))
             for k, v in ens.items()}
     npz = {k: np.load(os.path.join(v, 'wall_probability.npz')) for k, v in ens.items()}
