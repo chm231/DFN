@@ -173,6 +173,9 @@ def main() -> None:
                     help="마지막 막장면에서 굴진 방향(+x)으로의 연장 길이 [m].")
     ap.add_argument("--rmax-local", type=float, default=10.0,
                     help="확률 생성 균열의 반지름 상한 [m].")
+    ap.add_argument("--rmax-far", type=float, default=None,
+                    help="2단 생성: 반지름 (rmax_local, rmax_far] 균열을 넓힌 박스에서 추가 생성 [m]. "
+                         "미지정 시 rmax_local 에서 절단(종전).")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--lmin-det", type=float, default=0.5,
                     help="검출 하한 [m]. 관측 막장면에서 이 길이 이상으로 보였어야 하는 "
@@ -251,7 +254,7 @@ def main() -> None:
 
     # --- 생성 → 관측 막장면 조건화 → 도메인 절단 ---
     hidden_all = G.generate_hidden_discs(params, visible_all, box, args.rmax_local,
-                                         args.seed, target_sets)
+                                         args.seed, target_sets, rmax_far=args.rmax_far)
     if args.unconditioned:
         hidden_kept = hidden_all
         print(f"[condition] 비조건부(--unconditioned): 확률 생성 {len(hidden_all):,} 전량 유지, "
@@ -364,13 +367,14 @@ def main() -> None:
                 "fractures_daylighting_on_wall": n_frac_on_wall,
             },
             "set_parameters": set_params,
-            "stochastic_radius_max_m": args.rmax_local,
+            "stochastic_radius_max_m": args.rmax_far or args.rmax_local,
             "seed": args.seed,
             "unconditioned": bool(args.unconditioned),
             "caveats": [
                 f"stochastic_generated=false 인 절리군은 확률 생성 배경이 없다. "
                 f"관측에서 복원한 균열만 들어 있으므로 그 절리군의 균열 밀도는 실제보다 낮다.",
-                f"확률 생성 균열의 반지름은 {args.rmax_local:g} m 에서 잘랐다. 그보다 큰 균열은 이 파일에 없다.",
+                f"확률 생성 균열의 반지름은 {args.rmax_far or args.rmax_local:g} m 에서 잘랐다. 그보다 큰 균열은 이 파일에 없다."
+                + (f" ({args.rmax_local:g} m 초과 균열은 2단 생성)" if args.rmax_far else ""),
                 f"도메인 앞면(x={x0:g} m)은 마지막 관측 막장면이다. 그 면에 절리선을 남기는 "
                 f"확률 생성 균열은 제거했으므로 x={x0:g} m 부근의 unobserved 밀도가 낮게 나타난다. "
                 f"그 자리는 observed 균열이 대신한다.",

@@ -64,6 +64,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import h5py
+from scipy.integrate import quad
 import matplotlib
 
 matplotlib.use("Agg")
@@ -332,8 +333,14 @@ def generate_hidden_discs(
     rmax_local: float,
     seed: int,
     target_sets: List[int],
+    rmax_far: Optional[float] = None,
 ) -> List[dict]:
     """Generate unconditioned stochastic discs per set inside the local box.
+
+    rmax_far (선택): 주면 2단 생성. 반지름 (rmax_local, rmax_far] 균열을 box 를 사방으로
+    (rmax_far - rmax_local) 만큼 넓힌 박스에서 추가 생성한다(box 여유 = rmax_local 가정).
+    set P32 는 [rmin, rmax_far] 절단 분포 기준으로 두 단에 면적 모멘트 비율대로 나눈다.
+    None 이면 종전과 동일(rmax_local 절단, P32 전량을 국소 박스에).
 
     target_sets는 하드코딩이 아니라 상위(main)에서 데이터로부터 유도해 전달한다.
     per-set 분포타입(params["dist_type"])에 따라 powerlaw/exponential 크기분포로 생성한다.
@@ -376,27 +383,40 @@ def generate_hidden_discs(
             print(f"  [set {sid}] skipped hidden gen: insufficient orientation evidence")
             continue
         mean_n, kappa = ori
-        # 목표 P32와 크기분포로부터 박스 내 생성 개수 N 산출
-        N = GEN.compute_num_fractures_from_P32(p["P32"], size_dist, V)
-        if N <= 0:
-            continue
-        # set별 재현성 있는 seed 파생 (반지름/법선/중심 샘플링에 각각 사용)
-        base = seed + sid * 1000
-        # 반지름/법선(Fisher)/중심을 원본 생성기 함수로 샘플링
-        radii = GEN.sample_radius(size_dist, N, seed=base)
-        normals = GEN.sample_fisher_normals(mean_n, kappa, N, seed=base + 1)
-        strike_u, dip_u = GEN.normal_to_strike_dip_basis_vectorized(normals)
-        centers = GEN.sample_centers_from_surface_points(
-            box, radii, strike_u, dip_u, "area_uniform", seed=base + 2
-        )
-        # 샘플들을 은닉 disc dict로 축적
-        for j in range(N):
-            hidden.append(dict(
-                set_id=sid, center=centers[j], normal=normals[j],
-                radius=float(radii[j]), source="hidden", adoption="stochastic",
-            ))
-        print(f"  [set {sid}] hidden generated: N={N:,}  (P32={p['P32']:.3f}, {size_desc}, "
-              f"rmin={size_dist['rmin']:.2f}, kappa={kappa:.1f})")
+        # 2단 생성: [rmin, rmax_far] 절단 분포의 면적 모멘트로 P32 를 국소/원거리 단에 배분
+        tiers = [(size_dist, box, p["P32"], 0)]
+        if rmax_far is not None and rmax_far > rmax_local:
+            full = dict(size_dist, rmax=rmax_far)
+            m2 = lambda a, b: quad(lambda r: r * r * GEN.size_pdf_truncated(np.array([r]), full)[0], a, b)[0]
+            frac_local = m2(size_dist["rmin"], rmax_local) / m2(size_dist["rmin"], rmax_far)
+            g = rmax_far - rmax_local
+            far_box = dict(x0=box["x0"] - g, dx=box["dx"] + 2 * g, y0=box["y0"] - g, dy=box["dy"] + 2 * g,
+                           z0=box["z0"] - g, dz=box["dz"] + 2 * g)
+            tiers = [(size_dist, box, p["P32"] * frac_local, 0),
+                     (dict(size_dist, rmin=rmax_local, rmax=rmax_far), far_box,
+                      p["P32"] * (1.0 - frac_local), 500)]
+        for t_dist, t_box, t_p32, t_off in tiers:
+            # 목표 P32와 크기분포로부터 박스 내 생성 개수 N 산출
+            N = GEN.compute_num_fractures_from_P32(t_p32, t_dist, t_box["dx"] * t_box["dy"] * t_box["dz"])
+            if N <= 0:
+                continue
+            # set별 재현성 있는 seed 파생 (반지름/법선/중심 샘플링에 각각 사용)
+            base = seed + sid * 1000 + t_off
+            # 반지름/법선(Fisher)/중심을 원본 생성기 함수로 샘플링
+            radii = GEN.sample_radius(t_dist, N, seed=base)
+            normals = GEN.sample_fisher_normals(mean_n, kappa, N, seed=base + 1)
+            strike_u, dip_u = GEN.normal_to_strike_dip_basis_vectorized(normals)
+            centers = GEN.sample_centers_from_surface_points(
+                t_box, radii, strike_u, dip_u, "area_uniform", seed=base + 2
+            )
+            # 샘플들을 은닉 disc dict로 축적
+            for j in range(N):
+                hidden.append(dict(
+                    set_id=sid, center=centers[j], normal=normals[j],
+                    radius=float(radii[j]), source="hidden", adoption="stochastic",
+                ))
+            print(f"  [set {sid}] hidden generated: N={N:,}  (P32={t_p32:.3f}, {size_desc}, "
+                  f"r=[{t_dist['rmin']:.2f},{t_dist['rmax']:g}], kappa={kappa:.1f})")
     return hidden
 
 

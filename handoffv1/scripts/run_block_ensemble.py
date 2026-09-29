@@ -59,7 +59,8 @@ def one_realization(job):
                         '--rmax-local', str(a['rmax_local']), '--lmin-det', str(a['lmin_det']),
                         '--halo', str(a['halo']), '--ahead', str(a['ahead']), '--out', json_path]
                        + (['--unconditioned'] if a['unconditioned'] else [])
-                       + (['--config', a['config']] if a['config'] else []),
+                       + (['--config', a['config']] if a['config'] else [])
+                       + (['--rmax-far', str(a['rmax_far'])] if a['rmax_far'] else []),
                        check=True, cwd=ROOT, env=dict(os.environ, PYTHONPATH=ROOT),
                        stdout=subprocess.DEVNULL)
     with open(json_path, encoding='utf-8') as fh:
@@ -108,6 +109,8 @@ def main():
     ap.add_argument('--cohesion', type=float, default=0.0)
     ap.add_argument('--rmax-local', type=float, default=25.0, help='export: 확률 생성 반지름 상한 [m]')
     ap.add_argument('--lmin-det', type=float, default=0.5, help='export: 검출 하한 [m]')
+    ap.add_argument('--rmax-far', type=float, default=None,
+                    help='export: 2단 생성 원거리 단 반지름 상한 [m] (미지정 = rmax-local 절단)')
     ap.add_argument('--halo', type=float, default=5.0, help='export: 터널 단면 halo [m]')
     ap.add_argument('--ahead', type=float, default=10.0, help='export: 마지막 막장면 전방 길이 [m]')
     ap.add_argument('--workers', type=int, default=3)
@@ -206,7 +209,7 @@ def main():
         voxel_size_m=args.voxel_size, tol_factor=args.tol_factor, connectivity=6,
         min_volume_m3=args.min_volume, min_voxels=a['min_voxels'],
         stability=dict(gamma_kN_m3=args.gamma, phi_deg=args.phi, cohesion_kPa=args.cohesion),
-        export=dict(rmax_local_m=args.rmax_local, lmin_det_m=args.lmin_det, halo_m=args.halo,
+        export=dict(rmax_local_m=args.rmax_local, rmax_far_m=args.rmax_far, lmin_det_m=args.lmin_det, halo_m=args.halo,
                     ahead_m=args.ahead),
         wall_layer='non-tunnel voxels 6-adjacent to tunnel; theta=atan2(z-zc, y-yc), crown=90 deg',
         P_any_block_fs_lt1=float(p_any),

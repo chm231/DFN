@@ -108,3 +108,17 @@ Block deficit attribution after fix (no Set 4, vs=0.05 m, 6-conn):
 - Conditioning lowers blocks (cond < uncond at both sites): face-crossing large stochastic discs are removed
   (~6-7 discs with r>5 m per realization, -13 to -16% of large-fracture area) and replaced by reconstructed discs with r <= 5 m.
 - Forsmark truth 14 / 3 is in the upper tail of true-param DFNs (5.9 +/- 3.0 / 2.1); observed discs bound 0 of 126 blocks.
+
+## D020 - Two-tier stochastic generation removes the radius-cap bias
+`generate_hidden_discs(..., rmax_far=R)` / `export_domain_dfn_json --rmax-far R` / `run_block_ensemble --rmax-far R`:
+discs with r in (rmax_local, R] are generated in the box widened by (R - rmax_local); set P32 is split between tiers by the
+area moment of the [rmin, R] truncated distribution (sum unchanged). Default (no --rmax-far) is byte-identical to before.
+Check, pipeline generator with true params vs truth generator (rmax 250, no Set 4):
+Laxemar 58.2 / 15.7 vs 63 / 15.1 blocks / FS<1 (was 46 / 12.6 with the 25 m cap);
+Forsmark (n=20 vs 30 seeds) 3.80+/-0.63 / 1.15 vs 3.97+/-0.55 / 1.10.
+Ensembles (N=50, vs=0.05 m, config orientation, fixed reconstruction, rmax_far=250):
+- Laxemar (truth no Set 4: 64 / 14): uncond 60 / 15.3 (p5-p95 33-91 / 7.5-25.6) -> truth reproduced; cond 33 / 9.2.
+  Largest block volume mean 5.6 m3 uncond (2.9 before). Wall AUC(FS<1) cond 0.69 / uncond 0.78; BSS ~ 0.
+- Forsmark (truth 14 / 3, upper tail of true-param DFNs 4.0 / 1.1): uncond 5.6 / 1.34 (p95 15 / 5), cond 2.5 / 0.6.
+Remaining bias is conditioning-specific (cond ~ half of uncond at both sites; near-face 0-2 m P(>=1 FS<1) 0.02-0.26 vs uncond 0.22-0.86),
+consistent with face-crossing large discs being replaced by small reconstructed discs (D019).
