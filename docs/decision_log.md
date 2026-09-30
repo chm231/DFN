@@ -138,3 +138,54 @@ Calibration (200 draws): posterior median / true 0.99-1.02 overall, 90% interval
 Ensembles (rmax_far=250, config orientation): cond blocks / FS<1 Laxemar 33 / 9.2 -> 37.4 / 10.0, Forsmark 2.5 / 0.6 -> 3.7 / 0.9
 (uncond 60 / 15.3 and 5.6 / 1.34; truth 64 / 14 and 14 / 3). Near-face 0-2 m P(>=1 FS<1): Laxemar 0.26 -> 0.56, Forsmark 0.02 -> 0.08.
 Large discs (r>5) near the domain: cond 64 -> 66.5 vs uncond 71.3 (Laxemar). The remaining cond < uncond gap (~35-40%) is unexplained.
+
+## D022 - Cause of the conditioned < unconditioned block gap (synthetic benchmark)
+With the same seed, cond and uncond share identical stochastic discs; the difference is exactly
+R (stochastic discs removed because they leave >= 0.5 m traces on observed faces) vs V (reconstructed discs added).
+Reference T = truth discs that leave >= 0.5 m traces (same criterion). In-domain P32 (10 seeds, Set 4 excluded for Laxemar):
+- Laxemar: T 0.208 (r>5: 0.090) | R 0.303 (0.157) | V 0.120 (0.029); disc counts 176 / 177 / 145.
+- Forsmark: T 0.143 (0.093) | R 0.249 (0.185) | V 0.101 (0.064); counts 97 / 85 / 78.
+Net V - R = -0.18 / -0.15 per m, ~70-80% of it in r > 5 m discs -> this is the cond < uncond gap.
+Two parts of similar size: (i) V < T: reconstructed discs still carry ~40-50% too little in-domain intensity
+(large fractures seen only as short censored chords are not identifiable; posterior under-covers r > 10 m, D021);
+(ii) R > T: the model removes ~1.5-1.7x the truth's face-crossing intensity; the removal rule matches T's criterion,
+so this reflects parameter tail differences and single-truth variance (large discs are few), not a rule flaw.
+The removal rule itself is consistent; the fixable part is (i).
+
+## D023 - First field inversion (DFM export, 12 faces, converter output; sets 1-4)
+Converter reproduced (6,447 traces, 6 global sets at 30 deg cut, observation area 795.43 m2). Sets 5/6 (<100 traces, 1-2 faces) not inverted.
+Orientation (trace-based): kappa 11-15. Hybrid kr with generation rmin 0.5 m:
+- lmin 0.5: kr 3.85-3.95; model median too long (1.03 vs 0.82 m) and q90 too short (1.66 vs 1.94-2.13 m); class L1 0.22-0.27 (sets 2-4).
+- kr is lmin-dependent: 0.75 m -> 3.15-3.30, 1.0 m -> 2.85-3.20, 1.5 m -> 3.05-3.35 (median fit improves above 0.75 m).
+- Blind lmin rule picks 0.5 (set 1) and 1.0 (sets 2-4).
+P32 (forward_mc_lmin, same lmin on observed and simulated): total sets 1-4 = 3.98 / 3.28 / 2.95 m2/m3 at lmin 0.5 / 0.75 / 1.0.
+P32(r >= 0.5) should be lmin-invariant; the 26% drift means the truncated power-law disc model does not describe the
+0.5-1 m trace band. The excess of 0.5-0.75 m traces is not a face-resolution artifact (n(>=0.5)/n(>=0.75) = 1.70 high-res vs 1.77 low-res).
+Open: C_lmin > E[sin phi] (~5%) in forward_mc_lmin (eta > 1 is unphysical). Field results are provisional.
+
+## D024 - Field lmin-drift diagnosis (hypotheses 1-3)
+Scratch diagnostics (field/diag_family.py, diag_termination.py; converter re-runs with --edge-tol).
+H1 radius family (trace-length MLE, size-biased discs, uniform offset, right-censoring): simplified model reproduces the
+pipeline's power-law drift (kr 3.8 / 3.1 / 2.6 at lmin 0.5 / 0.75 / 1.0). Power law is rejected at lmin 0.5 (dAIC 170-410 vs lognormal),
+but the best lognormal has an unphysical cm-scale median and unstable parameters across lmin -> no smooth radius family fixes it;
+the trace-length distribution has more short traces than any "trace = full disc chord" kernel allows.
+H2 T-termination: uncensored endpoints lie within 5 cm of another-set trace 32.9% vs 26.1% for midpoints (2 cm: 13.1% vs 9.4%)
+-> real but modest (~7% of endpoints).
+H3 censoring tolerance: edge_tol 0.05 / 0.15 / 0.30 m -> censored share 2 / 8 / 16%, kr(lmin 0.5) ~4.1-4.35 / 3.85-3.95 / 3.5-3.65;
+shifts kr but the ~1.0 drop between lmin 0.5 and 1.0 remains at every tolerance.
+Leading open hypothesis H4 (needs the DFM team): DFM traces are "planar polygonal patch" based (patch radius = half trace length by
+construction), i.e. trace length may measure the exposed planar patch extent on the rough face, not the fracture-face intersection chord.
+If so, the observation model (not the radius family) must change.
+
+## D025 - Trace length-angle dependence: (b) patch-boundary mechanism NOT confirmed
+The dependence survives set and censoring control (rho -0.21 to -0.41), but above the 0.5 m detection floor it is not significant
+for set 1 (rho -0.097, p 0.078). Short traces have significantly larger normal deviation and their angle alpha regresses to 45 deg,
+so the patch-boundary mechanism and the normal-noise mechanism cannot be separated with the current data. Confirmation of (b) is withheld
+(the earlier "(b) supported" reading overstated the evidence).
+Separately, patch normals violate perpendicularity to their own traces: median 8.26 deg, 43.4% > 10 deg (other session, 3D endpoints);
+cross-check here with flattened endpoints: median 9.16 deg, 46.4% > 10 deg, decreasing with length (10.8 deg for L < 0.3 m -> 5.4 deg for L >= 1 m).
+This is promoted to the main item of the DFM-team query. It propagates into the converter and reconstruction (patch normal used as
+fracture orientation); impact not yet measured.
+Also recorded: DFM disc radius = half trace length by construction ((L/2)/R median 1.008, centre at trace midpoint) -> no independent size information.
+Next: normal-independent plane refit from 3D_tunnel_face_point_cloud.ply around each trace (separates the two mechanisms; also feeds kappa
+correction and association tolerance). Spacing-based P32: auxiliary cross-check only (gives no kr; Terzaghi still uses orientation).
