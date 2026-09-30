@@ -517,15 +517,21 @@ def reconstruct(trace_h5, association, angle_deg, coplanar_m, max_sep_m,
         pts = np.vstack([m["verts"] for m in members])
         set_id = members[0]["set_id"]
         normal, centroid, resid = _fit_plane_svd(pts)
-        if len(pts) < 3:
-            # 단일 절리선(2점 폴리라인)은 점 SVD가 퇴화(placeholder [1,0,0] 반환)
-            # → 실측 trace 법선을 disc 법선으로 사용한다.
-            normal = np.asarray(members[0]["normal"], dtype=np.float64)
+        faces = sorted({round(m["face_x"], 3) for m in members})
+        if len(pts) < 3 or len(faces) == 1:
+            # 단일 절리선(2점 폴리라인)은 점 SVD가 퇴화(placeholder [1,0,0] 반환).
+            # 한 막장면만 관통한 클러스터도 점이 전부 그 면 평면 위에 있어
+            # SVD가 막장면 법선을 돌려준다 → 두 경우 모두 실측 trace 법선을 쓴다.
+            ref = np.asarray(members[0]["normal"], dtype=np.float64)
+            normal = np.zeros(3)
+            for m in members:
+                n = np.asarray(m["normal"], dtype=np.float64)
+                normal += n if float(n @ ref) >= 0.0 else -n  # 축성(±동일시) 평균
             normal = normal / np.linalg.norm(normal)
-            resid = 0.0
+            resid = 0.0 if len(pts) < 3 else float(
+                np.sqrt(np.mean(((pts - centroid) @ normal) ** 2)))
         if normal[0] < 0:  # x축 부호로 일관성
             normal = -normal
-        faces = sorted({round(m["face_x"], 3) for m in members})
 
         # (0) [실험: --multi-chord-fit] 다면 클러스터의 현 보존 적합.
         # 면 교차선들은 disc 평면 내에서 모두 평행(방향 d = n×x̂)이므로,
