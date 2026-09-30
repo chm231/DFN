@@ -1,0 +1,125 @@
+# -*- coding: utf-8 -*-
+"""260910 공유자료 v3 — 10분 발표용 11장. 흑백 테마 규약(CLAUDE.md §18).
+   삭제(사용자 지시): B-1 방식 비교, C-2 결과, C-3 블라인드, 뷰어 목록, 한계·다음 단계.
+   A-1/A-2 병합, B-1 요지는 edge-cut 원리 슬라이드에 한 줄, C-2/C-3 핵심 수치는 마지막 뷰어 슬라이드에."""
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.oxml.ns import qn
+from lxml import etree
+import os, re, sys
+
+SC = os.path.dirname(os.path.abspath(__file__))
+PV = os.path.join(SC, "pv")
+REPO = r"C:\Users\user\OneDrive\2026-1\3D DFN modeling"
+FIG = os.path.join(REPO, "docs", "figures")
+OUT = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\user\OneDrive\2026-2\현대건설\260910 공유자료.pptx"
+
+# 흑백(그레이스케일) 테마 규약 — 모식도·표·상자는 색 대신 명도·선 굵기로 구분 (데이터 그림·렌더는 원색 유지)
+NAVY = RGBColor(0x1A, 0x1A, 0x1A); ACC = RGBColor(0x40, 0x40, 0x40); GREY = RGBColor(0x59, 0x59, 0x59)
+LIGHT = RGBColor(0xF2, 0xF2, 0xF2); WHITE = RGBColor(0xFF, 0xFF, 0xFF); BLACK = RGBColor(0x22, 0x22, 0x22)
+F1 = RGBColor(0xF7, 0xF7, 0xF7); F2 = RGBColor(0xEB, 0xEB, 0xEB); F3 = RGBColor(0xDF, 0xDF, 0xDF); MIDGREY = RGBColor(0x8C, 0x8C, 0x8C)
+FONT = "맑은 고딕"
+prs = Presentation(); prs.slide_width = Inches(13.333); prs.slide_height = Inches(7.5)
+BLANK = prs.slide_layouts[6]; _n = [0]
+FOOT = "지난 일주일 개발 공유 — 다면 복원 max_sep · edge-cut 블록 판정 · 확률 컨투어   |   2026-09-10"
+
+
+def _run(p, text, size, bold=False, color=BLACK, italic=False):
+    r = p.add_run(); r.text = text; f = r.font
+    f.name = FONT; f.size = Pt(size); f.bold = bold; f.italic = italic; f.color.rgb = color
+    return r
+
+
+def _rich(p, text, size, color=BLACK, bold_all=False):
+    for part in re.split(r"(\*\*[^*]+\*\*)", text):
+        if not part: continue
+        if part.startswith("**") and part.endswith("**"): _run(p, part[2:-2], size, bold=True, color=color)
+        else: _run(p, part, size, bold=bold_all, color=color)
+
+
+def slide(title, subtitle=None, tag=None):
+    _n[0] += 1
+    s = prs.slides.add_slide(BLANK)
+    tb = s.shapes.add_textbox(Inches(0.5), Inches(0.28), Inches(12.3), Inches(0.6)); tf = tb.text_frame; tf.word_wrap = True
+    _run(tf.paragraphs[0], title, 24, bold=True, color=NAVY)
+    if subtitle: _run(tf.add_paragraph(), subtitle, 12, color=GREY)
+    ln = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.98), Inches(12.3), Pt(2.5))
+    ln.fill.solid(); ln.fill.fore_color.rgb = NAVY; ln.line.fill.background()
+    if tag:
+        t = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(11.3), Inches(0.05), Inches(1.5), Inches(0.28))
+        t.fill.solid(); t.fill.fore_color.rgb = ACC; t.line.fill.background()
+        p = t.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER; _run(p, tag, 9, bold=True, color=WHITE)
+    ft = s.shapes.add_textbox(Inches(0.5), Inches(7.05), Inches(12.3), Inches(0.3)); p = ft.text_frame.paragraphs[0]
+    _run(p, f"{FOOT}   |   {_n[0]}", 9, color=GREY); p.alignment = PP_ALIGN.RIGHT
+    return s
+
+
+def text(s, x, y, w, h, items, size=13, spacing=4):
+    tb = s.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h)); tf = tb.text_frame; tf.word_wrap = True; first = True
+    for it in items:
+        lvl, t = (it if isinstance(it, tuple) else (0, it))
+        p = tf.paragraphs[0] if first else tf.add_paragraph(); first = False; p.space_after = Pt(spacing)
+        if lvl == -1: _rich(p, t, size + 1, color=NAVY, bold_all=True)
+        elif lvl == 0: _rich(p, "•  " + t, size)
+        elif lvl == 2: _rich(p, t, size, color=GREY)
+        else: _rich(p, "      –  " + t, size - 1, color=GREY)
+    return tb
+
+
+def note(s, script, src=""):
+    body = "[발표 스크립트]\n" + script.strip()
+    if src: body += "\n\n[출처·메모]\n" + src.strip()
+    s.notes_slide.notes_text_frame.text = body
+
+
+def table(s, x, y, w, rows, col_w=None, size=11, hdr=True, row_h=0.32):
+    nr, nc = len(rows), len(rows[0])
+    shp = s.shapes.add_table(nr, nc, Inches(x), Inches(y), Inches(w), Inches(row_h * nr)); tbl = shp.table
+    if col_w:
+        for i, cw in enumerate(col_w): tbl.columns[i].width = Inches(cw)
+    for i, row in enumerate(rows):
+        for j, val in enumerate(row):
+            c = tbl.cell(i, j); c.margin_left = c.margin_right = Inches(0.06); c.margin_top = c.margin_bottom = Inches(0.03)
+            tf = c.text_frame; tf.word_wrap = True; p = tf.paragraphs[0]; p.text = ""
+            if hdr and i == 0:
+                _run(p, str(val), size, bold=True, color=WHITE); c.fill.solid(); c.fill.fore_color.rgb = NAVY
+            else:
+                _rich(p, str(val), size); c.fill.solid(); c.fill.fore_color.rgb = (LIGHT if i % 2 == 0 else WHITE)
+            c.vertical_anchor = MSO_ANCHOR.MIDDLE
+    return tbl
+
+
+def image(s, path, x, y, w=None, h=None):
+    if not os.path.exists(path):
+        tb = s.shapes.add_textbox(Inches(x), Inches(y), Inches(w or 4), Inches(h or 1))
+        _run(tb.text_frame.paragraphs[0], f"[그림 없음] {os.path.basename(path)}", 10, color=ACC); return tb
+    kw = {}
+    if w: kw["width"] = Inches(w)
+    if h: kw["height"] = Inches(h)
+    return s.shapes.add_picture(path, Inches(x), Inches(y), **kw)
+
+
+def caption(s, x, y, w, txt, size=9):
+    tb = s.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(0.4)); tb.text_frame.word_wrap = True
+    _rich(tb.text_frame.paragraphs[0], txt, size, color=GREY)
+
+
+def box(s, x, y, w, h, title, body, fill=LIGHT, size=11):
+    shp = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+    shp.adjustments[0] = 0.06; shp.fill.solid(); shp.fill.fore_color.rgb = fill; shp.line.color.rgb = NAVY; shp.line.width = Pt(1)
+    tf = shp.text_frame; tf.word_wrap = True; tf.margin_left = tf.margin_right = Inches(0.1); tf.margin_top = Inches(0.06)
+    tf.vertical_anchor = MSO_ANCHOR.TOP; p = tf.paragraphs[0]; p.alignment = PP_ALIGN.LEFT
+    _run(p, title, size + 1, bold=True, color=NAVY)
+    for line in body:
+        q = tf.add_paragraph(); q.alignment = PP_ALIGN.LEFT; q.space_after = Pt(2); _rich(q, line, size)
+    return shp
+
+
+def arrow(s, x1, y1, x2, y2):
+    c = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
+    c.line.color.rgb = NAVY; c.line.width = Pt(2)
+    ln = c.line._get_or_add_ln(); tail = etree.SubElement(ln, qn("a:tailEnd")); tail.set("type", "triangle")
+    return c
