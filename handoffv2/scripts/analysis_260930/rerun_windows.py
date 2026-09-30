@@ -11,7 +11,9 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 H2 = Path(r"c:/Users/user/OneDrive/2026-1/3D DFN modeling/handoffv2")
 OUT = H2 / "demo_output"
-BK = Path(__file__).parent / "before_windows"
+# 백업 위치는 스크립트 위치와 무관하게 고정한다. __file__ 기준으로 두면 스크립트를
+# 옮긴 뒤 재실행할 때 새 빈 폴더가 생겨 "수정 전" 기준이 현재 파일로 덮어써진다.
+BK = Path(os.environ.get("RERUN_BACKUP_DIR", OUT.parent / "_rerun_backup"))
 BK.mkdir(exist_ok=True)
 
 def key(p):
@@ -36,7 +38,8 @@ for w in wins:
     k0, rows0 = key(bkp)
     ts = (OUT / w / "target_sets.txt").read_text().split()
     ok = None
-    for opt, name in ((["--adaptive-sep"], "적응"), ([], "고정")):
+    for opt, name in ((["--adaptive-sep"], "적응"), ([], "고정4.5"),
+                      (["--max-centroid-sep", "3.5"], "고정3.5")):
         cmd = [sys.executable, "-X", "utf8", "-m", "dfn_analysis.reconstruct_discs_from_traces",
                "--trace-h5", str(OUT / w / "trace_dataset/trace_dataset_3d.h5"),
                "--kr-summary-csv", str(OUT / w / "kr/kr_summary_by_set.csv"),
