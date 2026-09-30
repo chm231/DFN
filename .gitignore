@@ -52,3 +52,7 @@ handoffv3/demodata/
 handoffv3/scripts/analysis_260903/win_input/
 
 handoffv2/scripts/analysis_260903/win_input/
+
+# 전처리 자료 압축물 (원본은 별도 보관)
+DFM_전처리자료_원본_*.zip
+DFM_전처리자료_원본_*_분할/
